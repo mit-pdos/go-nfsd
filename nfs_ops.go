@@ -1,6 +1,8 @@
 package goose_nfs
 
-import ()
+import (
+	"log"
+)
 
 type Nfs struct {
 	log *Log
@@ -11,13 +13,14 @@ type Nfs struct {
 
 func MkNfs() *Nfs {
 	fs := mkFsSuper() // run first so that disk is initialized before mkLog
-	log := mkLog()
+	l := mkLog()
 	root := mkRootInode()
 	rootblk := root.encode()
 	fs.putRootBlk(ROOTINUM, rootblk)
 	ic := mkCache()
 	bc := mkCache()
-	return &Nfs{log: log, ic: ic, bc: bc, fs: fs}
+	go l.Logger()
+	return &Nfs{log: l, ic: ic, bc: bc, fs: fs}
 }
 
 // Returns locked inode on success
@@ -30,8 +33,9 @@ func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	}
 	ip.lock()
 	if ip.gen != fh.gen {
+		log.Printf("wrong gen\n")
 		ip.unlock()
-		nfs.fs.putInode(txn, ip)
+		ip.putInode(nfs.ic, txn)
 		return nil
 	}
 	return ip
@@ -48,7 +52,8 @@ func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 		reply.Resok.Obj_attributes = ip.mkFattr()
 		txn.Commit()
 		ip.unlock()
-		nfs.fs.putInode(txn, ip)
+		log.Println("putinode")
+		ip.putInode(nfs.ic, txn)
 	}
 	return nil
 }

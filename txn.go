@@ -2,25 +2,46 @@ package goose_nfs
 
 import (
 	"github.com/tchajed/goose/machine/disk"
+
+	"log"
+	"sync"
 )
+
+type Buf struct {
+	mu    *sync.RWMutex
+	blk   *disk.Block
+	blkno uint64
+}
 
 type Txn struct {
 	log   *Log
 	cache *Cache
-	blks  map[uint64]*disk.Block
+	bufs  map[uint64]*Buf
 }
 
-func (txn *Txn) load(co *Cobj, a uint64) *disk.Block {
+// Returns a locked buf
+func (txn *Txn) load(co *Cobj, a uint64) *Buf {
 	var blk *disk.Block
 	co.mu.Lock()
 	if !co.valid {
+		log.Printf("load block %d\n", a)
 		blk := disk.Read(a)
 		co.obj = &blk
 		co.valid = true
 	}
 	blk = co.obj.(*disk.Block)
+	buf := &Buf{mu: new(sync.RWMutex), blk: blk, blkno: a}
+	buf.mu.Lock()
 	co.mu.Unlock()
-	return blk
+	return buf
+}
+
+// Release locks
+func (txn *Txn) release() {
+	log.Printf("release bufs")
+	for _, buf := range txn.bufs {
+		buf.mu.Unlock()
+	}
 }
 
 // XXX wait if cannot reserve space in log
@@ -28,51 +49,57 @@ func Begin(log *Log, cache *Cache) *Txn {
 	txn := &Txn{
 		log:   log,
 		cache: cache,
-		blks:  make(map[uint64]*disk.Block),
+		bufs:  make(map[uint64]*Buf),
 	}
 	return txn
 }
 
-func (txn *Txn) Write(addr uint64, buf *disk.Block) bool {
+func (txn *Txn) Write(addr uint64, blk *disk.Block) bool {
 	var ret bool = true
-	_, ok := txn.blks[addr]
+	_, ok := txn.bufs[addr]
 	if ok {
-		txn.blks[addr] = buf
+		txn.bufs[addr].blk = blk
 	}
 	if !ok {
 		if addr == LOGMAXBLK {
 			// TODO: should be able to return early here
 			ret = false
 		} else {
-			txn.blks[addr] = buf
+			panic("lock buf first")
+			txn.bufs[addr].blk = blk
 		}
 	}
 	return ret
 }
 
 func (txn *Txn) Read(addr uint64) *disk.Block {
-	v, ok := txn.blks[addr]
+	v, ok := txn.bufs[addr]
 	if ok {
-		return v
+		return v.blk
 	} else {
 		a := addr + LOGEND
 		co := txn.cache.getputObj(addr + LOGEND)
 		if co == nil {
 			return nil
 		}
-		blk := txn.load(co, a)
-		return blk
+		buf := txn.load(co, a)
+		txn.bufs[addr] = buf
+		return buf.blk
 	}
 }
 
 func (txn *Txn) Commit() bool {
-	blks := new([]disk.Block)
-	for _, v := range txn.blks {
-		*blks = append(*blks, *v)
+	log.Printf("commit\n")
+	bufs := new([]Buf)
+	for _, buf := range txn.bufs {
+		log.Printf("buf %v\n", buf.blkno)
+		*bufs = append(*bufs, *buf)
 	}
-	ok := (*txn.log).Append(*blks)
+	ok := (*txn.log).Append(*bufs)
+	txn.release()
 	return ok
 }
 
 func (txn *Txn) Abort() {
+	txn.release()
 }

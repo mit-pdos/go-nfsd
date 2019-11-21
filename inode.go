@@ -3,6 +3,7 @@ package goose_nfs
 import (
 	"github.com/tchajed/goose/machine/disk"
 
+	"log"
 	"sync"
 )
 
@@ -84,6 +85,16 @@ func (ip *Inode) unlock() {
 
 func (ip *Inode) lock() {
 	ip.mu.Lock()
+}
+
+func (ip *Inode) putInode(c *Cache, txn *Txn) {
+	log.Printf("put inode %d\n", ip.inum)
+	last := c.putObj(ip.inum)
+	// XXX is this ok? is there a way ip could be resurrected
+	// before we are done with it.
+	if last && ip.nlink == 0 {
+		// XXX truncate once we can create an inode with data
+	}
 }
 
 func allocInode(tx *Txn, kind Ftype3) *Inode {
