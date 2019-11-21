@@ -7,6 +7,8 @@ import (
 	"sync"
 )
 
+// XXX keep track whether buffer was modified so that we don't write
+// it into log on commit.
 type Buf struct {
 	mu    *sync.RWMutex
 	blk   *disk.Block
