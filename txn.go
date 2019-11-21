@@ -94,7 +94,6 @@ func (txn *Txn) Commit() bool {
 	log.Printf("commit\n")
 	bufs := new([]Buf)
 	for _, buf := range txn.bufs {
-		log.Printf("buf %v\n", buf.blkno)
 		*bufs = append(*bufs, *buf)
 	}
 	ok := (*txn.log).Append(*bufs)

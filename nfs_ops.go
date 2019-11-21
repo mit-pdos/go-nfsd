@@ -52,7 +52,6 @@ func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 		reply.Resok.Obj_attributes = ip.mkFattr()
 		txn.Commit()
 		ip.unlock()
-		log.Println("putinode")
 		ip.putInode(nfs.ic, txn)
 	}
 	return nil
