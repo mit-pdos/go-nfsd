@@ -6,6 +6,7 @@ type Nfs struct {
 	log *Log
 	ic  *inodeCache
 	fs  *FsSuper
+	bc  *Cache
 }
 
 func MkNfs() *Nfs {
@@ -15,7 +16,8 @@ func MkNfs() *Nfs {
 	rootblk := root.encode()
 	fs.putRootBlk(ROOTINUM, rootblk)
 	ic := mkInodeCache()
-	return &Nfs{log: log, ic: ic, fs: fs}
+	bc := mkCache()
+	return &Nfs{log: log, ic: ic, bc: bc, fs: fs}
 }
 
 // Returns locked inode on success
@@ -42,7 +44,7 @@ func (nfs *Nfs) getInode(tx *Txn, fh3 Nfs_fh3) *Inode {
 }
 
 func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
-	tx := Begin(nfs.log)
+	tx := Begin(nfs.log, nfs.bc)
 	ip := nfs.getInode(tx, args.Object)
 	if ip == nil {
 		reply.Status = NFS3ERR_STALE
@@ -58,7 +60,7 @@ func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 }
 
 func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
-	tx := Begin(nfs.log)
+	tx := Begin(nfs.log, nfs.bc)
 	dip := nfs.getInode(tx, args.Where.Dir)
 	if dip == nil {
 		reply.Status = NFS3ERR_STALE
