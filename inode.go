@@ -57,20 +57,21 @@ func (ip *Inode) mkFattr() Fattr3 {
 	}
 }
 
-func (ip *Inode) encode() disk.Block {
+func (ip *Inode) encode() *disk.Block {
 	enc := NewEnc()
 	enc.PutInt32(uint32(ip.kind))
 	enc.PutInt32(ip.nlink)
 	enc.PutInt(ip.gen)
 	enc.PutInt(ip.size)
 	enc.PutInts(ip.blks)
-	return enc.Finish()
+	blk := enc.Finish()
+	return &blk
 }
 
-func decode(blk disk.Block) *Inode {
+func decode(blk *disk.Block) *Inode {
 	ip := &Inode{}
 	ip.mu = new(sync.RWMutex)
-	dec := NewDec(blk)
+	dec := NewDec(*blk)
 	ip.kind = Ftype3(dec.GetInt32())
 	ip.nlink = dec.GetInt32()
 	ip.gen = dec.GetInt()
@@ -95,8 +96,4 @@ func (ip *Inode) putInode(c *Cache, txn *Txn) {
 	if last && ip.nlink == 0 {
 		// XXX truncate once we can create an inode with data
 	}
-}
-
-func allocInode(tx *Txn, kind Ftype3) *Inode {
-	return nil
 }

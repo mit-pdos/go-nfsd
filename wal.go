@@ -20,6 +20,7 @@ type Log struct {
 	memLen    uint64 // length of in-memory log
 	memTxnNxt uint64 // next in-memory transaction number
 	logTxnNxt uint64 // next log transaction number
+	shutdown  bool
 }
 
 func mkLog() *Log {
@@ -31,6 +32,7 @@ func mkLog() *Log {
 		memLen:    0,
 		memTxnNxt: 0,
 		logTxnNxt: 0,
+		shutdown:  false,
 	}
 	l.writeHdr(0, l.memLog)
 	return l
@@ -162,7 +164,7 @@ func (l *Log) diskAppend() {
 	memnxt := l.memTxnNxt
 	l.memLock.Unlock()
 
-	// log.Printf("diskAppend mlen %d disklen %d\n", memlen, disklen)
+	log.Printf("diskAppend mlen %d disklen %d\n", memlen, hdr.length)
 
 	l.writeBlocks(bufs, hdr.length)
 	l.writeHdr(memlen, allbufs)
@@ -173,7 +175,12 @@ func (l *Log) diskAppend() {
 }
 
 func (l *Log) Logger() {
-	for {
+	for !l.shutdown {
 		l.diskAppend()
 	}
+}
+
+func (l *Log) Shutdown() {
+	// XXX protect shutdown
+	l.shutdown = true
 }

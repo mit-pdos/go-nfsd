@@ -102,5 +102,6 @@ func (txn *Txn) Commit() bool {
 }
 
 func (txn *Txn) Abort() {
+	log.Printf("abort\n")
 	txn.release()
 }

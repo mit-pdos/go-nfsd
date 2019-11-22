@@ -30,6 +30,18 @@ func (suite *NfsSuite) TestGetRoot() {
 	suite.Equal(attr.Status, NFS3_OK)
 	suite.Equal(attr.Resok.Obj_attributes.Ftype, NF3DIR)
 
+	nfs.ShutdownNfs()
+}
+
+func (suite *NfsSuite) TestCreate() {
+	nfs := suite.nfs
+	where := Diropargs3{Dir: MkRootFh3(), Name: "x"}
+	how := Createhow3{}
+	args := &CREATE3args{Where: where, How: how}
+	attr := &CREATE3res{}
+	res := nfs.Create(args, attr)
+	suite.Require().Nil(res)
+	nfs.ShutdownNfs()
 }
 
 func TestNfs(t *testing.T) {
