@@ -52,11 +52,12 @@ func (txn *Txn) add(co *Cobj, a uint64, blk *disk.Block) *Buf {
 	return buf
 }
 
-// Release locks
+// Release locks and cache slot
 func (txn *Txn) release() {
 	log.Printf("release bufs")
 	for _, buf := range txn.bufs {
 		buf.mu.Unlock()
+		txn.cache.putObj(buf.blkno)
 	}
 }
 

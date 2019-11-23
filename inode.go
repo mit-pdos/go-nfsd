@@ -11,6 +11,8 @@ const NF3FREE Ftype3 = 0
 
 const NDIRECT uint64 = 10
 
+// XXX mu is unnecessary because transaction already has the inode block
+// locked
 type Inode struct {
 	// in-memory info:
 	mu   *sync.RWMutex
