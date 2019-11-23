@@ -38,6 +38,20 @@ func (txn *Txn) load(co *Cobj, a uint64) *Buf {
 	return buf
 }
 
+// Returns a locked buf
+func (txn *Txn) add(co *Cobj, a uint64, blk *disk.Block) *Buf {
+	co.mu.Lock()
+	if co.valid {
+		panic("add")
+	}
+	co.valid = true
+	co.obj = blk
+	buf := &Buf{mu: new(sync.RWMutex), blk: blk, blkno: a}
+	buf.mu.Lock()
+	co.mu.Unlock()
+	return buf
+}
+
 // Release locks
 func (txn *Txn) release() {
 	log.Printf("release bufs")
@@ -63,13 +77,12 @@ func (txn *Txn) Write(addr uint64, blk *disk.Block) bool {
 		txn.bufs[addr].blk = blk
 	}
 	if !ok {
-		if addr == LOGMAXBLK {
-			// TODO: should be able to return early here
-			ret = false
-		} else {
-			panic("lock buf first")
-			txn.bufs[addr].blk = blk
+		co := txn.cache.getputObj(addr)
+		if co == nil {
+			panic("Write: addCache")
 		}
+		buf := txn.add(co, addr, blk)
+		txn.bufs[addr] = buf
 	}
 	return ret
 }
@@ -79,12 +92,11 @@ func (txn *Txn) Read(addr uint64) *disk.Block {
 	if ok {
 		return v.blk
 	} else {
-		a := addr + LOGEND
-		co := txn.cache.getputObj(addr + LOGEND)
+		co := txn.cache.getputObj(addr)
 		if co == nil {
 			return nil
 		}
-		buf := txn.load(co, a)
+		buf := txn.load(co, addr)
 		txn.bufs[addr] = buf
 		return buf.blk
 	}

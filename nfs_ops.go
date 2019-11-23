@@ -12,11 +12,16 @@ type Nfs struct {
 }
 
 func MkNfs() *Nfs {
+	log.Printf("\nMake FsSuper\n")
 	fs := mkFsSuper() // run first so that disk is initialized before mkLog
-	l := mkLog()
+	l := mkLog(fs.nLog)
+	if l == nil {
+		panic("mkLog failed")
+	}
 	root := mkRootInode()
 	rootblk := root.encode()
 	fs.putRootBlk(ROOTINUM, rootblk)
+	fs.markAlloc(fs.inodeStart() + fs.nInode)
 	ic := mkCache()
 	bc := mkCache()
 	go l.Logger()
@@ -73,13 +78,32 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 		return nil
 	}
 	log.Printf("getInode %v\n", dip)
-	ip := nfs.fs.allocInode(txn, NF3REG)
-	log.Printf("allocInode %v\n", ip)
-	if ip == nil {
+	inum := nfs.fs.allocInode(txn, NF3REG)
+	if inum == 0 {
 		reply.Status = NFS3ERR_NOSPC
+		dip.unlock()
+		dip.putInode(nfs.ic, txn)
+		txn.Abort()
+		return nil
+	}
+	inum1 := dip.lookupLink(txn, args.Where.Name)
+	if inum1 != 0 {
+		reply.Status = NFS3ERR_EXIST
+		dip.unlock()
+		dip.putInode(nfs.ic, txn)
+		txn.Abort()
+		return nil
+	}
+	ok := dip.addLink(nfs.fs, txn, inum, args.Where.Name)
+	if !ok {
+		reply.Status = NFS3ERR_IO
+		dip.unlock()
+		dip.putInode(nfs.ic, txn)
 		txn.Abort()
 		return nil
 	}
 	txn.Commit()
+	dip.unlock()
+	dip.putInode(nfs.ic, txn)
 	return nil
 }

@@ -9,8 +9,6 @@ import (
 
 const LOGCOMMIT = uint64(0)
 const LOGSTART = uint64(1)
-const LOGMAXBLK = uint64(504 / 8)
-const LOGEND = LOGMAXBLK + LOGSTART
 
 type Log struct {
 	logLock   *sync.RWMutex // protects on disk log
@@ -23,11 +21,15 @@ type Log struct {
 	shutdown  bool
 }
 
-func mkLog() *Log {
+// sz < LOGMAXBLOCK
+func mkLog(sz uint64) *Log {
+	if sz >= uint64((512-8)/8) {
+		return nil
+	}
 	l := &Log{
 		logLock:   new(sync.RWMutex),
 		memLock:   new(sync.RWMutex),
-		logSz:     LOGMAXBLK,
+		logSz:     sz,
 		memLog:    make([]Buf, 0),
 		memLen:    0,
 		memTxnNxt: 0,
@@ -40,7 +42,7 @@ func mkLog() *Log {
 
 type Hdr struct {
 	length uint64
-	addrs  []uint64 // length < LOGMAXBLOCK
+	addrs  []uint64
 }
 
 func decodeHdr(blk disk.Block) Hdr {
@@ -101,7 +103,7 @@ func (l *Log) memWrite(bufs []Buf) {
 
 func (l *Log) memAppend(bufs []Buf) (bool, uint64) {
 	l.memLock.Lock()
-	if l.memLen+uint64(len(bufs)) >= l.logSz {
+	if l.memLen+uint64(len(bufs)) >= l.logSz-1 {
 		l.memLock.Unlock()
 		return false, uint64(0)
 	}
@@ -164,7 +166,7 @@ func (l *Log) diskAppend() {
 	memnxt := l.memTxnNxt
 	l.memLock.Unlock()
 
-	log.Printf("diskAppend mlen %d disklen %d\n", memlen, hdr.length)
+	// log.Printf("diskAppend mlen %d disklen %d\n", memlen, hdr.length)
 
 	l.writeBlocks(bufs, hdr.length)
 	l.writeHdr(memlen, allbufs)

@@ -97,3 +97,102 @@ func (ip *Inode) putInode(c *Cache, txn *Txn) {
 		// XXX truncate once we can create an inode with data
 	}
 }
+
+func (ip *Inode) resize(fs *FsSuper, txn *Txn, sz uint64) bool {
+	if sz < ip.size {
+		panic("resize not implemented")
+	}
+	bn, ok := fs.allocBlock(txn)
+	log.Printf("allocblock: %d\n", bn)
+	if !ok {
+		return false
+	}
+	b := ip.size / disk.BlockSize
+	ip.blks[b] = bn
+	ok1 := fs.writeInode(txn, ip)
+	if !ok1 {
+		panic("resize: writeInode failed")
+	}
+	return ok
+}
+
+const MaxNameLen = 4096 - 1 - 8
+
+type DirEnt struct {
+	Valid bool
+	Name  string // max 4096-1-8=4087 bytes
+	Inum  Inum
+}
+
+func encodeDirEnt(de *DirEnt) *disk.Block {
+	if len(de.Name) > MaxNameLen {
+		panic("directory entry name too long")
+	}
+	enc := NewEnc()
+	enc.PutString(de.Name)
+	enc.PutBool(de.Valid)
+	enc.PutInt(de.Inum)
+	blk := enc.Finish()
+	return &blk
+}
+
+func decodeDirEnt(b *disk.Block) *DirEnt {
+	dec := NewDec(*b)
+	de := &DirEnt{}
+	de.Name = dec.GetString()
+	de.Valid = dec.GetBool()
+	de.Inum = dec.GetInt()
+	return de
+}
+
+func (ip *Inode) lookupLink(txn *Txn, name Filename3) uint64 {
+	if ip.kind != NF3DIR {
+		return 0
+	}
+	blocks := ip.size / disk.BlockSize
+	for b := uint64(0); b < blocks; b++ {
+		blk := (*txn).Read(ip.blks[b])
+		de := decodeDirEnt(blk)
+		if !de.Valid {
+			continue
+		}
+		if de.Name == string(name) {
+			return de.Inum
+		}
+	}
+	return 0
+}
+
+func (ip *Inode) addLink(fs *FsSuper, txn *Txn, inum uint64, name Filename3) bool {
+	var freede *DirEnt
+	var blkno uint64
+
+	if ip.kind != NF3DIR {
+		return false
+	}
+	blocks := ip.size / disk.BlockSize
+	for b := uint64(0); b < blocks; b++ {
+		blk := (*txn).Read(ip.blks[b])
+		de := decodeDirEnt(blk)
+		if !de.Valid {
+			blkno = ip.blks[b]
+			freede = de
+			break
+		}
+		continue
+	}
+	if freede == nil {
+		ok := ip.resize(fs, txn, ip.size+disk.BlockSize)
+		if !ok {
+			return false
+		}
+		blkno = ip.blks[blocks]
+	}
+	de := &DirEnt{Valid: true, Inum: inum, Name: string(name)}
+	blk := encodeDirEnt(de)
+	ok := (*txn).Write(blkno, blk)
+	if !ok {
+		panic("addLink")
+	}
+	return true
+}

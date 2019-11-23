@@ -41,6 +41,7 @@ func (suite *NfsSuite) TestCreate() {
 	attr := &CREATE3res{}
 	res := nfs.Create(args, attr)
 	suite.Require().Nil(res)
+	suite.Equal(attr.Status, NFS3_OK)
 	nfs.ShutdownNfs()
 }
 
