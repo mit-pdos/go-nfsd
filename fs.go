@@ -43,7 +43,8 @@ func (fs *FsSuper) initFs() {
 	fs.markAlloc(fs.inodeStart() + fs.nInode)
 }
 
-func findMarkAlloc(blk disk.Block) (uint64, bool) {
+// Find a free bit in blk and toggle it
+func findAndMark(blk disk.Block) (uint64, bool) {
 	for byte := uint64(0); byte < disk.BlockSize; byte++ {
 		byteVal := blk[byte]
 		if byteVal == 0xff {
@@ -60,9 +61,17 @@ func findMarkAlloc(blk disk.Block) (uint64, bool) {
 	return 0, false
 }
 
+// Toggle bit bn in blk
+func freeBit(blk disk.Block, bn uint64) {
+	byte := bn / 8
+	bit := bn % 8
+	blk[byte] = blk[byte] & ^(1 << bit)
+}
+
+// XXX support several bitmap blocks
 func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
 	blk := (*txn).Read(fs.bitmapStart())
-	bit, ok := findMarkAlloc(blk)
+	bit, ok := findAndMark(blk)
 	if !ok {
 		return 0, false
 	}
@@ -71,6 +80,15 @@ func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
 		panic("allocBlock")
 	}
 	return bit, true
+}
+
+func (fs *FsSuper) freeBlock(txn *Txn, bn uint64) {
+	blk := (*txn).Read(fs.bitmapStart())
+	freeBit(blk, bn)
+	ok1 := (*txn).Write(fs.bitmapStart(), blk)
+	if !ok1 {
+		panic("freeBlock")
+	}
 }
 
 func (fs *FsSuper) readInodeBlock(txn *Txn, inum uint64) (disk.Block, bool) {
@@ -126,7 +144,7 @@ func (fs *FsSuper) loadInode(txn *Txn, slot *Cslot, a uint64) *Inode {
 	return i
 }
 
-func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) uint64 {
+func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) Inum {
 	var inode *Inode
 	for inum := uint64(1); inum < fs.nInode; inum++ {
 		i, ok := fs.readInode(txn, inum)
@@ -150,9 +168,21 @@ func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) uint64 {
 	return inode.inum
 }
 
+func (fs *FsSuper) freeInode(txn *Txn, inum Inum) {
+	i, ok := fs.readInode(txn, inum)
+	if !ok {
+		panic("freeInode")
+	}
+	if i.kind == NF3FREE {
+		panic("freeInode")
+	}
+	i.kind = NF3FREE
+	_ = fs.writeInode(txn, i)
+}
+
 // for mkfs
 
-// XXX deal with maximum size of disk
+// XXX mark bn > maximum size of disk has allocated
 func (fs *FsSuper) markAlloc(n uint64) {
 	log.Printf("markAlloc: %d\n", n)
 	blk := make(disk.Block, disk.BlockSize)

@@ -86,12 +86,21 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	return nil
 }
 
+// XXX deal with how
 func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Create %v\n", args)
 	dip := nfs.getInode(txn, args.Where.Dir)
 	if dip == nil {
 		reply.Status = NFS3ERR_STALE
+		txn.Abort()
+		return nil
+	}
+	inum1 := dip.lookupLink(txn, args.Where.Name)
+	if inum1 != NULLINUM {
+		reply.Status = NFS3ERR_EXIST
+		dip.unlock()
+		dip.putInode(nfs.ic, txn)
 		txn.Abort()
 		return nil
 	}
@@ -103,18 +112,9 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 		txn.Abort()
 		return nil
 	}
-	inum1 := dip.lookupLink(txn, args.Where.Name)
-	if inum1 != NULLINUM {
-		// XXX free inode inum
-		reply.Status = NFS3ERR_EXIST
-		dip.unlock()
-		dip.putInode(nfs.ic, txn)
-		txn.Abort()
-		return nil
-	}
 	ok := dip.addLink(nfs.fs, txn, inum, args.Where.Name)
 	if !ok {
-		// XXX free inode inum
+		nfs.fs.freeInode(txn, inum)
 		reply.Status = NFS3ERR_IO
 		dip.unlock()
 		dip.putInode(nfs.ic, txn)
