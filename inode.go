@@ -167,6 +167,26 @@ func (ip *Inode) readBlock(txn *Txn, boff uint64) disk.Block {
 	return txn.Read(ip.blks[boff])
 }
 
+func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
+	var n uint64 = uint64(0)
+	var ok bool = true
+	data := make([]byte, count)
+	for boff := offset / disk.BlockSize; n < count; boff++ {
+		byteoff := offset / disk.BlockSize
+		nbytes := disk.BlockSize - byteoff
+		if count-n < nbytes {
+			nbytes = count - n
+		}
+		blk := ip.readBlock(txn, boff)
+		for b := uint64(0); b < nbytes; b++ {
+			data[n+b] = blk[byteoff+b]
+		}
+		n = n + nbytes
+		offset = offset + nbytes
+	}
+	return data, ok
+}
+
 func (ip *Inode) writeBlock(txn *Txn, boff uint64, blk disk.Block) bool {
 	return txn.Write(ip.blks[boff], blk)
 }

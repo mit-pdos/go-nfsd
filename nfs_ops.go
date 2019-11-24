@@ -106,6 +106,36 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	return nil
 }
 
+func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
+	txn := Begin(nfs.log, nfs.bc)
+	log.Printf("Read %v\n", args.File)
+	ip := nfs.getInode(txn, args.File)
+	if ip == nil {
+		reply.Status = NFS3ERR_STALE
+		txn.Abort()
+		return nil
+	}
+	if ip.kind != NF3REG {
+		reply.Status = NFS3ERR_INVAL
+		txn.Abort()
+		ip.unlockPut(nfs.ic, txn)
+		return nil
+	}
+	data, ok := ip.read(txn, uint64(args.Offset), uint64(args.Count))
+	if !ok {
+		reply.Status = NFS3ERR_NOSPC
+		txn.Abort()
+		return nil
+	} else {
+		reply.Status = NFS3_OK
+		reply.Resok.Count = Count3(len(data))
+		reply.Resok.Data = data
+		txn.Commit()
+	}
+	ip.unlockPut(nfs.ic, txn)
+	return nil
+}
+
 func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Write %v\n", args.File)

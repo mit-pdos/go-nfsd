@@ -85,6 +85,18 @@ func (suite *NfsSuite) Write(fh Nfs_fh3, sz uint64) {
 	suite.Equal(reply.Status, NFS3_OK)
 }
 
+func (suite *NfsSuite) Read(fh Nfs_fh3, sz uint64) []byte {
+	args := &READ3args{
+		File:   fh,
+		Offset: Offset3(0),
+		Count:  Count3(8192)}
+	reply := &READ3res{}
+	res := suite.nfs.Read(args, reply)
+	suite.Require().Nil(res)
+	suite.Equal(reply.Status, NFS3_OK)
+	return reply.Resok.Data
+}
+
 func (suite *NfsSuite) TestMakeFile() {
 	suite.Create("x")
 	fh := suite.Lookup("x")
@@ -92,7 +104,8 @@ func (suite *NfsSuite) TestMakeFile() {
 	suite.Setattr(fh, 8192)
 	suite.Getattr(fh, 8192)
 	suite.Write(fh, 8192)
-
+	data := suite.Read(fh, 8192)
+	suite.Equal(len(data), 8192)
 	suite.nfs.ShutdownNfs()
 }
 
