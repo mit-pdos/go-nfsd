@@ -31,15 +31,27 @@ func (fs *FsSuper) dataStart() uint64 {
 	return fs.nLog + fs.nBitmap + fs.nInode
 }
 
-func findMarkAlloc(blk *disk.Block) (uint64, bool) {
+func (fs *FsSuper) initFs() {
+	nulli := mkNullInode()
+	nullblk := make(disk.Block, disk.BlockSize)
+	nulli.encode(nullblk)
+	fs.putBlkDirect(NULLINUM, nullblk)
+	root := mkRootInode()
+	rootblk := make(disk.Block, disk.BlockSize)
+	root.encode(rootblk)
+	fs.putBlkDirect(ROOTINUM, rootblk)
+	fs.markAlloc(fs.inodeStart() + fs.nInode)
+}
+
+func findMarkAlloc(blk disk.Block) (uint64, bool) {
 	for byte := uint64(0); byte < disk.BlockSize; byte++ {
-		byteVal := (*blk)[byte]
+		byteVal := blk[byte]
 		if byteVal == 0xff {
 			continue
 		}
 		for bit := uint64(0); bit < 8; bit++ {
 			if byteVal&(1<<bit) == 0 {
-				(*blk)[byte] |= 1 << bit
+				blk[byte] |= 1 << bit
 				off := bit + 8*byte
 				return off, true
 			}
@@ -61,25 +73,25 @@ func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
 	return bit, true
 }
 
-func (fs *FsSuper) readInodeBlock(txn *Txn, inum uint64) (bool, disk.Block) {
+func (fs *FsSuper) readInodeBlock(txn *Txn, inum uint64) (disk.Block, bool) {
 	if inum >= fs.nInode {
-		return false, nil
+		return nil, false
 	}
 	blk := (*txn).Read(fs.inodeStart() + inum)
-	return true, *blk
+	return blk, true
 }
 
-func (fs *FsSuper) readInode(txn *Txn, inum uint64) (bool, *Inode) {
+func (fs *FsSuper) readInode(txn *Txn, inum uint64) (*Inode, bool) {
 	if inum >= fs.nInode {
-		return false, nil
+		return nil, false
 	}
-	blk := (*txn).Read(fs.inodeStart() + inum)
-	i := decode(blk)
+	blk, ok := fs.readInodeBlock(txn, inum)
+	i := decode(blk, inum)
 	log.Printf("readInode %v %v\n", inum, i)
-	return true, i
+	return i, ok
 }
 
-func (fs *FsSuper) writeInodeBlock(txn *Txn, inum uint64, blk *disk.Block) bool {
+func (fs *FsSuper) writeInodeBlock(txn *Txn, inum uint64, blk disk.Block) bool {
 	if inum >= fs.nInode {
 		return false
 	}
@@ -91,15 +103,19 @@ func (fs *FsSuper) writeInodeBlock(txn *Txn, inum uint64, blk *disk.Block) bool 
 }
 
 func (fs *FsSuper) writeInode(txn *Txn, inode *Inode) bool {
-	blk := inode.encode()
-	log.Printf("writeInode %v\n", inode.inum)
+	blk, ok := fs.readInodeBlock(txn, inode.inum)
+	if !ok {
+		return false
+	}
+	log.Printf("writeInode %d %v\n", inode.inum, inode)
+	inode.encode(blk)
 	return fs.writeInodeBlock(txn, inode.inum, blk)
 }
 
 func (fs *FsSuper) loadInode(txn *Txn, co *Cobj, a uint64) *Inode {
 	co.mu.Lock()
 	if !co.valid {
-		ok, i := (*fs).readInode(txn, a)
+		i, ok := (*fs).readInode(txn, a)
 		if !ok {
 			return nil
 		}
@@ -114,14 +130,15 @@ func (fs *FsSuper) loadInode(txn *Txn, co *Cobj, a uint64) *Inode {
 func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) uint64 {
 	var inode *Inode
 	for inum := uint64(1); inum < fs.nInode; inum++ {
-		ok, i := fs.readInode(txn, inum)
+		i, ok := fs.readInode(txn, inum)
 		if !ok {
 			break
 		}
-		log.Printf("allocInode: allocate inode %d\n", inum)
 		if i.kind == NF3FREE {
+			log.Printf("allocInode: allocate inode %d\n", inum)
 			inode = i
 			inode.inum = inum
+			inode.kind = kind
 			break
 		}
 		// XXX release inode block from txn
@@ -130,7 +147,6 @@ func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) uint64 {
 	if inode == nil {
 		return 0
 	}
-	inode.kind = kind
 	_ = fs.writeInode(txn, inode)
 	return inode.inum
 }
@@ -149,11 +165,11 @@ func (fs *FsSuper) markAlloc(n uint64) {
 	disk.Write(fs.bitmapStart(), blk)
 }
 
-func (fs *FsSuper) putRootBlk(inum uint64, blk *disk.Block) bool {
+func (fs *FsSuper) putBlkDirect(inum uint64, blk disk.Block) bool {
 	if inum >= fs.nInode {
 		return false
 	}
-	log.Printf("write blk %d\n", fs.inodeStart()+inum)
-	disk.Write(fs.inodeStart()+inum, *blk)
+	log.Printf("write blk direct %d\n", fs.inodeStart()+inum)
+	disk.Write(fs.inodeStart()+inum, blk)
 	return true
 }

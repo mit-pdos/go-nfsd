@@ -18,10 +18,7 @@ func MkNfs() *Nfs {
 	if l == nil {
 		panic("mkLog failed")
 	}
-	root := mkRootInode()
-	rootblk := root.encode()
-	fs.putRootBlk(ROOTINUM, rootblk)
-	fs.markAlloc(fs.inodeStart() + fs.nInode)
+	fs.initFs()
 	ic := mkCache()
 	bc := mkCache()
 	go l.Logger()
@@ -37,6 +34,7 @@ func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
 	co := nfs.ic.getputObj(fh.ino)
 	ip := nfs.fs.loadInode(txn, co, fh.ino)
+	log.Printf("getInode: %v\n", ip)
 	if ip == nil {
 		log.Printf("loadInode failed\n")
 		return nil
@@ -68,6 +66,43 @@ func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 	return nil
 }
 
+func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
+	txn := Begin(nfs.log, nfs.bc)
+	log.Printf("Lookup %v\n", args)
+	dip := nfs.getInode(txn, args.What.Dir)
+	if dip == nil {
+		reply.Status = NFS3ERR_STALE
+		txn.Abort()
+		return nil
+	}
+	inum := dip.lookupLink(txn, args.What.Name)
+	if inum == NULLINUM {
+		reply.Status = NFS3ERR_NOENT
+		dip.unlock()
+		dip.putInode(nfs.ic, txn)
+		txn.Abort()
+		return nil
+	}
+	co := nfs.ic.getputObj(inum)
+	ip := nfs.fs.loadInode(txn, co, inum)
+	if ip == nil {
+		reply.Status = NFS3ERR_IO
+		dip.unlock()
+		dip.putInode(nfs.ic, txn)
+		txn.Abort()
+		return nil
+
+	}
+	ip.lock()
+	fh := Fh{ino: inum, gen: ip.gen}
+	reply.Status = NFS3_OK
+	reply.Resok.Object = fh.makeFh3()
+	txn.Commit()
+	ip.unlock()
+	ip.putInode(nfs.ic, txn)
+	return nil
+}
+
 func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Create %v\n", args)
@@ -77,9 +112,8 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 		txn.Abort()
 		return nil
 	}
-	log.Printf("getInode %v\n", dip)
 	inum := nfs.fs.allocInode(txn, NF3REG)
-	if inum == 0 {
+	if inum == NULLINUM {
 		reply.Status = NFS3ERR_NOSPC
 		dip.unlock()
 		dip.putInode(nfs.ic, txn)
@@ -87,7 +121,8 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 		return nil
 	}
 	inum1 := dip.lookupLink(txn, args.Where.Name)
-	if inum1 != 0 {
+	if inum1 != NULLINUM {
+		// XXX free inode inum
 		reply.Status = NFS3ERR_EXIST
 		dip.unlock()
 		dip.putInode(nfs.ic, txn)
@@ -96,6 +131,7 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	}
 	ok := dip.addLink(nfs.fs, txn, inum, args.Where.Name)
 	if !ok {
+		// XXX free inode inum
 		reply.Status = NFS3ERR_IO
 		dip.unlock()
 		dip.putInode(nfs.ic, txn)

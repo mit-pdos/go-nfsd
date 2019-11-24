@@ -53,12 +53,10 @@ func decodeHdr(blk disk.Block) Hdr {
 	return hdr
 }
 
-func encodeHdr(hdr Hdr) disk.Block {
-	enc := NewEnc()
+func encodeHdr(hdr Hdr, blk disk.Block) {
+	enc := NewEnc(blk)
 	enc.PutInt(hdr.length)
 	enc.PutInts(hdr.addrs)
-	blk := enc.Finish()
-	return blk
 }
 
 func (l *Log) writeHdr(len uint64, bufs []Buf) {
@@ -67,7 +65,8 @@ func (l *Log) writeHdr(len uint64, bufs []Buf) {
 		addrs[i] = bufs[i].blkno
 	}
 	hdr := Hdr{length: len, addrs: addrs}
-	blk := encodeHdr(hdr)
+	blk := make(disk.Block, disk.BlockSize)
+	encodeHdr(hdr, blk)
 	disk.Write(LOGCOMMIT, blk)
 }
 
@@ -151,7 +150,7 @@ func (l *Log) writeBlocks(bufs []Buf, pos uint64) {
 	for i := uint64(0); i < n; i++ {
 		bk := bufs[i].blk
 		log.Printf("write %d to block %v\n", bufs[i].blkno, pos+i)
-		disk.Write(pos+i, *bk)
+		disk.Write(pos+i, bk)
 	}
 }
 

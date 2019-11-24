@@ -27,7 +27,20 @@ type Inode struct {
 
 type Inum = uint64
 
-const ROOTINUM uint64 = 0
+const NULLINUM uint64 = 0
+const ROOTINUM uint64 = 1
+
+func mkNullInode() *Inode {
+	return &Inode{
+		mu:    new(sync.RWMutex),
+		inum:  NULLINUM,
+		kind:  NF3DIR,
+		nlink: uint32(1),
+		gen:   uint64(0),
+		size:  uint64(0),
+		blks:  make([]uint64, NDIRECT),
+	}
+}
 
 func mkRootInode() *Inode {
 	return &Inode{
@@ -59,21 +72,21 @@ func (ip *Inode) mkFattr() Fattr3 {
 	}
 }
 
-func (ip *Inode) encode() *disk.Block {
-	enc := NewEnc()
+func (ip *Inode) encode(blk disk.Block) disk.Block {
+	enc := NewEnc(blk)
 	enc.PutInt32(uint32(ip.kind))
 	enc.PutInt32(ip.nlink)
 	enc.PutInt(ip.gen)
 	enc.PutInt(ip.size)
 	enc.PutInts(ip.blks)
-	blk := enc.Finish()
-	return &blk
+	return enc.Finish()
 }
 
-func decode(blk *disk.Block) *Inode {
+func decode(blk disk.Block, inum uint64) *Inode {
 	ip := &Inode{}
 	ip.mu = new(sync.RWMutex)
-	dec := NewDec(*blk)
+	dec := NewDec(blk)
+	ip.inum = inum
 	ip.kind = Ftype3(dec.GetInt32())
 	ip.nlink = dec.GetInt32()
 	ip.gen = dec.GetInt()
@@ -104,18 +117,23 @@ func (ip *Inode) resize(fs *FsSuper, txn *Txn, sz uint64) bool {
 	if sz < ip.size {
 		panic("resize not implemented")
 	}
-	bn, ok := fs.allocBlock(txn)
-	log.Printf("allocblock: %d\n", bn)
-	if !ok {
-		return false
+	n := sz / disk.BlockSize
+	// XXX fix loop for goose
+	for i := uint64(0); i < n; i++ {
+		bn, ok := fs.allocBlock(txn)
+		log.Printf("allocblock: %d\n", bn)
+		if !ok {
+			return false
+		}
+		b := ip.size / disk.BlockSize
+		ip.size = sz
+		ip.blks[b] = bn
+		ok1 := fs.writeInode(txn, ip)
+		if !ok1 {
+			panic("resize: writeInode failed")
+		}
 	}
-	b := ip.size / disk.BlockSize
-	ip.blks[b] = bn
-	ok1 := fs.writeInode(txn, ip)
-	if !ok1 {
-		panic("resize: writeInode failed")
-	}
-	return ok
+	return true
 }
 
 const MaxNameLen = 4096 - 1 - 8
@@ -126,20 +144,19 @@ type DirEnt struct {
 	Inum  Inum
 }
 
-func encodeDirEnt(de *DirEnt) *disk.Block {
+func encodeDirEnt(de *DirEnt, blk disk.Block) disk.Block {
 	if len(de.Name) > MaxNameLen {
 		panic("directory entry name too long")
 	}
-	enc := NewEnc()
+	enc := NewEnc(blk)
 	enc.PutString(de.Name)
 	enc.PutBool(de.Valid)
 	enc.PutInt(de.Inum)
-	blk := enc.Finish()
-	return &blk
+	return enc.Finish()
 }
 
-func decodeDirEnt(b *disk.Block) *DirEnt {
-	dec := NewDec(*b)
+func decodeDirEnt(b disk.Block) *DirEnt {
+	dec := NewDec(b)
 	de := &DirEnt{}
 	de.Name = dec.GetString()
 	de.Valid = dec.GetBool()
@@ -165,9 +182,15 @@ func (ip *Inode) lookupLink(txn *Txn, name Filename3) uint64 {
 	return 0
 }
 
+func writeLink(blk disk.Block, txn *Txn, inum uint64, name Filename3, blkno uint64) bool {
+	de := &DirEnt{Valid: true, Inum: inum, Name: string(name)}
+	encodeDirEnt(de, blk)
+	ok := (*txn).Write(blkno, blk)
+	return ok
+}
+
 func (ip *Inode) addLink(fs *FsSuper, txn *Txn, inum uint64, name Filename3) bool {
 	var freede *DirEnt
-	var blkno uint64
 
 	if ip.kind != NF3DIR {
 		return false
@@ -177,22 +200,21 @@ func (ip *Inode) addLink(fs *FsSuper, txn *Txn, inum uint64, name Filename3) boo
 		blk := (*txn).Read(ip.blks[b])
 		de := decodeDirEnt(blk)
 		if !de.Valid {
-			blkno = ip.blks[b]
+			writeLink(blk, txn, inum, name, ip.blks[b])
 			freede = de
 			break
 		}
 		continue
 	}
-	if freede == nil {
-		ok := ip.resize(fs, txn, ip.size+disk.BlockSize)
-		if !ok {
-			return false
-		}
-		blkno = ip.blks[blocks]
+	if freede != nil {
+		return true
 	}
-	de := &DirEnt{Valid: true, Inum: inum, Name: string(name)}
-	blk := encodeDirEnt(de)
-	ok := (*txn).Write(blkno, blk)
+	ok := ip.resize(fs, txn, ip.size+disk.BlockSize)
+	if !ok {
+		return false
+	}
+	blk := (*txn).Read(ip.blks[blocks])
+	writeLink(blk, txn, inum, name, ip.blks[blocks])
 	if !ok {
 		panic("addLink")
 	}

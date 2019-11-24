@@ -1,7 +1,6 @@
 package goose_nfs
 
 import (
-	"log"
 	"sync"
 )
 
@@ -46,7 +45,7 @@ func (c *Cache) getputObj(id uint64) *Cobj {
 	c.mu.Lock()
 	n := uint64(len(c.entries))
 	for i := uint64(0); i < n; i++ {
-		if c.entries[i].ref > 0 && c.entries[i].id == id {
+		if c.entries[i].id == id {
 			hit = &c.entries[i]
 			break
 		}
@@ -56,6 +55,7 @@ func (c *Cache) getputObj(id uint64) *Cobj {
 		continue
 	}
 	if hit != nil {
+		hit.ref = hit.ref + 1
 		c.mu.Unlock()
 		return &hit.cobj
 	}
@@ -64,7 +64,6 @@ func (c *Cache) getputObj(id uint64) *Cobj {
 		c.mu.Unlock()
 		return nil
 	}
-	log.Printf("getput %d\n", id)
 	hit = empty
 	hit.id = id
 	hit.ref = 1
@@ -95,7 +94,7 @@ func (c *Cache) getObj(id uint64) *Cobj {
 	return nil
 }
 
-// This use of cache slot for id is done
+// Decrease ref count of the cache slot for id
 func (c *Cache) putObj(id uint64) bool {
 	var hit *entry
 	var last bool

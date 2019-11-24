@@ -10,9 +10,8 @@ type Enc struct {
 	off uint64
 }
 
-func NewEnc() Enc {
-	b := make([]byte, disk.BlockSize)
-	return Enc{b: b, off: 0}
+func NewEnc(blk disk.Block) Enc {
+	return Enc{b: blk, off: 0}
 }
 
 func (enc *Enc) PutInt32(x uint32) {
@@ -56,7 +55,7 @@ func (enc *Enc) PutBytes(b []byte) {
 }
 
 func (enc *Enc) PutString(s string) {
-	// XXX enc.PutInt(uint64(len(s)))
+	(*enc).PutInt(uint64(len(s)))
 	(*enc).PutBytes([]byte(s))
 }
 
