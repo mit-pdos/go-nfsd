@@ -34,7 +34,6 @@ func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
 	co := nfs.ic.getputObj(fh.ino)
 	ip := nfs.fs.loadInode(txn, co, fh.ino)
-	log.Printf("getInode: %v\n", ip)
 	if ip == nil {
 		log.Printf("loadInode failed\n")
 		return nil

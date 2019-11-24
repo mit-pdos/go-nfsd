@@ -105,7 +105,7 @@ func (ip *Inode) lock() {
 
 func (ip *Inode) putInode(c *Cache, txn *Txn) {
 	log.Printf("put inode %d\n", ip.inum)
-	last := c.putObj(ip.inum)
+	last := c.putObj(ip.inum, false)
 	// XXX is this ok? is there a way ip could be resurrected
 	// before we are done with it.
 	if last && ip.nlink == 0 {

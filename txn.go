@@ -52,12 +52,12 @@ func (txn *Txn) add(co *Cobj, a uint64, blk disk.Block) *Buf {
 }
 
 // Release locks and cache slots
-// XXX pin buffers (until they have installed)
+// Pin buffers in cache until they have been installed
+// XXX support installing
 func (txn *Txn) release() {
 	log.Printf("release bufs")
 	for _, buf := range txn.bufs {
-		buf.mu.Unlock()
-		txn.cache.putObj(buf.blkno)
+		txn.cache.putObj(buf.blkno, true)
 	}
 }
 

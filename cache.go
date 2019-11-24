@@ -14,6 +14,7 @@ type entry struct {
 	// cache info:
 	id  uint64
 	ref uint32
+	pin bool
 	// the entry
 	cobj Cobj
 }
@@ -37,7 +38,7 @@ func mkCache() *Cache {
 	}
 }
 
-// Conditionally reserve a cache slot for id
+// Conditionally allocate a cache slot for id
 func (c *Cache) getputObj(id uint64) *Cobj {
 	var hit *entry
 	var empty *entry
@@ -49,7 +50,7 @@ func (c *Cache) getputObj(id uint64) *Cobj {
 			hit = &c.entries[i]
 			break
 		}
-		if c.entries[i].ref == 0 && empty == nil {
+		if c.entries[i].ref == 0 && !c.entries[i].pin && empty == nil {
 			empty = &c.entries[i]
 		}
 		continue
@@ -95,7 +96,7 @@ func (c *Cache) getObj(id uint64) *Cobj {
 }
 
 // Decrease ref count of the cache slot for id
-func (c *Cache) putObj(id uint64) bool {
+func (c *Cache) putObj(id uint64, pin bool) bool {
 	var hit *entry
 	var last bool
 
@@ -109,6 +110,7 @@ func (c *Cache) putObj(id uint64) bool {
 		continue
 	}
 	if hit != nil {
+		hit.pin = pin
 		hit.ref = hit.ref - 1
 		if hit.ref == 0 {
 			last = true
