@@ -12,7 +12,6 @@ type Cobj struct {
 
 type entry struct {
 	// cache info:
-	id  uint64
 	ref uint32
 	pin bool
 	// the entry
@@ -67,7 +66,7 @@ func (c *Cache) getputObj(id uint64) *Cobj {
 		c.evict()
 	}
 	o := Cobj{mu: new(sync.RWMutex), valid: false, obj: nil}
-	enew := &entry{id: id, ref: 1, pin: false, cobj: o}
+	enew := &entry{ref: 1, pin: false, cobj: o}
 	c.entries[id] = enew
 	c.cnt = c.cnt + 1
 	c.mu.Unlock()
