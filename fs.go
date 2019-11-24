@@ -112,18 +112,17 @@ func (fs *FsSuper) writeInode(txn *Txn, inode *Inode) bool {
 	return fs.writeInodeBlock(txn, inode.inum, blk)
 }
 
-func (fs *FsSuper) loadInode(txn *Txn, co *Cobj, a uint64) *Inode {
-	co.mu.Lock()
-	if !co.valid {
+func (fs *FsSuper) loadInode(txn *Txn, slot *Cslot, a uint64) *Inode {
+	slot.mu.Lock()
+	if slot.obj == nil {
 		i, ok := (*fs).readInode(txn, a)
 		if !ok {
 			return nil
 		}
-		co.obj = i
-		co.valid = true
+		slot.obj = i
 	}
-	i := co.obj.(*Inode)
-	co.mu.Unlock()
+	i := slot.obj.(*Inode)
+	slot.mu.Unlock()
 	return i
 }
 

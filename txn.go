@@ -22,19 +22,18 @@ type Txn struct {
 }
 
 // Returns a locked buf
-func (txn *Txn) load(co *Cobj, a uint64) *Buf {
-	co.mu.Lock()
-	if !co.valid {
+func (txn *Txn) load(slot *Cslot, a uint64) *Buf {
+	slot.mu.Lock()
+	if slot.obj == nil {
 		// blk hasn't been read yet from disk; read it and put
 		// the buf with the read blk in the cache slot.
 		blk := disk.Read(a)
 		buf := &Buf{mu: new(sync.RWMutex), blk: blk, blkno: a}
-		co.obj = buf
-		co.valid = true
+		slot.obj = buf
 	}
-	buf := co.obj.(*Buf)
+	buf := slot.obj.(*Buf)
 	buf.mu.Lock()
-	co.mu.Unlock()
+	slot.mu.Unlock()
 	return buf
 }
 
@@ -45,7 +44,7 @@ func (txn *Txn) release() {
 	log.Printf("release bufs")
 	for _, buf := range txn.bufs {
 		buf.mu.Unlock()
-		txn.cache.putObj(buf.blkno, true)
+		txn.cache.freeSlot(buf.blkno, true)
 	}
 }
 
@@ -65,13 +64,12 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 		// this transaction already has the buf locked
 		return v.blk
 	} else {
-		// lookup slot in cache
-		co := txn.cache.getputObj(addr)
-		if co == nil {
+		slot := txn.cache.lookupSlot(addr)
+		if slot == nil {
 			return nil
 		}
 		// load the slot with a locked block
-		buf := txn.load(co, addr)
+		buf := txn.load(slot, addr)
 		txn.bufs[addr] = buf
 		return buf.blk
 	}

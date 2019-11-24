@@ -35,8 +35,8 @@ func (nfs *Nfs) ShutdownNfs() {
 // Returns locked inode on success
 func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
-	co := nfs.ic.getputObj(fh.ino)
-	ip := nfs.fs.loadInode(txn, co, fh.ino)
+	slot := nfs.ic.lookupSlot(fh.ino)
+	ip := nfs.fs.loadInode(txn, slot, fh.ino)
 	if ip == nil {
 		log.Printf("loadInode failed\n")
 		return nil
@@ -85,8 +85,8 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 		txn.Abort()
 		return nil
 	}
-	co := nfs.ic.getputObj(inum)
-	ip := nfs.fs.loadInode(txn, co, inum)
+	slot := nfs.ic.lookupSlot(inum)
+	ip := nfs.fs.loadInode(txn, slot, inum)
 	if ip == nil {
 		reply.Status = NFS3ERR_IO
 		dip.unlock()

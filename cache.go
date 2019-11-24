@@ -4,18 +4,24 @@ import (
 	"sync"
 )
 
-type Cobj struct {
-	mu    *sync.RWMutex
-	valid bool
-	obj   interface{}
+// A shared, fixed-size cache mapping from uint64 to a
+// reference-counted slot in the cache.  The cache has a fixed number
+// of slots.  A lookup for key, increments the reference count for
+// that slot. Callers are responsible for filling a slot.  When a
+// caller doesn't need the slot anymore (because it is done with the
+// object in the slot), then caller must decrement the reference count
+// for the slot.  When a reference counter for slot is 0, the cache
+// can evict that slot, if it needs space for other objects.
+
+type Cslot struct {
+	mu  *sync.RWMutex // mutex protecting obj in this slot
+	obj interface{}
 }
 
 type entry struct {
-	// cache info:
-	ref uint32
-	pin bool
-	// the entry
-	cobj Cobj
+	ref  uint32 // the slot's reference count
+	pin  bool   // is the slot pinned?
+	slot Cslot
 }
 
 type Cache struct {
@@ -35,7 +41,7 @@ func mkCache(sz uint64) *Cache {
 	}
 }
 
-// Assume locked cache
+// Evict a not-inuse slot. Assume locked cache.
 func (c *Cache) evict() {
 	var addr uint64 = 0
 	for a, entry := range c.entries {
@@ -52,42 +58,30 @@ func (c *Cache) evict() {
 	c.cnt = c.cnt - 1
 }
 
-// Conditionally allocate a cache slot for id
-func (c *Cache) getputObj(id uint64) *Cobj {
+// Lookup the cache slot for id.  Create the slot if id isn't in the
+// cache, perhaps evicting a not in-use slot in the cache.
+func (c *Cache) lookupSlot(id uint64) *Cslot {
 	c.mu.Lock()
 	e := c.entries[id]
 	if e != nil {
 		e.ref = e.ref + 1
 		c.mu.Unlock()
-		return &e.cobj
+		return &e.slot
 	}
 
 	if c.cnt >= c.sz {
 		c.evict()
 	}
-	o := Cobj{mu: new(sync.RWMutex), valid: false, obj: nil}
-	enew := &entry{ref: 1, pin: false, cobj: o}
+	s := Cslot{mu: new(sync.RWMutex), obj: nil}
+	enew := &entry{ref: 1, pin: false, slot: s}
 	c.entries[id] = enew
 	c.cnt = c.cnt + 1
 	c.mu.Unlock()
-	return &enew.cobj
-}
-
-// Lookup cache slot for id
-func (c *Cache) getObj(id uint64) *Cobj {
-	c.mu.Lock()
-	entry := c.entries[id]
-	if entry != nil {
-		entry.ref = entry.ref + 1
-		c.mu.Unlock()
-		return &entry.cobj
-	}
-	c.mu.Unlock()
-	return nil
+	return &enew.slot
 }
 
 // Decrease ref count of the cache slot for id
-func (c *Cache) putObj(id uint64, pin bool) bool {
+func (c *Cache) freeSlot(id uint64, pin bool) bool {
 	c.mu.Lock()
 	entry := c.entries[id]
 	if entry != nil {
