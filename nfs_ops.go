@@ -4,6 +4,9 @@ import (
 	"log"
 )
 
+const ICACHESZ uint64 = 10
+const BCACHESZ uint64 = 10
+
 type Nfs struct {
 	log *Log
 	ic  *Cache
@@ -19,8 +22,8 @@ func MkNfs() *Nfs {
 		panic("mkLog failed")
 	}
 	fs.initFs()
-	ic := mkCache()
-	bc := mkCache()
+	ic := mkCache(ICACHESZ)
+	bc := mkCache(BCACHESZ)
 	go l.Logger()
 	return &Nfs{log: l, ic: ic, bc: bc, fs: fs}
 }

@@ -19,77 +19,69 @@ type entry struct {
 	cobj Cobj
 }
 
-const CACHESZ uint64 = 10
-
 type Cache struct {
 	mu      *sync.RWMutex
-	entries []entry
+	entries map[uint64]*entry
+	sz      uint64
+	cnt     uint64
 }
 
-func mkCache() *Cache {
-	entries := make([]entry, CACHESZ)
-	n := uint64(len(entries))
-	for i := uint64(0); i < n; i++ {
-		entries[i].cobj.mu = new(sync.RWMutex)
-	}
+func mkCache(sz uint64) *Cache {
+	entries := make(map[uint64]*entry, sz)
 	return &Cache{
 		mu:      new(sync.RWMutex),
 		entries: entries,
+		cnt:     0,
+		sz:      sz,
 	}
+}
+
+// Assume locked cache
+func (c *Cache) evict() {
+	var addr uint64 = 0
+	for a, entry := range c.entries {
+		if entry.ref == 0 && !entry.pin {
+			addr = a
+			break
+		}
+		continue
+	}
+	if addr == 0 {
+		panic("evict")
+	}
+	delete(c.entries, addr)
+	c.cnt = c.cnt - 1
 }
 
 // Conditionally allocate a cache slot for id
 func (c *Cache) getputObj(id uint64) *Cobj {
-	var hit *entry
-	var empty *entry
-
 	c.mu.Lock()
-	n := uint64(len(c.entries))
-	for i := uint64(0); i < n; i++ {
-		if c.entries[i].id == id {
-			hit = &c.entries[i]
-			break
-		}
-		if c.entries[i].ref == 0 && !c.entries[i].pin && empty == nil {
-			empty = &c.entries[i]
-		}
-		continue
-	}
-	if hit != nil {
-		hit.ref = hit.ref + 1
+	e := c.entries[id]
+	if e != nil {
+		e.ref = e.ref + 1
 		c.mu.Unlock()
-		return &hit.cobj
+		return &e.cobj
 	}
-	if empty == nil {
-		panic("getputObj")
-		c.mu.Unlock()
-		return nil
+
+	if c.cnt >= c.sz {
+		c.evict()
 	}
-	hit = empty
-	hit.id = id
-	hit.ref = 1
-	hit.cobj.valid = false
+	o := Cobj{mu: new(sync.RWMutex), valid: false, obj: nil}
+	enew := &entry{id: id, ref: 1, pin: false, cobj: o}
+	c.entries[id] = enew
+	c.cnt = c.cnt + 1
 	c.mu.Unlock()
-	return &hit.cobj
+	return &enew.cobj
 }
 
 // Lookup cache slot for id
 func (c *Cache) getObj(id uint64) *Cobj {
-	var hit *entry
-
 	c.mu.Lock()
-	n := uint64(len(c.entries))
-	for i := uint64(0); i < n; i++ {
-		if c.entries[i].ref > 0 && c.entries[i].id == id {
-			hit = &c.entries[i]
-			break
-		}
-		continue
-	}
-	if hit != nil {
-		hit.ref = hit.ref + 1
+	entry := c.entries[id]
+	if entry != nil {
+		entry.ref = entry.ref + 1
 		c.mu.Unlock()
-		return &hit.cobj
+		return &entry.cobj
 	}
 	c.mu.Unlock()
 	return nil
@@ -97,30 +89,16 @@ func (c *Cache) getObj(id uint64) *Cobj {
 
 // Decrease ref count of the cache slot for id
 func (c *Cache) putObj(id uint64, pin bool) bool {
-	var hit *entry
-	var last bool
-
 	c.mu.Lock()
-	n := uint64(len(c.entries))
-	for i := uint64(0); i < n; i++ {
-		if c.entries[i].ref > 0 && c.entries[i].id == id {
-			hit = &c.entries[i]
-			break
-		}
-		continue
-	}
-	if hit != nil {
-		hit.pin = pin
-		hit.ref = hit.ref - 1
-		if hit.ref == 0 {
-			last = true
-		} else {
-			last = false
-		}
-	}
-	if hit == nil {
-		panic("putObj")
+	entry := c.entries[id]
+	if entry != nil {
+		entry.ref = entry.ref - 1
+		last := entry.ref == 0
+		entry.pin = pin
+		c.mu.Unlock()
+		return last
 	}
 	c.mu.Unlock()
-	return last
+	panic("putObj")
+	return false
 }
