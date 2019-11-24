@@ -135,6 +135,11 @@ func (ip *Inode) putInode(c *Cache, txn *Txn) {
 	}
 }
 
+func (ip *Inode) unlockPut(c *Cache, txn *Txn) {
+	ip.unlock()
+	ip.putInode(c, txn)
+}
+
 func (ip *Inode) resize(fs *FsSuper, txn *Txn, sz uint64) bool {
 	if sz < ip.size {
 		panic("resize not implemented")
