@@ -68,21 +68,18 @@ func (suite *NfsSuite) Setattr(fh Nfs_fh3, sz uint64) {
 	suite.Equal(reply.Status, NFS3_OK)
 }
 
-func (suite *NfsSuite) Write(fh Nfs_fh3, sz uint64) {
-	data := make([]byte, 8192)
-	for i := uint64(0); i < sz; i++ {
-		data[i] = byte(i % uint64(128))
-	}
+func (suite *NfsSuite) Write(fh Nfs_fh3, data []byte) {
 	args := &WRITE3args{
 		File:   fh,
 		Offset: Offset3(0),
-		Count:  Count3(8192),
+		Count:  Count3(len(data)),
 		Stable: FILE_SYNC,
 		Data:   data}
 	reply := &WRITE3res{}
 	res := suite.nfs.Write(args, reply)
 	suite.Require().Nil(res)
 	suite.Equal(reply.Status, NFS3_OK)
+	suite.Equal(reply.Resok.Count, Count3(len(data)))
 }
 
 func (suite *NfsSuite) Read(fh Nfs_fh3, sz uint64) []byte {
@@ -94,6 +91,7 @@ func (suite *NfsSuite) Read(fh Nfs_fh3, sz uint64) []byte {
 	res := suite.nfs.Read(args, reply)
 	suite.Require().Nil(res)
 	suite.Equal(reply.Status, NFS3_OK)
+	suite.Equal(reply.Resok.Count, Count3(sz))
 	return reply.Resok.Data
 }
 
@@ -101,11 +99,20 @@ func (suite *NfsSuite) TestMakeFile() {
 	suite.Create("x")
 	fh := suite.Lookup("x")
 	suite.Getattr(fh, 0)
-	suite.Setattr(fh, 8192)
-	suite.Getattr(fh, 8192)
-	suite.Write(fh, 8192)
-	data := suite.Read(fh, 8192)
-	suite.Equal(len(data), 8192)
+	data := make([]byte, 8192)
+	l := uint64(len(data))
+	for i := uint64(0); i < l; i++ {
+		data[i] = byte(i % uint64(128))
+	}
+	suite.Setattr(fh, l)
+	suite.Getattr(fh, l)
+	suite.Write(fh, data)
+	d := suite.Read(fh, l)
+	suite.Equal(l, uint64(len(d)))
+	for i := uint64(0); i < l; i++ {
+		suite.Equal(data[i], d[i])
+	}
+
 	suite.nfs.ShutdownNfs()
 }
 
