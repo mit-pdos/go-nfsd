@@ -17,46 +17,34 @@ type Buf struct {
 
 type Txn struct {
 	log   *Log
-	cache *Cache
-	bufs  map[uint64]*Buf
+	cache *Cache          // a cache of Buf's shared between transactions
+	bufs  map[uint64]*Buf // Locked bufs in use by this transaction
 }
 
 // Returns a locked buf
 func (txn *Txn) load(co *Cobj, a uint64) *Buf {
-	var blk *disk.Block
 	co.mu.Lock()
 	if !co.valid {
+		// blk hasn't been read yet from disk; read it and put
+		// the buf with the read blk in the cache slot.
 		blk := disk.Read(a)
-		co.obj = &blk
+		buf := &Buf{mu: new(sync.RWMutex), blk: blk, blkno: a}
+		co.obj = buf
 		co.valid = true
 	}
-	blk = co.obj.(*disk.Block)
-	buf := &Buf{mu: new(sync.RWMutex), blk: *blk, blkno: a}
+	buf := co.obj.(*Buf)
 	buf.mu.Lock()
 	co.mu.Unlock()
 	return buf
 }
 
-// Returns a locked buf
-func (txn *Txn) add(co *Cobj, a uint64, blk disk.Block) *Buf {
-	co.mu.Lock()
-	if co.valid {
-		panic("add")
-	}
-	co.valid = true
-	co.obj = &blk
-	buf := &Buf{mu: new(sync.RWMutex), blk: blk, blkno: a}
-	buf.mu.Lock()
-	co.mu.Unlock()
-	return buf
-}
-
-// Release locks and cache slots
-// Pin buffers in cache until they have been installed
+// Release locks and cache slots, but pin buffers in cache until they
+// have been installed.
 // XXX support installing
 func (txn *Txn) release() {
 	log.Printf("release bufs")
 	for _, buf := range txn.bufs {
+		buf.mu.Unlock()
 		txn.cache.putObj(buf.blkno, true)
 	}
 }
@@ -71,33 +59,32 @@ func Begin(log *Log, cache *Cache) *Txn {
 	return txn
 }
 
-func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
-	var ret bool = true
-	_, ok := txn.bufs[addr]
-	if !ok {
-		co := txn.cache.getputObj(addr)
-		if co == nil {
-			panic("Write: addCache")
-		}
-		txn.add(co, addr, blk)
-	}
-	txn.bufs[addr].blk = blk
-	return ret
-}
-
 func (txn *Txn) Read(addr uint64) disk.Block {
 	v, ok := txn.bufs[addr]
 	if ok {
+		// this transaction already has the buf locked
 		return v.blk
 	} else {
+		// lookup slot in cache
 		co := txn.cache.getputObj(addr)
 		if co == nil {
 			return nil
 		}
+		// load the slot with a locked block
 		buf := txn.load(co, addr)
 		txn.bufs[addr] = buf
 		return buf.blk
 	}
+}
+
+func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
+	_, ok := txn.bufs[addr]
+	if !ok {
+		panic("Write: blind write")
+	}
+	// This transaction owns the locked block; update the block
+	txn.bufs[addr].blk = blk
+	return true
 }
 
 func (txn *Txn) Commit() bool {
