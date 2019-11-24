@@ -32,25 +32,6 @@ func (nfs *Nfs) ShutdownNfs() {
 	nfs.log.Shutdown()
 }
 
-// Returns locked inode on success
-func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
-	fh := fh3.makeFh()
-	slot := nfs.ic.lookupSlot(fh.ino)
-	ip := nfs.fs.loadInode(txn, slot, fh.ino)
-	if ip == nil {
-		log.Printf("loadInode failed\n")
-		return nil
-	}
-	ip.lock()
-	if ip.gen != fh.gen {
-		log.Printf("wrong gen\n")
-		ip.unlock()
-		ip.putInode(nfs.ic, txn)
-		return nil
-	}
-	return ip
-}
-
 func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 	log.Printf("GetAttr %v\n", args)
 	txn := Begin(nfs.log, nfs.bc)

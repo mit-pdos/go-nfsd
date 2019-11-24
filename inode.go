@@ -11,8 +11,6 @@ const NF3FREE Ftype3 = 0
 
 const NDIRECT uint64 = 10
 
-// XXX mu is unnecessary because transaction already has the inode block
-// locked
 type Inode struct {
 	// in-memory info:
 	mu   *sync.RWMutex
@@ -95,19 +93,43 @@ func decode(blk disk.Block, inum uint64) *Inode {
 	return ip
 }
 
-func (ip *Inode) unlock() {
-	ip.mu.Unlock()
+// Returns locked inode on success. This implicitly locks the inode
+// block too.  If we put several inodes in a single inode block then
+// we should lock the inode block explicitly (if the inode is already
+// in cache).  (Or maybe delete the inode lock and always lock the
+// block that contains the inode.)
+func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
+	fh := fh3.makeFh()
+	slot := nfs.ic.lookupSlot(fh.ino)
+	ip := nfs.fs.loadInode(txn, slot, fh.ino)
+	if ip == nil {
+		log.Printf("loadInode failed\n")
+		return nil
+	}
+	ip.lock()
+	if ip.gen != fh.gen {
+		log.Printf("wrong gen\n")
+		ip.unlock()
+		ip.putInode(nfs.ic, txn)
+		return nil
+	}
+	return ip
 }
 
 func (ip *Inode) lock() {
 	ip.mu.Lock()
 }
 
+func (ip *Inode) unlock() {
+	ip.mu.Unlock()
+}
+
 func (ip *Inode) putInode(c *Cache, txn *Txn) {
 	log.Printf("put inode %d\n", ip.inum)
 	last := c.freeSlot(ip.inum, false)
-	// XXX is this ok? is there a way ip could be resurrected
-	// before we are done with it.
+	// XXX return locked slot when last == 1 (and don't dec ref
+	// count yet) so that no other thread increments ref and this
+	// thread has indeed the last reference to it.
 	if last && ip.nlink == 0 {
 		// XXX truncate once we can create an inode with data
 	}
