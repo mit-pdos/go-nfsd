@@ -48,6 +48,30 @@ func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 	return nil
 }
 
+func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
+	log.Printf("SetAttr %v\n", args)
+	txn := Begin(nfs.log, nfs.bc)
+	ip := nfs.getInode(txn, args.Object)
+	if ip == nil {
+		reply.Status = NFS3ERR_STALE
+		txn.Abort()
+	} else {
+		if args.New_attributes.Size.Set_it {
+			ok := ip.resize(nfs.fs, txn,
+				uint64(args.New_attributes.Size.Size))
+			if !ok {
+				reply.Status = NFS3ERR_IO
+				txn.Abort()
+			} else {
+				reply.Status = NFS3_OK
+				txn.Commit()
+			}
+			ip.unlockPut(nfs.ic, txn)
+		}
+	}
+	return nil
+}
+
 func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Lookup %v\n", args)

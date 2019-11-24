@@ -153,7 +153,7 @@ func (ip *Inode) resize(fs *FsSuper, txn *Txn, sz uint64) bool {
 			return false
 		}
 		b := ip.size / disk.BlockSize
-		ip.size = sz
+		ip.size = ip.size + disk.BlockSize
 		ip.blks[b] = bn
 		ok1 := fs.writeInode(txn, ip)
 		if !ok1 {
