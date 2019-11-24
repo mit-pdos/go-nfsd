@@ -68,12 +68,30 @@ func (suite *NfsSuite) Setattr(fh Nfs_fh3, sz uint64) {
 	suite.Equal(reply.Status, NFS3_OK)
 }
 
+func (suite *NfsSuite) Write(fh Nfs_fh3, sz uint64) {
+	data := make([]byte, 8192)
+	for i := uint64(0); i < sz; i++ {
+		data[i] = byte(i % uint64(128))
+	}
+	args := &WRITE3args{
+		File:   fh,
+		Offset: Offset3(0),
+		Count:  Count3(8192),
+		Stable: FILE_SYNC,
+		Data:   data}
+	reply := &WRITE3res{}
+	res := suite.nfs.Write(args, reply)
+	suite.Require().Nil(res)
+	suite.Equal(reply.Status, NFS3_OK)
+}
+
 func (suite *NfsSuite) TestMakeFile() {
 	suite.Create("x")
 	fh := suite.Lookup("x")
 	suite.Getattr(fh, 0)
 	suite.Setattr(fh, 8192)
 	suite.Getattr(fh, 8192)
+	suite.Write(fh, 8192)
 
 	suite.nfs.ShutdownNfs()
 }

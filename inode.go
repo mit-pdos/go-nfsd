@@ -163,6 +163,40 @@ func (ip *Inode) resize(fs *FsSuper, txn *Txn, sz uint64) bool {
 	return true
 }
 
+func (ip *Inode) readBlock(txn *Txn, boff uint64) disk.Block {
+	return txn.Read(ip.blks[boff])
+}
+
+func (ip *Inode) writeBlock(txn *Txn, boff uint64, blk disk.Block) bool {
+	return txn.Write(ip.blks[boff], blk)
+}
+
+func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint64, bool) {
+	var cnt uint64 = uint64(0)
+	var ok bool = true
+	n := uint64(len(data))
+	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
+		blk := ip.readBlock(txn, boff)
+		byteoff := offset / disk.BlockSize
+		nbytes := disk.BlockSize - byteoff
+		if n < nbytes {
+			nbytes = n
+		}
+		for b := uint64(0); b < nbytes; b++ {
+			blk[byteoff+b] = data[b]
+		}
+		ok := ip.writeBlock(txn, boff, disk.Block(data[:disk.BlockSize]))
+		if !ok {
+			break
+		}
+		n = n - disk.BlockSize
+		data = data[nbytes:]
+		offset = offset + nbytes
+		cnt = cnt + nbytes
+	}
+	return cnt, ok
+}
+
 const MaxNameLen = 4096 - 1 - 8
 
 type DirEnt struct {
