@@ -113,6 +113,12 @@ func (nfs *Nfs) Access(args *ACCESS3args, reply *ACCESS3res) error {
 	return nil
 }
 
+func (nfs *Nfs) ReadLink(args *READLINK3args, reply *READLINK3res) error {
+	log.Printf("ReadLink %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
 func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Read %v\n", args.File)
@@ -209,6 +215,24 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	return nil
 }
 
+func (nfs *Nfs) MakeDir(args *MKDIR3args, reply *MKDIR3res) error {
+	log.Printf("MakeDir %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
+func (nfs *Nfs) SymLink(args *SYMLINK3args, reply *SYMLINK3res) error {
+	log.Printf("MakeDir %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
+func (nfs *Nfs) MakeNod(args *MKNOD3args, reply *MKNOD3res) error {
+	log.Printf("MakeDir %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
 func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Remove %v\n", args)
@@ -252,5 +276,60 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 	txn.Commit()
 	dip.unlockPut(nfs.ic, txn)
 	ip.unlockPut(nfs.ic, txn)
+	return nil
+}
+
+func (nfs *Nfs) RmDir(args *RMDIR3args, reply *RMDIR3res) error {
+	log.Printf("RmDir %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
+func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
+	log.Printf("Rename %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
+func (nfs *Nfs) Link(args *LINK3args, reply *LINK3res) error {
+	log.Printf("Link %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
+func (nfs *Nfs) ReadDir(args *READDIR3args, reply *READDIR3res) error {
+	log.Printf("ReadDir %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
+func (nfs *Nfs) ReadDirPlus(args *READDIRPLUS3args, reply *READDIRPLUS3res) error {
+	log.Printf("ReadDirPlus %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
+func (nfs *Nfs) FsStat(args *FSSTAT3args, reply *FSSTAT3res) error {
+	log.Printf("FsStat %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
+func (nfs *Nfs) FsInfo(args *FSINFO3args, reply *FSINFO3res) error {
+	log.Printf("FsInfo %v\n", args)
+	reply.Status = NFS3_OK
+	reply.Resok.Maxfilesize = Size3(NDIRECT)
+	return nil
+}
+
+func (nfs *Nfs) PathConf(args *PATHCONF3args, reply *PATHCONF3res) error {
+	log.Printf("PathConf %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
+	return nil
+}
+
+func (nfs *Nfs) COMMIT(args *COMMIT3args, reply *COMMIT3res) error {
+	log.Printf("Commit %v\n", args)
+	reply.Status = NFS3ERR_NOTSUPP
 	return nil
 }
