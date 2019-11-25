@@ -131,6 +131,7 @@ func (fs *FsSuper) writeInode(txn *Txn, inode *Inode) bool {
 }
 
 func (fs *FsSuper) loadInode(txn *Txn, slot *Cslot, a uint64) *Inode {
+	log.Printf("load slot: %v\n", slot)
 	slot.mu.Lock()
 	if slot.obj == nil {
 		i, ok := (*fs).readInode(txn, a)

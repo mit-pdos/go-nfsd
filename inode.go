@@ -104,9 +104,7 @@ func (nfs *Nfs) loadInode(txn *Txn, inum Inum) *Inode {
 // we should lock the inode block explicitly (if the inode is already
 // in cache).  (Or maybe delete the inode lock and always lock the
 // block that contains the inode.)
-// XXX race: a commit after freeInode() may allow inode to be reallocated
-// by allocInode, even though inode is still locked in icache.
-func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
+func (nfs *Nfs) getInode(fs *FsSuper, txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
 	ip := nfs.loadInode(txn, fh.ino)
 	if ip == nil {
@@ -116,8 +114,8 @@ func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	ip.lock()
 	if ip.gen != fh.gen {
 		log.Printf("wrong gen\n")
+		ip.put(fs, nfs.ic, txn)
 		ip.unlock()
-		ip.putInode(nfs.ic, txn)
 		return nil
 	}
 	return ip
@@ -131,20 +129,22 @@ func (ip *Inode) unlock() {
 	ip.mu.Unlock()
 }
 
-func (ip *Inode) putInode(c *Cache, txn *Txn) {
+// Done with ip and remove inode if nlink and ref = 0. Must be run
+// inside of a transaction since it may modify inode.
+// XXX deadlock possible: another thread acquires slot and wants lock on inode.
+func (ip *Inode) put(fs *FsSuper, c *Cache, txn *Txn) {
 	log.Printf("put inode %d\n", ip.inum)
-	last := c.freeSlot(ip.inum, false)
-	// XXX return locked slot when last == 1 (and don't dec ref
-	// count yet) so that no other thread increments ref and this
-	// thread has indeed the last reference to it.
-	if last && ip.nlink == 0 {
-		// XXX truncate once we can create an inode with data
-	}
-}
+	slot := c.delSlot(ip.inum)
+	if slot != nil {
+		if ip.nlink == 0 {
+			log.Printf("delete inode %d\n", ip.inum)
+			ip.resize(fs, txn, 0)
+			fs.freeInode(txn, ip)
+			slot.obj = nil
 
-func (ip *Inode) unlockPut(c *Cache, txn *Txn) {
-	ip.unlock()
-	ip.putInode(c, txn)
+		}
+		slot.mu.Unlock()
+	}
 }
 
 func (ip *Inode) shrink(fs *FsSuper, txn *Txn, sz uint64) bool {
@@ -246,12 +246,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	return cnt, ok
 }
 
-func (ip *Inode) unlink(fs *FsSuper, txn *Txn) bool {
+func (ip *Inode) decLink(fs *FsSuper, txn *Txn) bool {
 	ip.nlink = ip.nlink - 1
-	if ip.nlink == 0 {
-		ip.resize(fs, txn, 0)
-		return fs.freeInode(txn, ip)
-	} else {
-		return fs.writeInode(txn, ip)
-	}
+	return fs.writeInode(txn, ip)
 }

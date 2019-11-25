@@ -35,15 +35,16 @@ func (nfs *Nfs) ShutdownNfs() {
 func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 	log.Printf("GetAttr %v\n", args)
 	txn := Begin(nfs.log, nfs.bc)
-	ip := nfs.getInode(txn, args.Object)
+	ip := nfs.getInode(nfs.fs, txn, args.Object)
 	if ip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort()
 	} else {
 		reply.Status = NFS3_OK
 		reply.Resok.Obj_attributes = ip.mkFattr()
+		ip.put(nfs.fs, nfs.ic, txn)
 		txn.Commit()
-		ip.unlockPut(nfs.ic, txn)
+		ip.unlock()
 	}
 	return nil
 }
@@ -51,7 +52,7 @@ func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 	log.Printf("SetAttr %v\n", args)
 	txn := Begin(nfs.log, nfs.bc)
-	ip := nfs.getInode(txn, args.Object)
+	ip := nfs.getInode(nfs.fs, txn, args.Object)
 	if ip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort()
@@ -61,13 +62,19 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 				uint64(args.New_attributes.Size.Size))
 			if !ok {
 				reply.Status = NFS3ERR_IO
+				ip.put(nfs.fs, nfs.ic, txn)
 				txn.Abort()
 			} else {
 				reply.Status = NFS3_OK
+				ip.put(nfs.fs, nfs.ic, txn)
 				txn.Commit()
 			}
-			ip.unlockPut(nfs.ic, txn)
+		} else {
+			reply.Status = NFS3ERR_NOTSUPP
+			ip.put(nfs.fs, nfs.ic, txn)
+			txn.Abort()
 		}
+		ip.unlock()
 	}
 	return nil
 }
@@ -75,7 +82,8 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Lookup %v\n", args)
-	dip := nfs.getInode(txn, args.What.Dir)
+	dip := nfs.getInode(nfs.fs, txn, args.What.Dir)
+	log.Printf("load %v\n", dip)
 	if dip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort()
@@ -84,15 +92,18 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	inum := dip.lookupLink(txn, args.What.Name)
 	if inum == NULLINUM {
 		reply.Status = NFS3ERR_NOENT
-		dip.unlockPut(nfs.ic, txn)
+		dip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
+		dip.unlock()
 		return nil
 	}
+	log.Printf("load %v\n", inum)
 	ip := nfs.loadInode(txn, inum)
 	if ip == nil {
 		reply.Status = NFS3ERR_IO
-		dip.unlockPut(nfs.ic, txn)
+		dip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
+		dip.unlock()
 		return nil
 
 	}
@@ -100,9 +111,11 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	fh := Fh{ino: inum, gen: ip.gen}
 	reply.Status = NFS3_OK
 	reply.Resok.Object = fh.makeFh3()
+	dip.put(nfs.fs, nfs.ic, txn)
+	ip.put(nfs.fs, nfs.ic, txn)
 	txn.Commit()
-	dip.unlockPut(nfs.ic, txn)
-	ip.unlockPut(nfs.ic, txn)
+	dip.unlock()
+	ip.unlock()
 	return nil
 }
 
@@ -122,7 +135,7 @@ func (nfs *Nfs) ReadLink(args *READLINK3args, reply *READLINK3res) error {
 func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Read %v\n", args.File)
-	ip := nfs.getInode(txn, args.File)
+	ip := nfs.getInode(nfs.fs, txn, args.File)
 	if ip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort()
@@ -130,29 +143,32 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	}
 	if ip.kind != NF3REG {
 		reply.Status = NFS3ERR_INVAL
+		ip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
-		ip.unlockPut(nfs.ic, txn)
+		ip.unlock()
 		return nil
 	}
 	data, ok := ip.read(txn, uint64(args.Offset), uint64(args.Count))
 	if !ok {
 		reply.Status = NFS3ERR_NOSPC
+		ip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
 		return nil
 	} else {
 		reply.Status = NFS3_OK
 		reply.Resok.Count = Count3(len(data))
 		reply.Resok.Data = data
+		ip.put(nfs.fs, nfs.ic, txn)
 		txn.Commit()
 	}
-	ip.unlockPut(nfs.ic, txn)
+	ip.unlock()
 	return nil
 }
 
 func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Write %v\n", args.File)
-	ip := nfs.getInode(txn, args.File)
+	ip := nfs.getInode(nfs.fs, txn, args.File)
 	if ip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort()
@@ -160,29 +176,33 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	}
 	if ip.kind != NF3REG {
 		reply.Status = NFS3ERR_INVAL
+		ip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
-		ip.unlockPut(nfs.ic, txn)
+		ip.unlock()
 		return nil
 	}
 	count, ok := ip.write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
 	if !ok {
 		reply.Status = NFS3ERR_NOSPC
+		ip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
 		return nil
 	} else {
 		reply.Status = NFS3_OK
 		reply.Resok.Count = Count3(count)
+		ip.put(nfs.fs, nfs.ic, txn)
 		txn.Commit()
 	}
-	ip.unlockPut(nfs.ic, txn)
+	ip.unlock()
 	return nil
 }
 
 // XXX deal with how
+// XXX Check for . and ..
 func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Create %v\n", args)
-	dip := nfs.getInode(txn, args.Where.Dir)
+	dip := nfs.getInode(nfs.fs, txn, args.Where.Dir)
 	if dip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort()
@@ -191,14 +211,16 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	inum1 := dip.lookupLink(txn, args.Where.Name)
 	if inum1 != NULLINUM {
 		reply.Status = NFS3ERR_EXIST
-		dip.unlockPut(nfs.ic, txn)
+		dip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
+		dip.unlock()
 		return nil
 	}
 	inum := nfs.fs.allocInode(txn, NF3REG)
 	if inum == NULLINUM {
 		reply.Status = NFS3ERR_NOSPC
-		dip.unlockPut(nfs.ic, txn)
+		dip.put(nfs.fs, nfs.ic, txn)
+		dip.unlock()
 		txn.Abort()
 		return nil
 	}
@@ -206,12 +228,14 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	if !ok {
 		nfs.fs.freeInum(txn, inum)
 		reply.Status = NFS3ERR_IO
-		dip.unlockPut(nfs.ic, txn)
+		dip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
+		dip.unlock()
 		return nil
 	}
+	dip.put(nfs.fs, nfs.ic, txn)
 	txn.Commit()
-	dip.unlockPut(nfs.ic, txn)
+	dip.unlock()
 	return nil
 }
 
@@ -233,10 +257,11 @@ func (nfs *Nfs) MakeNod(args *MKNOD3args, reply *MKNOD3res) error {
 	return nil
 }
 
+// XXX Check for . and ..
 func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Remove %v\n", args)
-	dip := nfs.getInode(txn, args.Object.Dir)
+	dip := nfs.getInode(nfs.fs, txn, args.Object.Dir)
 	if dip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort()
@@ -245,37 +270,45 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 	inum := dip.lookupLink(txn, args.Object.Name)
 	if inum == NULLINUM {
 		reply.Status = NFS3ERR_NOENT
-		dip.unlockPut(nfs.ic, txn)
+		dip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
+		dip.unlock()
 		return nil
 	}
 	ip := nfs.loadInode(txn, inum)
 	if ip == nil {
 		reply.Status = NFS3ERR_IO
-		dip.unlockPut(nfs.ic, txn)
+		dip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
+		dip.unlock()
 		return nil
 	}
 	ip.lock()
 	if ip.kind != NF3REG {
 		reply.Status = NFS3ERR_INVAL
-		dip.unlockPut(nfs.ic, txn)
-		ip.unlockPut(nfs.ic, txn)
+		dip.put(nfs.fs, nfs.ic, txn)
+		ip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
+		ip.unlock()
+		dip.unlock()
 		return nil
 	}
 	n := dip.remlink(txn, args.Object.Name)
 	if n == NULLINUM {
 		reply.Status = NFS3ERR_IO
-		dip.unlockPut(nfs.ic, txn)
-		ip.unlockPut(nfs.ic, txn)
+		dip.put(nfs.fs, nfs.ic, txn)
+		ip.put(nfs.fs, nfs.ic, txn)
 		txn.Abort()
+		ip.unlock()
+		dip.unlock()
 		return nil
 	}
-	ip.unlink(nfs.fs, txn)
+	ip.decLink(nfs.fs, txn)
+	dip.put(nfs.fs, nfs.ic, txn)
+	ip.put(nfs.fs, nfs.ic, txn)
 	txn.Commit()
-	dip.unlockPut(nfs.ic, txn)
-	ip.unlockPut(nfs.ic, txn)
+	dip.unlock()
+	ip.unlock()
 	return nil
 }
 
