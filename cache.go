@@ -88,20 +88,19 @@ func (c *Cache) lookupSlot(id uint64) *Cslot {
 	return &enew.slot
 }
 
-// Decrease ref count of the cache slot for id
-func (c *Cache) freeSlot(id uint64, pin bool) bool {
+// Decrease ref count of the cache slot for id and entry.obj
+// maybe deleted by evict
+func (c *Cache) freeSlot(id uint64, pin bool) {
 	c.mu.Lock()
 	entry := c.entries[id]
 	if entry != nil {
 		entry.ref = entry.ref - 1
-		last := entry.ref == 0
 		entry.pin = pin
 		c.mu.Unlock()
-		return last
+		return
 	}
 	c.mu.Unlock()
 	panic("putObj")
-	return false
 }
 
 // Decrease ref count of the cache slot for id and return slot if

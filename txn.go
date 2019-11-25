@@ -4,15 +4,22 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 
 	"log"
-	"sync"
 )
 
 // XXX keep track whether buffer was modified so that we don't write
 // it into log on commit.
 type Buf struct {
-	mu    *sync.RWMutex
+	slot  *Cslot
 	blk   disk.Block
 	blkno uint64
+}
+
+func (buf *Buf) lock() {
+	buf.slot.lock()
+}
+
+func (buf *Buf) unlock() {
+	buf.slot.unlock()
 }
 
 type Txn struct {
@@ -23,17 +30,15 @@ type Txn struct {
 
 // Returns a locked buf
 func (txn *Txn) load(slot *Cslot, a uint64) *Buf {
-	slot.mu.Lock()
+	slot.lock()
 	if slot.obj == nil {
 		// blk hasn't been read yet from disk; read it and put
 		// the buf with the read blk in the cache slot.
 		blk := disk.Read(a)
-		buf := &Buf{mu: new(sync.RWMutex), blk: blk, blkno: a}
+		buf := &Buf{slot: slot, blk: blk, blkno: a}
 		slot.obj = buf
 	}
 	buf := slot.obj.(*Buf)
-	buf.mu.Lock()
-	slot.mu.Unlock()
 	return buf
 }
 
@@ -43,7 +48,7 @@ func (txn *Txn) load(slot *Cslot, a uint64) *Buf {
 func (txn *Txn) release() {
 	log.Printf("release bufs")
 	for _, buf := range txn.bufs {
-		buf.mu.Unlock()
+		buf.unlock()
 		txn.cache.freeSlot(buf.blkno, true)
 	}
 }
@@ -68,7 +73,7 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 		if slot == nil {
 			return nil
 		}
-		// load the slot with a locked block
+		// load the slot and lock it
 		buf := txn.load(slot, addr)
 		txn.bufs[addr] = buf
 		return buf.blk
