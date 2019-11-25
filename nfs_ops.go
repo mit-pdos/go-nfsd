@@ -106,6 +106,13 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	return nil
 }
 
+func (nfs *Nfs) Access(args *ACCESS3args, reply *ACCESS3res) error {
+	log.Printf("Access %v\n", args)
+	reply.Status = NFS3_OK
+	reply.Resok.Access = ACCESS3_READ | ACCESS3_LOOKUP | ACCESS3_MODIFY | ACCESS3_EXTEND | ACCESS3_DELETE | ACCESS3_EXECUTE
+	return nil
+}
+
 func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	txn := Begin(nfs.log, nfs.bc)
 	log.Printf("Read %v\n", args.File)
