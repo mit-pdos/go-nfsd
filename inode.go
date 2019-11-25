@@ -132,7 +132,7 @@ func (ip *Inode) unlock() {
 // Done with ip and remove inode if nlink and ref = 0. Must be run
 // inside of a transaction since it may modify inode.
 func (ip *Inode) put(fs *FsSuper, c *Cache, txn *Txn) {
-	log.Printf("put inode %d\n", ip.inum)
+	log.Printf("put inode %d %d\n", ip.inum, ip.nlink)
 	last := c.delSlot(ip.inum)
 	if last {
 		if ip.nlink == 0 {

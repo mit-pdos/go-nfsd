@@ -26,6 +26,8 @@ type Txn struct {
 	log   *Log
 	cache *Cache          // a cache of Buf's shared between transactions
 	bufs  map[uint64]*Buf // Locked bufs in use by this transaction
+	fs    *FsSuper
+	ic    *Cache
 }
 
 // Returns a locked buf
@@ -54,11 +56,13 @@ func (txn *Txn) release() {
 }
 
 // XXX wait if cannot reserve space in log
-func Begin(log *Log, cache *Cache) *Txn {
+func Begin(log *Log, cache *Cache, fs *FsSuper, ic *Cache) *Txn {
 	txn := &Txn{
 		log:   log,
 		cache: cache,
 		bufs:  make(map[uint64]*Buf),
+		fs:    fs,
+		ic:    ic,
 	}
 	return txn
 }
@@ -90,18 +94,24 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	return true
 }
 
-func (txn *Txn) Commit() bool {
+func (txn *Txn) Commit(inodes []*Inode) bool {
 	log.Printf("commit\n")
+	for _, ip := range inodes {
+		ip.put(txn.fs, txn.ic, txn)
+	}
 	bufs := new([]Buf)
 	for _, buf := range txn.bufs {
 		*bufs = append(*bufs, *buf)
 	}
 	ok := (*txn.log).Append(*bufs)
 	txn.release()
+	for _, ip := range inodes {
+		ip.unlock()
+	}
 	return ok
 }
 
-func (txn *Txn) Abort() {
+func (txn *Txn) Abort(inodes []*Inode) {
 	log.Printf("abort\n")
 	txn.release()
 }
