@@ -104,6 +104,8 @@ func (nfs *Nfs) loadInode(txn *Txn, inum Inum) *Inode {
 // we should lock the inode block explicitly (if the inode is already
 // in cache).  (Or maybe delete the inode lock and always lock the
 // block that contains the inode.)
+// XXX race: a commit after freeInode() may allow inode to be reallocated
+// by allocInode, even though inode is still locked in icache.
 func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
 	ip := nfs.loadInode(txn, fh.ino)
