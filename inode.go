@@ -93,6 +93,12 @@ func decode(blk disk.Block, inum uint64) *Inode {
 	return ip
 }
 
+func (nfs *Nfs) loadInode(txn *Txn, inum Inum) *Inode {
+	slot := nfs.ic.lookupSlot(inum)
+	ip := nfs.fs.loadInode(txn, slot, inum)
+	return ip
+}
+
 // Returns locked inode on success. This implicitly locks the inode
 // block too.  If we put several inodes in a single inode block then
 // we should lock the inode block explicitly (if the inode is already
@@ -100,8 +106,7 @@ func decode(blk disk.Block, inum uint64) *Inode {
 // block that contains the inode.)
 func (nfs *Nfs) getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
-	slot := nfs.ic.lookupSlot(fh.ino)
-	ip := nfs.fs.loadInode(txn, slot, fh.ino)
+	ip := nfs.loadInode(txn, fh.ino)
 	if ip == nil {
 		log.Printf("loadInode failed\n")
 		return nil
@@ -217,87 +222,19 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	return cnt, ok
 }
 
-const MaxNameLen = 4096 - 1 - 8
-
-type DirEnt struct {
-	Valid bool
-	Name  string // max 4096-1-8=4087 bytes
-	Inum  Inum
-}
-
-func encodeDirEnt(de *DirEnt, blk disk.Block) disk.Block {
-	if len(de.Name) > MaxNameLen {
-		panic("directory entry name too long")
-	}
-	enc := NewEnc(blk)
-	enc.PutString(de.Name)
-	enc.PutBool(de.Valid)
-	enc.PutInt(de.Inum)
-	return enc.Finish()
-}
-
-func decodeDirEnt(b disk.Block) *DirEnt {
-	dec := NewDec(b)
-	de := &DirEnt{}
-	de.Name = dec.GetString()
-	de.Valid = dec.GetBool()
-	de.Inum = dec.GetInt()
-	return de
-}
-
-func (ip *Inode) lookupLink(txn *Txn, name Filename3) uint64 {
-	if ip.kind != NF3DIR {
-		return 0
-	}
-	blocks := ip.size / disk.BlockSize
-	for b := uint64(0); b < blocks; b++ {
-		blk := (*txn).Read(ip.blks[b])
-		de := decodeDirEnt(blk)
-		if !de.Valid {
-			continue
+func (ip *Inode) unlink(fs *FsSuper, txn *Txn) bool {
+	ip.nlink = ip.nlink - 1
+	if ip.nlink == 0 {
+		blocks := ip.size / disk.BlockSize
+		for b := uint64(0); b < blocks; b++ {
+			fs.freeBlock(txn, ip.blks[b])
+			ip.blks[b] = 0
 		}
-		if de.Name == string(name) {
-			return de.Inum
-		}
+		ip.size = uint64(0)
+		ip.kind = NF3FREE
+		ip.gen = ip.gen + 1
+		return fs.writeInode(txn, ip)
+	} else {
+		return fs.writeInode(txn, ip)
 	}
-	return 0
-}
-
-func writeLink(blk disk.Block, txn *Txn, inum uint64, name Filename3, blkno uint64) bool {
-	de := &DirEnt{Valid: true, Inum: inum, Name: string(name)}
-	encodeDirEnt(de, blk)
-	ok := (*txn).Write(blkno, blk)
-	return ok
-}
-
-func (ip *Inode) addLink(fs *FsSuper, txn *Txn, inum uint64, name Filename3) bool {
-	var freede *DirEnt
-
-	if ip.kind != NF3DIR {
-		return false
-	}
-	blocks := ip.size / disk.BlockSize
-	for b := uint64(0); b < blocks; b++ {
-		blk := (*txn).Read(ip.blks[b])
-		de := decodeDirEnt(blk)
-		if !de.Valid {
-			writeLink(blk, txn, inum, name, ip.blks[b])
-			freede = de
-			break
-		}
-		continue
-	}
-	if freede != nil {
-		return true
-	}
-	ok := ip.resize(fs, txn, ip.size+disk.BlockSize)
-	if !ok {
-		return false
-	}
-	blk := (*txn).Read(ip.blks[blocks])
-	writeLink(blk, txn, inum, name, ip.blks[blocks])
-	if !ok {
-		panic("addLink")
-	}
-	return true
 }

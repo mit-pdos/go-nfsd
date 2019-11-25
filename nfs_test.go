@@ -38,13 +38,17 @@ func (suite *NfsSuite) Create(name string) {
 	suite.Equal(attr.Status, NFS3_OK)
 }
 
-func (suite *NfsSuite) Lookup(name string) Nfs_fh3 {
+func (suite *NfsSuite) Lookup(name string, succeed bool) Nfs_fh3 {
 	what := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
 	args := &LOOKUP3args{What: what}
 	reply := &LOOKUP3res{}
 	res := suite.nfs.Lookup(args, reply)
 	suite.Require().Nil(res)
-	suite.Equal(reply.Status, NFS3_OK)
+	if succeed {
+		suite.Equal(reply.Status, NFS3_OK)
+	} else {
+		suite.NotEqual(reply.Status, NFS3_OK)
+	}
 	return reply.Resok.Object
 }
 
@@ -56,6 +60,14 @@ func (suite *NfsSuite) Getattr(fh Nfs_fh3, sz uint64) {
 	suite.Equal(attr.Status, NFS3_OK)
 	suite.Equal(attr.Resok.Obj_attributes.Ftype, NF3REG)
 	suite.Equal(attr.Resok.Obj_attributes.Size, Size3(sz))
+}
+
+func (suite *NfsSuite) GetattrFail(fh Nfs_fh3) {
+	args := &GETATTR3args{Object: fh}
+	attr := &GETATTR3res{}
+	res := suite.nfs.GetAttr(args, attr)
+	suite.Require().Nil(res)
+	suite.Equal(attr.Status, NFS3ERR_STALE)
 }
 
 func (suite *NfsSuite) Setattr(fh Nfs_fh3, sz uint64) {
@@ -95,9 +107,20 @@ func (suite *NfsSuite) Read(fh Nfs_fh3, sz uint64) []byte {
 	return reply.Resok.Data
 }
 
-func (suite *NfsSuite) TestMakeFile() {
+func (suite *NfsSuite) Remove(name string) {
+	what := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
+	args := &REMOVE3args{
+		Object: what,
+	}
+	reply := &REMOVE3res{}
+	res := suite.nfs.Remove(args, reply)
+	suite.Require().Nil(res)
+	suite.Equal(reply.Status, NFS3_OK)
+}
+
+func (suite *NfsSuite) TestFile() {
 	suite.Create("x")
-	fh := suite.Lookup("x")
+	fh := suite.Lookup("x", true)
 	suite.Getattr(fh, 0)
 	data := make([]byte, 8192)
 	l := uint64(len(data))
@@ -112,6 +135,9 @@ func (suite *NfsSuite) TestMakeFile() {
 	for i := uint64(0); i < l; i++ {
 		suite.Equal(data[i], d[i])
 	}
+	suite.Remove("x")
+	_ = suite.Lookup("x", false)
+	suite.GetattrFail(fh)
 
 	suite.nfs.ShutdownNfs()
 }

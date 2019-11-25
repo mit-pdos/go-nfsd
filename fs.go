@@ -156,6 +156,7 @@ func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) Inum {
 			inode = i
 			inode.inum = inum
 			inode.kind = kind
+			inode.nlink = 1
 			break
 		}
 		// XXX release inode block from txn
@@ -177,6 +178,7 @@ func (fs *FsSuper) freeInode(txn *Txn, inum Inum) {
 		panic("freeInode")
 	}
 	i.kind = NF3FREE
+	i.gen = i.gen + 1
 	_ = fs.writeInode(txn, i)
 }
 
