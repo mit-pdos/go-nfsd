@@ -18,6 +18,14 @@ type Cslot struct {
 	obj interface{}
 }
 
+func (slot *Cslot) lock() {
+	slot.mu.Lock()
+}
+
+func (slot *Cslot) unlock() {
+	slot.mu.Unlock()
+}
+
 type entry struct {
 	ref  uint32 // the slot's reference count
 	pin  bool   // is the slot pinned?
@@ -99,19 +107,16 @@ func (c *Cache) freeSlot(id uint64, pin bool) bool {
 // Decrease ref count of the cache slot for id and return slot if
 // last, so that caller can delete cached object. The caller should
 // hold the locked obj in the slot.
-func (c *Cache) delSlot(id uint64) *Cslot {
+func (c *Cache) delSlot(id uint64) bool {
 	c.mu.Lock()
 	entry := c.entries[id]
 	if entry != nil {
 		entry.ref = entry.ref - 1
-		if entry.ref == 0 {
-			c.mu.Unlock()
-			return &entry.slot
-		}
+		last := entry.ref == 0
 		c.mu.Unlock()
-		return nil
+		return last
 	}
 	c.mu.Unlock()
 	panic("delSlot")
-	return nil
+	return false
 }

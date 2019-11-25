@@ -4,7 +4,6 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 
 	"log"
-	"sync"
 )
 
 const NF3FREE Ftype3 = 0
@@ -13,7 +12,7 @@ const NDIRECT uint64 = 10
 
 type Inode struct {
 	// in-memory info:
-	mu   *sync.RWMutex
+	slot *Cslot
 	inum uint64
 	// the on-disk inode:
 	kind  Ftype3
@@ -30,7 +29,7 @@ const ROOTINUM uint64 = 1
 
 func mkNullInode() *Inode {
 	return &Inode{
-		mu:    new(sync.RWMutex),
+		slot:  nil,
 		inum:  NULLINUM,
 		kind:  NF3DIR,
 		nlink: uint32(1),
@@ -42,7 +41,7 @@ func mkNullInode() *Inode {
 
 func mkRootInode() *Inode {
 	return &Inode{
-		mu:    new(sync.RWMutex),
+		slot:  nil,
 		inum:  ROOTINUM,
 		kind:  NF3DIR,
 		nlink: uint32(1),
@@ -82,7 +81,7 @@ func (ip *Inode) encode(blk disk.Block) disk.Block {
 
 func decode(blk disk.Block, inum uint64) *Inode {
 	ip := &Inode{}
-	ip.mu = new(sync.RWMutex)
+	ip.slot = nil
 	dec := NewDec(blk)
 	ip.inum = inum
 	ip.kind = Ftype3(dec.GetInt32())
@@ -121,29 +120,27 @@ func (nfs *Nfs) getInode(fs *FsSuper, txn *Txn, fh3 Nfs_fh3) *Inode {
 	return ip
 }
 
+// To lock an inode, lock the reference in the cache slot
 func (ip *Inode) lock() {
-	ip.mu.Lock()
+	ip.slot.lock()
 }
 
 func (ip *Inode) unlock() {
-	ip.mu.Unlock()
+	ip.slot.unlock()
 }
 
 // Done with ip and remove inode if nlink and ref = 0. Must be run
 // inside of a transaction since it may modify inode.
-// XXX deadlock possible: another thread acquires slot and wants lock on inode.
 func (ip *Inode) put(fs *FsSuper, c *Cache, txn *Txn) {
 	log.Printf("put inode %d\n", ip.inum)
-	slot := c.delSlot(ip.inum)
-	if slot != nil {
+	last := c.delSlot(ip.inum)
+	if last {
 		if ip.nlink == 0 {
 			log.Printf("delete inode %d\n", ip.inum)
 			ip.resize(fs, txn, 0)
 			fs.freeInode(txn, ip)
-			slot.obj = nil
-
+			ip.slot.obj = nil
 		}
-		slot.mu.Unlock()
 	}
 }
 
