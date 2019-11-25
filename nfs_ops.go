@@ -77,7 +77,6 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Lookup %v\n", args)
 	dip := nfs.getInode(nfs.fs, txn, args.What.Dir)
-	log.Printf("load %v\n", dip)
 	if dip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort(nil)

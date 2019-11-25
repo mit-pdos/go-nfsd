@@ -112,7 +112,6 @@ func (c *Cache) delSlot(id uint64) bool {
 	entry := c.entries[id]
 	if entry != nil {
 		entry.ref = entry.ref - 1
-		log.Printf("delSlot %d\n", entry.ref)
 		last := entry.ref == 0
 		c.mu.Unlock()
 		return last
