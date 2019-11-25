@@ -169,7 +169,13 @@ func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) Inum {
 	return inode.inum
 }
 
-func (fs *FsSuper) freeInode(txn *Txn, inum Inum) {
+func (fs *FsSuper) freeInode(txn *Txn, i *Inode) bool {
+	i.kind = NF3FREE
+	i.gen = i.gen + 1
+	return fs.writeInode(txn, i)
+}
+
+func (fs *FsSuper) freeInum(txn *Txn, inum Inum) bool {
 	i, ok := fs.readInode(txn, inum)
 	if !ok {
 		panic("freeInode")
@@ -177,9 +183,7 @@ func (fs *FsSuper) freeInode(txn *Txn, inum Inum) {
 	if i.kind == NF3FREE {
 		panic("freeInode")
 	}
-	i.kind = NF3FREE
-	i.gen = i.gen + 1
-	_ = fs.writeInode(txn, i)
+	return fs.freeInode(txn, i)
 }
 
 // for mkfs

@@ -191,7 +191,7 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	}
 	ok := dip.addLink(nfs.fs, txn, inum, args.Where.Name)
 	if !ok {
-		nfs.fs.freeInode(txn, inum)
+		nfs.fs.freeInum(txn, inum)
 		reply.Status = NFS3ERR_IO
 		dip.unlockPut(nfs.ic, txn)
 		txn.Abort()

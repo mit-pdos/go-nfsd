@@ -145,10 +145,22 @@ func (ip *Inode) unlockPut(c *Cache, txn *Txn) {
 	ip.putInode(c, txn)
 }
 
-func (ip *Inode) resize(fs *FsSuper, txn *Txn, sz uint64) bool {
-	if sz < ip.size {
-		panic("resize not implemented")
+func (ip *Inode) shrink(fs *FsSuper, txn *Txn, sz uint64) bool {
+	blocks := ip.size / disk.BlockSize
+	if sz%disk.BlockSize != 0 {
+		panic("shrink")
 	}
+	newsz := sz / disk.BlockSize
+	for b := newsz; b < blocks; b++ {
+		log.Printf("freeblock: %d\n", ip.blks[b])
+		fs.freeBlock(txn, ip.blks[b])
+		ip.blks[b] = 0
+	}
+	ip.size = sz
+	return true
+}
+
+func (ip *Inode) grow(fs *FsSuper, txn *Txn, sz uint64) bool {
 	n := sz / disk.BlockSize
 	// XXX fix loop for goose
 	for i := uint64(0); i < n; i++ {
@@ -166,6 +178,16 @@ func (ip *Inode) resize(fs *FsSuper, txn *Txn, sz uint64) bool {
 		}
 	}
 	return true
+}
+
+func (ip *Inode) resize(fs *FsSuper, txn *Txn, sz uint64) bool {
+	var ok bool
+	if sz < ip.size {
+		ok = ip.shrink(fs, txn, sz)
+	} else {
+		ok = ip.grow(fs, txn, sz)
+	}
+	return ok
 }
 
 func (ip *Inode) readBlock(txn *Txn, boff uint64) disk.Block {
@@ -225,15 +247,8 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 func (ip *Inode) unlink(fs *FsSuper, txn *Txn) bool {
 	ip.nlink = ip.nlink - 1
 	if ip.nlink == 0 {
-		blocks := ip.size / disk.BlockSize
-		for b := uint64(0); b < blocks; b++ {
-			fs.freeBlock(txn, ip.blks[b])
-			ip.blks[b] = 0
-		}
-		ip.size = uint64(0)
-		ip.kind = NF3FREE
-		ip.gen = ip.gen + 1
-		return fs.writeInode(txn, ip)
+		ip.resize(fs, txn, 0)
+		return fs.freeInode(txn, ip)
 	} else {
 		return fs.writeInode(txn, ip)
 	}
