@@ -218,24 +218,31 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 		txn.Abort()
 		return nil
 	}
-	n := dip.remlink(txn, args.Object.Name)
-	if n == NULLINUM {
-		reply.Status = NFS3ERR_IO
-		dip.unlockPut(nfs.ic, txn)
-		txn.Abort()
-		return nil
-	}
-	ip := nfs.loadInode(txn, n)
+	ip := nfs.loadInode(txn, inum)
 	if ip == nil {
 		reply.Status = NFS3ERR_IO
 		dip.unlockPut(nfs.ic, txn)
 		txn.Abort()
 		return nil
-	} else {
-		ip.lock()
-		ip.unlink(nfs.fs, txn)
-		txn.Commit()
 	}
+	ip.lock()
+	if ip.kind != NF3REG {
+		reply.Status = NFS3ERR_INVAL
+		dip.unlockPut(nfs.ic, txn)
+		ip.unlockPut(nfs.ic, txn)
+		txn.Abort()
+		return nil
+	}
+	n := dip.remlink(txn, args.Object.Name)
+	if n == NULLINUM {
+		reply.Status = NFS3ERR_IO
+		dip.unlockPut(nfs.ic, txn)
+		ip.unlockPut(nfs.ic, txn)
+		txn.Abort()
+		return nil
+	}
+	ip.unlink(nfs.fs, txn)
+	txn.Commit()
 	dip.unlockPut(nfs.ic, txn)
 	ip.unlockPut(nfs.ic, txn)
 	return nil
