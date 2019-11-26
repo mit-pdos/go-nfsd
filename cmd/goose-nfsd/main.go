@@ -69,6 +69,9 @@ func main() {
 
 	srv := rfc1057.MakeServer()
 	registerNFS(srv, nfs)
+
+	// srv.RegisterMany(goose_nfs.NFS_PROGRAM_NFS_V3_regs(nfs))
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
