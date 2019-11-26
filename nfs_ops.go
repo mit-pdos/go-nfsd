@@ -88,7 +88,6 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 		txn.Abort([]*Inode{dip})
 		return nil
 	}
-	log.Printf("load %v\n", inum)
 	ip := loadInode(txn, inum)
 	if ip == nil {
 		reply.Status = NFS3ERR_IO
@@ -203,6 +202,7 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 		return nil
 	}
 	txn.Commit([]*Inode{dip})
+	reply.Status = NFS3_OK
 	return nil
 }
 
@@ -252,14 +252,15 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 		txn.Abort([]*Inode{ip, dip})
 		return nil
 	}
-	n := dip.remlink(txn, args.Object.Name)
+	n := dip.remLink(txn, args.Object.Name)
 	if n == NULLINUM {
 		reply.Status = NFS3ERR_IO
 		txn.Abort([]*Inode{ip, dip})
 		return nil
 	}
-	ip.decLink(nfs.fs, txn)
+	ip.decLink(txn)
 	txn.Commit([]*Inode{ip, dip})
+	reply.Status = NFS3_OK
 	return nil
 }
 
@@ -269,9 +270,101 @@ func (nfs *Nfs) RmDir(args *RMDIR3args, reply *RMDIR3res) error {
 	return nil
 }
 
+// XXX sort to and from
 func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
+	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Rename %v\n", args)
-	reply.Status = NFS3ERR_NOTSUPP
+
+	// Check source exist
+	dipfrom := getInode(txn, args.From.Dir)
+	if dipfrom == nil {
+		reply.Status = NFS3ERR_STALE
+		txn.Abort(nil)
+		return nil
+	}
+	frominum := dipfrom.lookupLink(txn, args.From.Name)
+	if frominum == NULLINUM {
+		reply.Status = NFS3ERR_NOENT
+		txn.Abort([]*Inode{dipfrom})
+		return nil
+	}
+
+	// Lookup dipto if from and to dir are different
+	var dipto *Inode
+	inodes := make([]*Inode, 0, 4)
+	inodes = append(inodes, dipfrom)
+	if args.From.Dir.equal(args.To.Dir) {
+		dipto = dipfrom
+	} else {
+		dipto = getInode(txn, args.To.Dir)
+		if dipto == nil {
+			reply.Status = NFS3ERR_STALE
+			txn.Abort(inodes)
+			return nil
+		}
+		inodes = append(inodes, dipto)
+	}
+	log.Printf("Rename from %v to %v\n", dipfrom, dipto)
+
+	toinum := dipto.lookupLink(txn, args.To.Name)
+
+	log.Printf("frominum %d toinum %d\n", frominum, toinum)
+
+	// rename to itself?
+	if dipto == dipfrom && toinum == frominum {
+		reply.Status = NFS3_OK
+		txn.Commit(inodes)
+		return nil
+	}
+
+	// does to exist?
+	if toinum != NULLINUM {
+		to := getInodeInum(txn, toinum)
+		if to == nil {
+			reply.Status = NFS3ERR_IO
+			txn.Abort(inodes)
+			return nil
+		}
+		inodes = append(inodes, to)
+		from := getInodeInum(txn, frominum)
+		if from == nil {
+			reply.Status = NFS3ERR_IO
+			txn.Abort(inodes)
+			return nil
+		}
+		inodes = append(inodes, from)
+		if to.kind != from.kind {
+			reply.Status = NFS3ERR_INVAL
+			txn.Abort(inodes)
+		}
+		if to.kind == NF3DIR && !to.dirEmpty(txn) {
+			reply.Status = NFS3ERR_NOTEMPTY
+			txn.Abort(inodes)
+		}
+		n := dipto.remLink(txn, args.To.Name)
+		if n == NULLINUM {
+			reply.Status = NFS3ERR_IO
+			txn.Abort(inodes)
+			return nil
+		}
+		to.decLink(txn)
+		to.put(txn)
+		from.put(txn)
+	}
+	n := dipfrom.remLink(txn, args.From.Name)
+	if n == NULLINUM {
+		reply.Status = NFS3ERR_IO
+		txn.Abort(inodes)
+		return nil
+	}
+	ok := dipto.addLink(txn, frominum, args.To.Name)
+	if !ok {
+		reply.Status = NFS3ERR_IO
+		txn.Abort(inodes)
+		return nil
+	}
+	txn.Commit(inodes)
+	reply.Status = NFS3_OK
 	return nil
 }
 

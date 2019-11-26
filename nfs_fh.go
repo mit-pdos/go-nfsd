@@ -28,3 +28,15 @@ func MkRootFh3() Nfs_fh3 {
 	machine.UInt64Put(d[8:16], 0)
 	return Nfs_fh3{Data: d}
 }
+
+func (fh3 Nfs_fh3) equal(h Nfs_fh3) bool {
+	if len(fh3.Data) != len(h.Data) {
+		return false
+	}
+	for i, x := range fh3.Data {
+		if x != h.Data[i] {
+			return false
+		}
+	}
+	return true
+}

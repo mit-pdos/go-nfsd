@@ -98,6 +98,16 @@ func loadInode(txn *Txn, inum Inum) *Inode {
 	return ip
 }
 
+func getInodeInum(txn *Txn, inum Inum) *Inode {
+	ip := loadInode(txn, inum)
+	if ip == nil {
+		log.Printf("loadInode failed\n")
+		return nil
+	}
+	ip.lock()
+	return ip
+}
+
 // Returns locked inode on success. This implicitly locks the inode
 // block too.  If we put several inodes in a single inode block then
 // we should lock the inode block explicitly (if the inode is already
@@ -105,12 +115,7 @@ func loadInode(txn *Txn, inum Inum) *Inode {
 // block that contains the inode.)
 func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
-	ip := loadInode(txn, fh.ino)
-	if ip == nil {
-		log.Printf("loadInode failed\n")
-		return nil
-	}
-	ip.lock()
+	ip := getInodeInum(txn, fh.ino)
 	if ip.gen != fh.gen {
 		log.Printf("wrong gen\n")
 		ip.put(txn)
@@ -243,7 +248,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	return cnt, ok
 }
 
-func (ip *Inode) decLink(fs *FsSuper, txn *Txn) bool {
+func (ip *Inode) decLink(txn *Txn) bool {
 	ip.nlink = ip.nlink - 1
-	return fs.writeInode(txn, ip)
+	return txn.fs.writeInode(txn, ip)
 }

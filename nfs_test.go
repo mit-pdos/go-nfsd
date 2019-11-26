@@ -142,6 +142,22 @@ func (suite *NfsSuite) TestFile() {
 	suite.nfs.ShutdownNfs()
 }
 
+func (suite *NfsSuite) Rename(from string, to string) {
+	args := &RENAME3args{
+		From: Diropargs3{Dir: MkRootFh3(), Name: Filename3(from)},
+		To:   Diropargs3{Dir: MkRootFh3(), Name: Filename3(to)},
+	}
+	reply := &RENAME3res{}
+	res := suite.nfs.Rename(args, reply)
+	suite.Require().Nil(res)
+	suite.Equal(reply.Status, NFS3_OK)
+}
+
+func (suite *NfsSuite) TestRename() {
+	suite.Create("x")
+	suite.Rename("x", "y")
+}
+
 func TestNfs(t *testing.T) {
 	suite.Run(t, new(NfsSuite))
 }

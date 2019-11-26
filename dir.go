@@ -96,7 +96,7 @@ func (dip *Inode) addLink(txn *Txn, inum uint64, name Filename3) bool {
 	return true
 }
 
-func (dip *Inode) remlink(txn *Txn, name Filename3) Inum {
+func (dip *Inode) remLink(txn *Txn, name Filename3) Inum {
 	var inum Inum = NULLINUM
 	if dip.kind != NF3DIR {
 		return NULLINUM
@@ -117,4 +117,9 @@ func (dip *Inode) remlink(txn *Txn, name Filename3) Inum {
 		return NULLINUM
 	}
 	return inum
+}
+
+// XXX . and ..
+func (dip *Inode) dirEmpty(txn *Txn) bool {
+	return dip.size == 0
 }
