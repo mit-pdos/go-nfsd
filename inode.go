@@ -95,6 +95,7 @@ func decode(blk disk.Block, inum uint64) *Inode {
 func loadInode(txn *Txn, inum Inum) *Inode {
 	slot := txn.ic.lookupSlot(inum)
 	ip := txn.fs.loadInode(txn, slot, inum)
+	log.Printf("loadInode %v\n", ip)
 	return ip
 }
 

@@ -34,7 +34,7 @@ func (nfs *Nfs) ShutdownNfs() {
 }
 
 func errRet(txn *Txn, status *Nfsstat3, err Nfsstat3, inodes []*Inode) error {
-	*status = NFS3ERR_STALE
+	*status = err
 	txn.Abort(inodes)
 	return nil
 }
