@@ -141,6 +141,7 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Write %v\n", args.File)
 	ip := getInode(txn, args.File)
+	fh := args.File.makeFh()
 	if ip == nil {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	}
@@ -153,7 +154,7 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	} else {
 		reply.Status = NFS3_OK
 		reply.Resok.Count = Count3(count)
-		how, _ := txn.CommitHow([]*Inode{ip}, args.Stable)
+		how, _ := txn.CommitHow([]*Inode{ip}, fh, args.Stable)
 		reply.Resok.Committed = how
 	}
 	return nil
