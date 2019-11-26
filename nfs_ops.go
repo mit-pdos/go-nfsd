@@ -180,7 +180,6 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	if !ok {
 		nfs.fs.freeInum(txn, inum)
 		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
-		return nil
 	}
 	txn.Commit([]*Inode{dip})
 	reply.Status = NFS3_OK
