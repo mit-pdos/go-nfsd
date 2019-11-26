@@ -144,6 +144,7 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	return nil
 }
 
+// XXX deal with stable_how and committed
 func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Write %v\n", args.File)
@@ -165,6 +166,7 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 		return nil
 	} else {
 		reply.Status = NFS3_OK
+		reply.Resok.Committed = FILE_SYNC
 		reply.Resok.Count = Count3(count)
 		txn.Commit([]*Inode{ip})
 	}
@@ -270,7 +272,7 @@ func (nfs *Nfs) RmDir(args *RMDIR3args, reply *RMDIR3res) error {
 	return nil
 }
 
-// XXX sort to and from
+// XXX check for . and ..
 func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Rename %v\n", args)
@@ -350,10 +352,12 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 		if to.kind != from.kind {
 			reply.Status = NFS3ERR_INVAL
 			txn.Abort(inodes)
+			return nil
 		}
 		if to.kind == NF3DIR && !to.dirEmpty(txn) {
 			reply.Status = NFS3ERR_NOTEMPTY
 			txn.Abort(inodes)
+			return nil
 		}
 		n := dipto.remLink(txn, args.To.Name)
 		if n == NULLINUM {
