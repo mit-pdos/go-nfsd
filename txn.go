@@ -122,7 +122,7 @@ func (txn *Txn) Commit(inodes []*Inode) bool {
 	return ok
 }
 
-func (txn *Txn) CommitHow(inodes []*Inode, stable Stable_how) (Stable_how, bool) {
+func (txn *Txn) CommitHow(inodes []*Inode, fh Fh, stable Stable_how) (Stable_how, bool) {
 	return FILE_SYNC, txn.Commit(inodes)
 }
 
