@@ -134,6 +134,12 @@ func (ip *Inode) unlock() {
 	ip.slot.unlock()
 }
 
+func unlockInodes(inodes []*Inode) {
+	for _, ip := range inodes {
+		ip.unlock()
+	}
+}
+
 // Done with ip and remove inode if nlink and ref = 0. Must be run
 // inside of a transaction since it may modify inode.
 func (ip *Inode) put(txn *Txn) {

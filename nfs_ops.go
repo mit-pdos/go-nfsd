@@ -304,7 +304,6 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 		}
 		inodes = append(inodes, dipto)
 	}
-	log.Printf("Rename from %v to %v\n", dipfrom, dipto)
 
 	toinum := dipto.lookupLink(txn, args.To.Name)
 
@@ -348,8 +347,6 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 			return nil
 		}
 		to.decLink(txn)
-		to.put(txn)
-		from.put(txn)
 	}
 	n := dipfrom.remLink(txn, args.From.Name)
 	if n == NULLINUM {

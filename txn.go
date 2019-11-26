@@ -94,20 +94,31 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	return true
 }
 
-func (txn *Txn) Commit(inodes []*Inode) bool {
-	log.Printf("commit\n")
+func (txn *Txn) putInodes(inodes []*Inode) {
 	for _, ip := range inodes {
 		ip.put(txn)
 	}
+}
+
+func (txn *Txn) Commit(inodes []*Inode) bool {
+	log.Printf("commit\n")
+
+	// may free an inode so must be done before Append
+	txn.putInodes(inodes)
+
+	// commit all buffers used by this transaction
 	bufs := new([]Buf)
 	for _, buf := range txn.bufs {
 		*bufs = append(*bufs, *buf)
 	}
 	ok := (*txn.log).Append(*bufs)
+
+	// release the buffers used in this transaction
 	txn.release()
-	for _, ip := range inodes {
-		ip.unlock()
-	}
+
+	// unlock all inodes used in this transaction
+	unlockInodes(inodes)
+
 	return ok
 }
 
