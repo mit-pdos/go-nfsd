@@ -23,8 +23,9 @@ func (nfs *Nfs) Dump(args *xdr.Void, reply *Mountopt3) error {
 	return nil
 }
 
-func (nfs *Nfs) Export(args *xdr.Void, reply *Exports3) error {
-	log.Printf("Export %v\n", args)
-	reply.Ex_dir = "/"
+func (nfs *Nfs) Export(args *xdr.Void, reply *Exportsopt3) error {
+	res := Exports3{}
+	res.Ex_dir = "/"
+	reply.P = &res
 	return nil
 }

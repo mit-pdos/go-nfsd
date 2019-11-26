@@ -42,6 +42,21 @@ func (w *nfsWrapper) mount(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	return &out, err
 }
 
+func (w *nfsWrapper) export(args *xdr.XdrState) (res xdr.Xdrable, err error) {
+	log.Printf("wexport\n")
+
+	var in xdr.Void
+	in.Xdr(args)
+	err = args.Error()
+	if err != nil {
+		return
+	}
+
+	var out goose_nfs.Exportsopt3
+	err = w.nfs.Export(&in, &out)
+	return &out, err
+}
+
 func (w *nfsWrapper) getattr(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	var in goose_nfs.GETATTR3args
 	in.Xdr(args)
@@ -63,6 +78,9 @@ func registerNFS(srv *rfc1057.Server, nfs *goose_nfs.Nfs) {
 
 	srv.Register(goose_nfs.MOUNT_PROGRAM, goose_nfs.MOUNT_V3,
 		goose_nfs.MOUNTPROC3_MNT, w.mount)
+
+	srv.Register(goose_nfs.MOUNT_PROGRAM, goose_nfs.MOUNT_V3,
+		goose_nfs.MOUNTPROC3_EXPORT, w.export)
 
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_GETATTR, w.getattr)
