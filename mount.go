@@ -6,12 +6,12 @@ import (
 	"log"
 )
 
-func (nfs *Nfs) Null(args *xdr.Void, reply *xdr.Void) error {
+func (nfs *Nfs) NullMount(args *xdr.Void, reply *xdr.Void) error {
 	log.Printf("Null\n")
 	return nil
 }
 
-func (nfs *Nfs) Mount(args *Mount3, reply *Mountres3) error {
+func (nfs *Nfs) Mount(args *Dirpath3, reply *Mountres3) error {
 	log.Printf("Mount %v\n", args)
 	reply.Fhs_status = MNT3_OK
 	reply.Mountinfo.Fhandle = MkRootFh3().Data

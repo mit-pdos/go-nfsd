@@ -1,6 +1,7 @@
 package goose_nfs
 
 import (
+	"github.com/zeldovich/go-rpcgen/xdr"
 	"log"
 )
 
@@ -35,6 +36,11 @@ func (nfs *Nfs) ShutdownNfs() {
 func errRet(txn *Txn, status *Nfsstat3, err Nfsstat3, inodes []*Inode) error {
 	*status = NFS3ERR_STALE
 	txn.Abort(inodes)
+	return nil
+}
+
+func (nfs *Nfs) NullNFS(args *xdr.Void, reply *xdr.Void) error {
+	log.Printf("Null\n")
 	return nil
 }
 
