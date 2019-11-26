@@ -275,34 +275,49 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Rename %v\n", args)
 
-	// Check source exist
-	dipfrom := getInode(txn, args.From.Dir)
-	if dipfrom == nil {
-		reply.Status = NFS3ERR_STALE
-		txn.Abort(nil)
-		return nil
-	}
+	toh := args.To.Dir.makeFh()
+	fromh := args.From.Dir.makeFh()
+
 	inodes := make([]*Inode, 0, 4)
-	inodes = append(inodes, dipfrom)
+	var dipto *Inode
+	var dipfrom *Inode
+
+	if args.From.Dir.equal(args.To.Dir) {
+		dipfrom = getInode(txn, args.From.Dir)
+		if dipfrom == nil {
+			reply.Status = NFS3ERR_STALE
+			txn.Abort(nil)
+			return nil
+		}
+		dipto = dipfrom
+		inodes = append(inodes, dipfrom)
+	} else {
+		var ok bool
+		if toh.ino < fromh.ino {
+			inodes, ok = getInodes(txn, []Fh{toh, fromh})
+		} else {
+			inodes, ok = getInodes(txn, []Fh{fromh, toh})
+		}
+		if !ok {
+			reply.Status = NFS3ERR_STALE
+			txn.Abort(inodes)
+		}
+		if toh.ino < fromh.ino {
+			dipto = inodes[0]
+			dipfrom = inodes[1]
+		} else {
+			dipto = inodes[1]
+			dipfrom = inodes[0]
+		}
+	}
+
+	log.Printf("from %v to %v\n", dipfrom, dipto)
+
 	frominum := dipfrom.lookupLink(txn, args.From.Name)
 	if frominum == NULLINUM {
 		reply.Status = NFS3ERR_NOENT
 		txn.Abort(inodes)
 		return nil
-	}
-
-	// Lookup dipto if from and to dir are different
-	var dipto *Inode
-	if args.From.Dir.equal(args.To.Dir) {
-		dipto = dipfrom
-	} else {
-		dipto = getInode(txn, args.To.Dir)
-		if dipto == nil {
-			reply.Status = NFS3ERR_STALE
-			txn.Abort(inodes)
-			return nil
-		}
-		inodes = append(inodes, dipto)
 	}
 
 	toinum := dipto.lookupLink(txn, args.To.Name)

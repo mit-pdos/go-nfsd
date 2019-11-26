@@ -125,6 +125,19 @@ func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	return ip
 }
 
+// Caller is responsible for sorting handles
+func getInodes(txn *Txn, handles []Fh) ([]*Inode, bool) {
+	inodes := make([]*Inode, 0, len(handles))
+	for _, h := range handles {
+		i := getInodeInum(txn, h.ino)
+		if i == nil {
+			return inodes, false
+		}
+		inodes = append(inodes, i)
+	}
+	return inodes, true
+}
+
 // To lock an inode, lock the reference in the cache slot
 func (ip *Inode) lock() {
 	//log.Printf("lock inum %d\n", ip.inum)
