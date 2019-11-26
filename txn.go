@@ -23,11 +23,11 @@ func (buf *Buf) unlock() {
 }
 
 type Txn struct {
-	log   *Log
-	cache *Cache          // a cache of Buf's shared between transactions
-	bufs  map[uint64]*Buf // Locked bufs in use by this transaction
-	fs    *FsSuper
-	ic    *Cache
+	log  *Log
+	bc   *Cache          // a cache of Buf's shared between transactions
+	bufs map[uint64]*Buf // Locked bufs in use by this transaction
+	fs   *FsSuper
+	ic   *Cache
 }
 
 // Returns a locked buf
@@ -51,18 +51,18 @@ func (txn *Txn) release() {
 	log.Printf("release bufs")
 	for _, buf := range txn.bufs {
 		buf.unlock()
-		txn.cache.freeSlot(buf.blkno, true)
+		txn.bc.freeSlot(buf.blkno, true)
 	}
 }
 
 // XXX wait if cannot reserve space in log
 func Begin(log *Log, cache *Cache, fs *FsSuper, ic *Cache) *Txn {
 	txn := &Txn{
-		log:   log,
-		cache: cache,
-		bufs:  make(map[uint64]*Buf),
-		fs:    fs,
-		ic:    ic,
+		log:  log,
+		bc:   cache,
+		bufs: make(map[uint64]*Buf),
+		fs:   fs,
+		ic:   ic,
 	}
 	return txn
 }
@@ -73,7 +73,7 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 		// this transaction already has the buf locked
 		return v.blk
 	} else {
-		slot := txn.cache.lookupSlot(addr)
+		slot := txn.bc.lookupSlot(addr)
 		if slot == nil {
 			return nil
 		}
@@ -97,7 +97,7 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 func (txn *Txn) Commit(inodes []*Inode) bool {
 	log.Printf("commit\n")
 	for _, ip := range inodes {
-		ip.put(txn.fs, txn.ic, txn)
+		ip.put(txn)
 	}
 	bufs := new([]Buf)
 	for _, buf := range txn.bufs {

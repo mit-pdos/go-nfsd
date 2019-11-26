@@ -92,9 +92,9 @@ func decode(blk disk.Block, inum uint64) *Inode {
 	return ip
 }
 
-func (nfs *Nfs) loadInode(txn *Txn, inum Inum) *Inode {
-	slot := nfs.ic.lookupSlot(inum)
-	ip := nfs.fs.loadInode(txn, slot, inum)
+func loadInode(txn *Txn, inum Inum) *Inode {
+	slot := txn.ic.lookupSlot(inum)
+	ip := txn.fs.loadInode(txn, slot, inum)
 	return ip
 }
 
@@ -103,9 +103,9 @@ func (nfs *Nfs) loadInode(txn *Txn, inum Inum) *Inode {
 // we should lock the inode block explicitly (if the inode is already
 // in cache).  (Or maybe delete the inode lock and always lock the
 // block that contains the inode.)
-func (nfs *Nfs) getInode(fs *FsSuper, txn *Txn, fh3 Nfs_fh3) *Inode {
+func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
-	ip := nfs.loadInode(txn, fh.ino)
+	ip := loadInode(txn, fh.ino)
 	if ip == nil {
 		log.Printf("loadInode failed\n")
 		return nil
@@ -113,7 +113,7 @@ func (nfs *Nfs) getInode(fs *FsSuper, txn *Txn, fh3 Nfs_fh3) *Inode {
 	ip.lock()
 	if ip.gen != fh.gen {
 		log.Printf("wrong gen\n")
-		ip.put(fs, nfs.ic, txn)
+		ip.put(txn)
 		ip.unlock()
 		return nil
 	}
@@ -131,20 +131,20 @@ func (ip *Inode) unlock() {
 
 // Done with ip and remove inode if nlink and ref = 0. Must be run
 // inside of a transaction since it may modify inode.
-func (ip *Inode) put(fs *FsSuper, c *Cache, txn *Txn) {
+func (ip *Inode) put(txn *Txn) {
 	log.Printf("put inode %d %d\n", ip.inum, ip.nlink)
-	last := c.delSlot(ip.inum)
+	last := txn.ic.delSlot(ip.inum)
 	if last {
 		if ip.nlink == 0 {
 			log.Printf("delete inode %d\n", ip.inum)
-			ip.resize(fs, txn, 0)
-			fs.freeInode(txn, ip)
+			ip.resize(txn, 0)
+			txn.fs.freeInode(txn, ip)
 			ip.slot.obj = nil
 		}
 	}
 }
 
-func (ip *Inode) shrink(fs *FsSuper, txn *Txn, sz uint64) bool {
+func (ip *Inode) shrink(txn *Txn, sz uint64) bool {
 	blocks := ip.size / disk.BlockSize
 	if sz%disk.BlockSize != 0 {
 		panic("shrink")
@@ -152,18 +152,18 @@ func (ip *Inode) shrink(fs *FsSuper, txn *Txn, sz uint64) bool {
 	newsz := sz / disk.BlockSize
 	for b := newsz; b < blocks; b++ {
 		log.Printf("freeblock: %d\n", ip.blks[b])
-		fs.freeBlock(txn, ip.blks[b])
+		txn.fs.freeBlock(txn, ip.blks[b])
 		ip.blks[b] = 0
 	}
 	ip.size = sz
 	return true
 }
 
-func (ip *Inode) grow(fs *FsSuper, txn *Txn, sz uint64) bool {
+func (ip *Inode) grow(txn *Txn, sz uint64) bool {
 	n := sz / disk.BlockSize
 	// XXX fix loop for goose
 	for i := uint64(0); i < n; i++ {
-		bn, ok := fs.allocBlock(txn)
+		bn, ok := txn.fs.allocBlock(txn)
 		log.Printf("allocblock: %d\n", bn)
 		if !ok {
 			return false
@@ -171,7 +171,7 @@ func (ip *Inode) grow(fs *FsSuper, txn *Txn, sz uint64) bool {
 		b := ip.size / disk.BlockSize
 		ip.size = ip.size + disk.BlockSize
 		ip.blks[b] = bn
-		ok1 := fs.writeInode(txn, ip)
+		ok1 := txn.fs.writeInode(txn, ip)
 		if !ok1 {
 			panic("resize: writeInode failed")
 		}
@@ -179,12 +179,12 @@ func (ip *Inode) grow(fs *FsSuper, txn *Txn, sz uint64) bool {
 	return true
 }
 
-func (ip *Inode) resize(fs *FsSuper, txn *Txn, sz uint64) bool {
+func (ip *Inode) resize(txn *Txn, sz uint64) bool {
 	var ok bool
 	if sz < ip.size {
-		ok = ip.shrink(fs, txn, sz)
+		ok = ip.shrink(txn, sz)
 	} else {
-		ok = ip.grow(fs, txn, sz)
+		ok = ip.grow(txn, sz)
 	}
 	return ok
 }

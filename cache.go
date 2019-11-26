@@ -1,7 +1,6 @@
 package goose_nfs
 
 import (
-	"log"
 	"sync"
 )
 

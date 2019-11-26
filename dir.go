@@ -64,7 +64,7 @@ func delLink(blk disk.Block, txn *Txn, blkno uint64) bool {
 	return ok
 }
 
-func (dip *Inode) addLink(fs *FsSuper, txn *Txn, inum uint64, name Filename3) bool {
+func (dip *Inode) addLink(txn *Txn, inum uint64, name Filename3) bool {
 	var freede *DirEnt
 
 	if dip.kind != NF3DIR {
@@ -84,7 +84,7 @@ func (dip *Inode) addLink(fs *FsSuper, txn *Txn, inum uint64, name Filename3) bo
 	if freede != nil {
 		return true
 	}
-	ok := dip.resize(fs, txn, dip.size+disk.BlockSize)
+	ok := dip.resize(txn, dip.size+disk.BlockSize)
 	if !ok {
 		return false
 	}

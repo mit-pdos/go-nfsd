@@ -35,7 +35,7 @@ func (nfs *Nfs) ShutdownNfs() {
 func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 	log.Printf("GetAttr %v\n", args)
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
-	ip := nfs.getInode(nfs.fs, txn, args.Object)
+	ip := getInode(txn, args.Object)
 	if ip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort(nil)
@@ -50,13 +50,13 @@ func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 	log.Printf("SetAttr %v\n", args)
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
-	ip := nfs.getInode(nfs.fs, txn, args.Object)
+	ip := getInode(txn, args.Object)
 	if ip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort(nil)
 	} else {
 		if args.New_attributes.Size.Set_it {
-			ok := ip.resize(nfs.fs, txn,
+			ok := ip.resize(txn,
 				uint64(args.New_attributes.Size.Size))
 			if !ok {
 				reply.Status = NFS3ERR_IO
@@ -76,7 +76,7 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Lookup %v\n", args)
-	dip := nfs.getInode(nfs.fs, txn, args.What.Dir)
+	dip := getInode(txn, args.What.Dir)
 	if dip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort(nil)
@@ -89,7 +89,7 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 		return nil
 	}
 	log.Printf("load %v\n", inum)
-	ip := nfs.loadInode(txn, inum)
+	ip := loadInode(txn, inum)
 	if ip == nil {
 		reply.Status = NFS3ERR_IO
 		txn.Abort([]*Inode{dip})
@@ -120,7 +120,7 @@ func (nfs *Nfs) ReadLink(args *READLINK3args, reply *READLINK3res) error {
 func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Read %v\n", args.File)
-	ip := nfs.getInode(nfs.fs, txn, args.File)
+	ip := getInode(txn, args.File)
 	if ip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort(nil)
@@ -148,7 +148,7 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Write %v\n", args.File)
-	ip := nfs.getInode(nfs.fs, txn, args.File)
+	ip := getInode(txn, args.File)
 	if ip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort(nil)
@@ -177,7 +177,7 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Create %v\n", args)
-	dip := nfs.getInode(nfs.fs, txn, args.Where.Dir)
+	dip := getInode(txn, args.Where.Dir)
 	if dip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort(nil)
@@ -195,7 +195,7 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 		txn.Abort([]*Inode{dip})
 		return nil
 	}
-	ok := dip.addLink(nfs.fs, txn, inum, args.Where.Name)
+	ok := dip.addLink(txn, inum, args.Where.Name)
 	if !ok {
 		nfs.fs.freeInum(txn, inum)
 		reply.Status = NFS3ERR_IO
@@ -228,7 +228,7 @@ func (nfs *Nfs) MakeNod(args *MKNOD3args, reply *MKNOD3res) error {
 func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Remove %v\n", args)
-	dip := nfs.getInode(nfs.fs, txn, args.Object.Dir)
+	dip := getInode(txn, args.Object.Dir)
 	if dip == nil {
 		reply.Status = NFS3ERR_STALE
 		txn.Abort(nil)
@@ -240,7 +240,7 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 		txn.Abort([]*Inode{dip})
 		return nil
 	}
-	ip := nfs.loadInode(txn, inum)
+	ip := loadInode(txn, inum)
 	if ip == nil {
 		reply.Status = NFS3ERR_IO
 		txn.Abort([]*Inode{ip})
