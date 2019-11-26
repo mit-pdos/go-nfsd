@@ -122,6 +122,10 @@ func (txn *Txn) Commit(inodes []*Inode) bool {
 	return ok
 }
 
+func (txn *Txn) CommitHow(inodes []*Inode, stable Stable_how) (Stable_how, bool) {
+	return FILE_SYNC, txn.Commit(inodes)
+}
+
 func (txn *Txn) Abort(inodes []*Inode) {
 	log.Printf("abort\n")
 

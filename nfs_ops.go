@@ -152,9 +152,9 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{ip})
 	} else {
 		reply.Status = NFS3_OK
-		reply.Resok.Committed = FILE_SYNC
 		reply.Resok.Count = Count3(count)
-		txn.Commit([]*Inode{ip})
+		how, _ := txn.CommitHow([]*Inode{ip}, args.Stable)
+		reply.Resok.Committed = how
 	}
 	return nil
 }
