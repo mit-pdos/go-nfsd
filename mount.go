@@ -1,8 +1,15 @@
 package goose_nfs
 
 import (
+	"github.com/zeldovich/go-rpcgen/xdr"
+
 	"log"
 )
+
+func (nfs *Nfs) Null(args *xdr.Void, reply *xdr.Void) error {
+	log.Printf("Null\n")
+	return nil
+}
 
 func (nfs *Nfs) Mount(args *Mount3, reply *Mountres3) error {
 	log.Printf("Mount %v\n", args)
@@ -11,7 +18,13 @@ func (nfs *Nfs) Mount(args *Mount3, reply *Mountres3) error {
 	return nil
 }
 
-func (nfs *Nfs) Export(args *Mount3, reply *Exports3) error {
+func (nfs *Nfs) Dump(args *xdr.Void, reply *Mountopt3) error {
+	log.Printf("Dump\n")
+	return nil
+}
+
+func (nfs *Nfs) Export(args *xdr.Void, reply *Exports3) error {
+	log.Printf("Export %v\n", args)
 	reply.Ex_dir = "/"
 	return nil
 }
