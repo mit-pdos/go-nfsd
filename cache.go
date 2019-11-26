@@ -117,5 +117,4 @@ func (c *Cache) delSlot(id uint64) bool {
 	}
 	c.mu.Unlock()
 	panic("delSlot")
-	return false
 }
