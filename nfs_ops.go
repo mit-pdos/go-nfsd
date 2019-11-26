@@ -32,13 +32,18 @@ func (nfs *Nfs) ShutdownNfs() {
 	nfs.log.Shutdown()
 }
 
+func errRet(txn *Txn, status *Nfsstat3, err Nfsstat3, inodes []*Inode) error {
+	*status = NFS3ERR_STALE
+	txn.Abort(inodes)
+	return nil
+}
+
 func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 	log.Printf("GetAttr %v\n", args)
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	ip := getInode(txn, args.Object)
 	if ip == nil {
-		reply.Status = NFS3ERR_STALE
-		txn.Abort(nil)
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	} else {
 		reply.Status = NFS3_OK
 		reply.Resok.Obj_attributes = ip.mkFattr()
@@ -52,22 +57,19 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	ip := getInode(txn, args.Object)
 	if ip == nil {
-		reply.Status = NFS3ERR_STALE
-		txn.Abort(nil)
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	} else {
 		if args.New_attributes.Size.Set_it {
 			ok := ip.resize(txn,
 				uint64(args.New_attributes.Size.Size))
 			if !ok {
-				reply.Status = NFS3ERR_IO
-				txn.Abort([]*Inode{ip})
+				return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{ip})
 			} else {
 				reply.Status = NFS3_OK
 				txn.Commit([]*Inode{ip})
 			}
 		} else {
-			reply.Status = NFS3ERR_NOTSUPP
-			txn.Abort([]*Inode{ip})
+			return errRet(txn, &reply.Status, NFS3ERR_NOTSUPP, []*Inode{ip})
 		}
 	}
 	return nil
@@ -78,21 +80,15 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	log.Printf("Lookup %v\n", args)
 	dip := getInode(txn, args.What.Dir)
 	if dip == nil {
-		reply.Status = NFS3ERR_STALE
-		txn.Abort(nil)
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	}
 	inum := dip.lookupLink(txn, args.What.Name)
 	if inum == NULLINUM {
-		reply.Status = NFS3ERR_NOENT
-		txn.Abort([]*Inode{dip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_NOENT, []*Inode{dip})
 	}
 	ip := loadInode(txn, inum)
 	if ip == nil {
-		reply.Status = NFS3ERR_IO
-		txn.Abort([]*Inode{dip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
 
 	}
 	ip.lock()
@@ -116,25 +112,20 @@ func (nfs *Nfs) ReadLink(args *READLINK3args, reply *READLINK3res) error {
 	return nil
 }
 
+// XXX eof
 func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Read %v\n", args.File)
 	ip := getInode(txn, args.File)
 	if ip == nil {
-		reply.Status = NFS3ERR_STALE
-		txn.Abort(nil)
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	}
 	if ip.kind != NF3REG {
-		reply.Status = NFS3ERR_INVAL
-		txn.Abort([]*Inode{ip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
 	}
 	data, ok := ip.read(txn, uint64(args.Offset), uint64(args.Count))
 	if !ok {
-		reply.Status = NFS3ERR_NOSPC
-		txn.Abort([]*Inode{ip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{ip})
 	} else {
 		reply.Status = NFS3_OK
 		reply.Resok.Count = Count3(len(data))
@@ -145,25 +136,20 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 }
 
 // XXX deal with stable_how and committed
+// XXX Mtime
 func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Write %v\n", args.File)
 	ip := getInode(txn, args.File)
 	if ip == nil {
-		reply.Status = NFS3ERR_STALE
-		txn.Abort(nil)
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	}
 	if ip.kind != NF3REG {
-		reply.Status = NFS3ERR_INVAL
-		txn.Abort([]*Inode{ip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
 	}
 	count, ok := ip.write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
 	if !ok {
-		reply.Status = NFS3ERR_NOSPC
-		txn.Abort([]*Inode{ip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{ip})
 	} else {
 		reply.Status = NFS3_OK
 		reply.Resok.Committed = FILE_SYNC
@@ -180,27 +166,20 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	log.Printf("Create %v\n", args)
 	dip := getInode(txn, args.Where.Dir)
 	if dip == nil {
-		reply.Status = NFS3ERR_STALE
-		txn.Abort(nil)
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	}
 	inum1 := dip.lookupLink(txn, args.Where.Name)
 	if inum1 != NULLINUM {
-		reply.Status = NFS3ERR_EXIST
-		txn.Abort([]*Inode{dip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_EXIST, []*Inode{dip})
 	}
 	inum := nfs.fs.allocInode(txn, NF3REG)
 	if inum == NULLINUM {
-		reply.Status = NFS3ERR_NOSPC
-		txn.Abort([]*Inode{dip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{dip})
 	}
 	ok := dip.addLink(txn, inum, args.Where.Name)
 	if !ok {
 		nfs.fs.freeInum(txn, inum)
-		reply.Status = NFS3ERR_IO
-		txn.Abort([]*Inode{dip})
+		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
 		return nil
 	}
 	txn.Commit([]*Inode{dip})
@@ -232,33 +211,23 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 	log.Printf("Remove %v\n", args)
 	dip := getInode(txn, args.Object.Dir)
 	if dip == nil {
-		reply.Status = NFS3ERR_STALE
-		txn.Abort(nil)
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	}
 	inum := dip.lookupLink(txn, args.Object.Name)
 	if inum == NULLINUM {
-		reply.Status = NFS3ERR_NOENT
-		txn.Abort([]*Inode{dip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_NOENT, []*Inode{dip})
 	}
 	ip := loadInode(txn, inum)
 	if ip == nil {
-		reply.Status = NFS3ERR_IO
-		txn.Abort([]*Inode{ip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{ip, dip})
 	}
 	ip.lock()
 	if ip.kind != NF3REG {
-		reply.Status = NFS3ERR_INVAL
-		txn.Abort([]*Inode{ip, dip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip, dip})
 	}
 	n := dip.remLink(txn, args.Object.Name)
 	if n == NULLINUM {
-		reply.Status = NFS3ERR_IO
-		txn.Abort([]*Inode{ip, dip})
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{ip, dip})
 	}
 	ip.decLink(txn)
 	txn.Commit([]*Inode{ip, dip})
@@ -287,9 +256,7 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 	if args.From.Dir.equal(args.To.Dir) {
 		dipfrom = getInode(txn, args.From.Dir)
 		if dipfrom == nil {
-			reply.Status = NFS3ERR_STALE
-			txn.Abort(nil)
-			return nil
+			return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 		}
 		dipto = dipfrom
 		inodes = append(inodes, dipfrom)
@@ -301,8 +268,7 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 			inodes, ok = getInodes(txn, []Fh{fromh, toh})
 		}
 		if !ok {
-			reply.Status = NFS3ERR_STALE
-			txn.Abort(inodes)
+			return errRet(txn, &reply.Status, NFS3ERR_STALE, inodes)
 		}
 		if toh.ino < fromh.ino {
 			dipto = inodes[0]
@@ -317,9 +283,7 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 
 	frominum := dipfrom.lookupLink(txn, args.From.Name)
 	if frominum == NULLINUM {
-		reply.Status = NFS3ERR_NOENT
-		txn.Abort(inodes)
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_NOENT, inodes)
 	}
 
 	toinum := dipto.lookupLink(txn, args.To.Name)
@@ -337,47 +301,33 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 	if toinum != NULLINUM {
 		to := getInodeInum(txn, toinum)
 		if to == nil {
-			reply.Status = NFS3ERR_IO
-			txn.Abort(inodes)
-			return nil
+			return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
 		}
 		inodes = append(inodes, to)
 		from := getInodeInum(txn, frominum)
 		if from == nil {
-			reply.Status = NFS3ERR_IO
-			txn.Abort(inodes)
-			return nil
+			return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
 		}
 		inodes = append(inodes, from)
 		if to.kind != from.kind {
-			reply.Status = NFS3ERR_INVAL
-			txn.Abort(inodes)
-			return nil
+			return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
 		}
 		if to.kind == NF3DIR && !to.dirEmpty(txn) {
-			reply.Status = NFS3ERR_NOTEMPTY
-			txn.Abort(inodes)
-			return nil
+			return errRet(txn, &reply.Status, NFS3ERR_NOTEMPTY, inodes)
 		}
 		n := dipto.remLink(txn, args.To.Name)
 		if n == NULLINUM {
-			reply.Status = NFS3ERR_IO
-			txn.Abort(inodes)
-			return nil
+			return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
 		}
 		to.decLink(txn)
 	}
 	n := dipfrom.remLink(txn, args.From.Name)
 	if n == NULLINUM {
-		reply.Status = NFS3ERR_IO
-		txn.Abort(inodes)
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
 	}
 	ok := dipto.addLink(txn, frominum, args.To.Name)
 	if !ok {
-		reply.Status = NFS3ERR_IO
-		txn.Abort(inodes)
-		return nil
+		return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
 	}
 	txn.Commit(inodes)
 	reply.Status = NFS3_OK
