@@ -216,13 +216,31 @@ func (ip *Inode) resize(txn *Txn, sz uint64) bool {
 	return ok
 }
 
-func (ip *Inode) readBlock(txn *Txn, boff uint64) disk.Block {
-	return txn.Read(ip.blks[boff])
+func (ip *Inode) bmap(txn *Txn, bn uint64) uint64 {
+	if bn < NDIRECT {
+		if ip.blks[bn] == 0 {
+			blkno, ok := txn.fs.allocBlock(txn)
+			if !ok {
+				panic("bmap")
+			}
+			ip.blks[bn] = blkno
+
+		}
+		return ip.blks[bn]
+	}
+	return 0
 }
 
-func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
+func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool, bool) {
 	var n uint64 = uint64(0)
 	var ok bool = true
+
+	if offset >= ip.size {
+		return nil, true, true
+	}
+	if count >= offset+ip.size {
+		count = ip.size - offset
+	}
 	data := make([]byte, count)
 	for boff := offset / disk.BlockSize; n < count; boff++ {
 		byteoff := offset % disk.BlockSize
@@ -230,26 +248,32 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 		if count-n < nbytes {
 			nbytes = count - n
 		}
-		blk := ip.readBlock(txn, boff)
+		blkno := ip.bmap(txn, boff)
+		log.Printf("read %d %d\n", blkno, nbytes)
+		blk := txn.Read(blkno)
 		for b := uint64(0); b < nbytes; b++ {
 			data[n+b] = blk[byteoff+b]
 		}
 		n = n + nbytes
 		offset = offset + nbytes
 	}
-	return data, ok
-}
-
-func (ip *Inode) writeBlock(txn *Txn, boff uint64, blk disk.Block) bool {
-	return txn.Write(ip.blks[boff], blk)
+	return data, false, ok
 }
 
 func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var ok bool = true
 	n := count
+
+	if offset >= ip.size {
+		return 0, false
+	}
+	if offset+count > NDIRECT*disk.BlockSize {
+		return 0, false
+	}
 	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
-		blk := ip.readBlock(txn, boff)
+		blkno := ip.bmap(txn, boff)
+		blk := txn.Read(blkno)
 		byteoff := offset % disk.BlockSize
 		nbytes := disk.BlockSize - byteoff
 		if n < nbytes {
@@ -258,7 +282,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		for b := uint64(0); b < nbytes; b++ {
 			blk[byteoff+b] = data[b]
 		}
-		ok := ip.writeBlock(txn, boff, disk.Block(data[:disk.BlockSize]))
+		ok := txn.Write(blkno, disk.Block(data[:disk.BlockSize]))
 		if !ok {
 			break
 		}

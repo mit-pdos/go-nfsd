@@ -129,13 +129,14 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	if ip.kind != NF3REG {
 		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
 	}
-	data, ok := ip.read(txn, uint64(args.Offset), uint64(args.Count))
+	data, eof, ok := ip.read(txn, uint64(args.Offset), uint64(args.Count))
 	if !ok {
 		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{ip})
 	} else {
 		reply.Status = NFS3_OK
 		reply.Resok.Count = Count3(len(data))
 		reply.Resok.Data = data
+		reply.Resok.Eof = eof
 		txn.Commit([]*Inode{ip})
 	}
 	return nil
@@ -145,7 +146,7 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 // XXX Mtime
 func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
-	log.Printf("Write %v\n", args.File)
+	log.Printf("Write %v off %d cnt %d\n", args.File, args.Offset, args.Count)
 	ip := getInode(txn, args.File)
 	fh := args.File.makeFh()
 	if ip == nil {
