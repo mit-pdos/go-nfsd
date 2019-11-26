@@ -4,8 +4,6 @@ import (
 	"github.com/mit-pdos/goose-nfsd"
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
-
-	"log"
 )
 
 type nfsWrapper struct {
@@ -14,8 +12,6 @@ type nfsWrapper struct {
 
 func (w *nfsWrapper) nullmount(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	var in xdr.Void
-
-	log.Printf("wnull\n")
 	in.Xdr(args)
 	err = args.Error()
 	if err != nil {
@@ -28,8 +24,6 @@ func (w *nfsWrapper) nullmount(args *xdr.XdrState) (res xdr.Xdrable, err error) 
 }
 
 func (w *nfsWrapper) mount(args *xdr.XdrState) (res xdr.Xdrable, err error) {
-	log.Printf("wmount\n")
-
 	var in goose_nfs.Dirpath3
 	in.Xdr(args)
 	err = args.Error()
@@ -43,8 +37,6 @@ func (w *nfsWrapper) mount(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 }
 
 func (w *nfsWrapper) export(args *xdr.XdrState) (res xdr.Xdrable, err error) {
-	log.Printf("wexport\n")
-
 	var in xdr.Void
 	in.Xdr(args)
 	err = args.Error()
@@ -60,7 +52,6 @@ func (w *nfsWrapper) export(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 func (w *nfsWrapper) nullnfs(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	var in xdr.Void
 
-	log.Printf("wnullnfs\n")
 	in.Xdr(args)
 	err = args.Error()
 	if err != nil {
@@ -73,7 +64,6 @@ func (w *nfsWrapper) nullnfs(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 }
 
 func (w *nfsWrapper) getattr(args *xdr.XdrState) (res xdr.Xdrable, err error) {
-	log.Printf("wgettr\n")
 	var in goose_nfs.GETATTR3args
 	in.Xdr(args)
 	err = args.Error()
@@ -86,8 +76,20 @@ func (w *nfsWrapper) getattr(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	return &out, err
 }
 
+func (w *nfsWrapper) access(args *xdr.XdrState) (res xdr.Xdrable, err error) {
+	var in goose_nfs.ACCESS3args
+	in.Xdr(args)
+	err = args.Error()
+	if err != nil {
+		return
+	}
+
+	var out goose_nfs.ACCESS3res
+	err = w.nfs.Access(&in, &out)
+	return &out, err
+}
+
 func (w *nfsWrapper) fsinfo(args *xdr.XdrState) (res xdr.Xdrable, err error) {
-	log.Printf("wfsino\n")
 	var in goose_nfs.FSINFO3args
 	in.Xdr(args)
 	err = args.Error()
@@ -117,6 +119,9 @@ func registerNFS(srv *rfc1057.Server, nfs *goose_nfs.Nfs) {
 
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_GETATTR, w.getattr)
+
+	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
+		goose_nfs.NFSPROC3_ACCESS, w.access)
 
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_FSINFO, w.fsinfo)
