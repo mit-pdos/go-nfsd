@@ -151,6 +151,9 @@ func (suite *NfsSuite) Rename(from string, to string) {
 	res := suite.nfs.Rename(args, reply)
 	suite.Require().Nil(res)
 	suite.Equal(reply.Status, NFS3_OK)
+	_ = suite.Lookup("x", false)
+	fh := suite.Lookup("y", true)
+	suite.Getattr(fh, 0)
 }
 
 func (suite *NfsSuite) TestRename() {

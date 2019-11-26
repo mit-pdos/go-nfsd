@@ -127,10 +127,12 @@ func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 
 // To lock an inode, lock the reference in the cache slot
 func (ip *Inode) lock() {
+	//log.Printf("lock inum %d\n", ip.inum)
 	ip.slot.lock()
 }
 
 func (ip *Inode) unlock() {
+	//log.Printf("unlock inum %d\n", ip.inum)
 	ip.slot.unlock()
 }
 

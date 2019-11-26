@@ -282,17 +282,17 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 		txn.Abort(nil)
 		return nil
 	}
+	inodes := make([]*Inode, 0, 4)
+	inodes = append(inodes, dipfrom)
 	frominum := dipfrom.lookupLink(txn, args.From.Name)
 	if frominum == NULLINUM {
 		reply.Status = NFS3ERR_NOENT
-		txn.Abort([]*Inode{dipfrom})
+		txn.Abort(inodes)
 		return nil
 	}
 
 	// Lookup dipto if from and to dir are different
 	var dipto *Inode
-	inodes := make([]*Inode, 0, 4)
-	inodes = append(inodes, dipfrom)
 	if args.From.Dir.equal(args.To.Dir) {
 		dipto = dipfrom
 	} else {

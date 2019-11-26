@@ -124,5 +124,12 @@ func (txn *Txn) Commit(inodes []*Inode) bool {
 
 func (txn *Txn) Abort(inodes []*Inode) {
 	log.Printf("abort\n")
+
+	// XXX txn.putInodes(inodes)
+	// XXX may have to commit free inodes from put
+
 	txn.release()
+
+	// unlock all inodes used in this transaction
+	unlockInodes(inodes)
 }
