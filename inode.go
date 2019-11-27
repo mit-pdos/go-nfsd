@@ -159,7 +159,7 @@ func unlockInodes(inodes []*Inode) {
 // Done with ip and remove inode if nlink and ref = 0. Must be run
 // inside of a transaction since it may modify inode.
 func (ip *Inode) put(txn *Txn) {
-	log.Printf("put inode %d %d\n", ip.inum, ip.nlink)
+	log.Printf("put inode %d nlink %d\n", ip.inum, ip.nlink)
 	last := txn.ic.delSlot(ip.inum)
 	if last {
 		if ip.nlink == 0 {
@@ -262,10 +262,11 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool, bool
 
 func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
+	var off uint64 = offset
 	var ok bool = true
 	n := count
 
-	if offset >= ip.size {
+	if offset > ip.size {
 		return 0, false
 	}
 	if offset+count > NDIRECT*disk.BlockSize {
@@ -282,14 +283,23 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		for b := uint64(0); b < nbytes; b++ {
 			blk[byteoff+b] = data[b]
 		}
-		ok := txn.Write(blkno, disk.Block(data[:disk.BlockSize]))
+		ok := txn.Write(blkno, blk)
 		if !ok {
 			break
 		}
-		n = n - disk.BlockSize
+		n = n - nbytes
 		data = data[nbytes:]
 		offset = offset + nbytes
 		cnt = cnt + nbytes
+	}
+	if cnt > 0 {
+		if off+cnt > ip.size {
+			ip.size = off + cnt
+		}
+		ok := txn.fs.writeInode(txn, ip)
+		if !ok {
+			panic("write")
+		}
 	}
 	return cnt, ok
 }

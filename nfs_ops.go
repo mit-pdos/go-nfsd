@@ -118,7 +118,6 @@ func (nfs *Nfs) ReadLink(args *READLINK3args, reply *READLINK3res) error {
 	return nil
 }
 
-// XXX eof
 func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("Read %v\n", args.File)

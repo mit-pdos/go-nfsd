@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
+	"log"
 )
 
 type NfsSuite struct {
@@ -16,6 +17,7 @@ func (suite *NfsSuite) SetupTest() {
 }
 
 func (suite *NfsSuite) TestGetRoot() {
+	log.Printf("TestGetRoot\n")
 	nfs := suite.nfs
 	args := &GETATTR3args{Object: MkRootFh3()}
 	attr := &GETATTR3res{}
@@ -26,6 +28,7 @@ func (suite *NfsSuite) TestGetRoot() {
 	suite.Equal(attr.Resok.Obj_attributes.Ftype, NF3DIR)
 
 	nfs.ShutdownNfs()
+	log.Printf("TestGetRoot done\n")
 }
 
 func (suite *NfsSuite) Create(name string) {
@@ -118,28 +121,51 @@ func (suite *NfsSuite) Remove(name string) {
 	suite.Equal(reply.Status, NFS3_OK)
 }
 
-func (suite *NfsSuite) TestFile() {
-	suite.Create("x")
-	fh := suite.Lookup("x", true)
-	suite.Getattr(fh, 0)
-	data := make([]byte, 8192)
+func mkdata(sz uint64) []byte {
+	data := make([]byte, sz)
 	l := uint64(len(data))
 	for i := uint64(0); i < l; i++ {
 		data[i] = byte(i % uint64(128))
 	}
-	suite.Setattr(fh, l)
-	suite.Getattr(fh, l)
-	suite.Write(fh, data)
-	d := suite.Read(fh, l)
-	suite.Equal(l, uint64(len(d)))
-	for i := uint64(0); i < l; i++ {
+	return data
+}
+
+func (suite *NfsSuite) readcheck(fh Nfs_fh3, data []byte) {
+	d := suite.Read(fh, uint64(len(data)))
+	suite.Equal(len(data), len(d))
+	for i := uint64(0); i < uint64(len(data)); i++ {
 		suite.Equal(data[i], d[i])
 	}
+}
+
+func (suite *NfsSuite) TestFile() {
+	log.Printf("TestFile\n")
+	sz := uint64(8192)
+	suite.Create("x")
+	fh := suite.Lookup("x", true)
+	suite.Getattr(fh, 0)
+	data := mkdata(sz)
+	suite.Setattr(fh, sz)
+	suite.Getattr(fh, sz)
+	suite.Write(fh, data)
+	suite.readcheck(fh, data)
 	suite.Remove("x")
 	_ = suite.Lookup("x", false)
 	suite.GetattrFail(fh)
-
 	suite.nfs.ShutdownNfs()
+	log.Printf("TestFile done\n")
+}
+
+func (suite *NfsSuite) TestFile1() {
+	log.Printf("TestFile1\n")
+	sz := uint64(122)
+	suite.Create("x")
+	fh := suite.Lookup("x", true)
+	data := mkdata(uint64(sz))
+	suite.Write(fh, data)
+	suite.readcheck(fh, data)
+	suite.nfs.ShutdownNfs()
+	log.Printf("TestFile1 done\n")
 }
 
 func (suite *NfsSuite) Rename(from string, to string) {
@@ -151,14 +177,18 @@ func (suite *NfsSuite) Rename(from string, to string) {
 	res := suite.nfs.Rename(args, reply)
 	suite.Require().Nil(res)
 	suite.Equal(reply.Status, NFS3_OK)
-	_ = suite.Lookup("x", false)
-	fh := suite.Lookup("y", true)
-	suite.Getattr(fh, 0)
 }
 
 func (suite *NfsSuite) TestRename() {
+	log.Printf("TestRename\n")
 	suite.Create("x")
 	suite.Rename("x", "y")
+	_ = suite.Lookup("x", false)
+	fh := suite.Lookup("y", true)
+	suite.Getattr(fh, 0)
+
+	suite.nfs.ShutdownNfs()
+	log.Printf("TestRename done\n")
 }
 
 func TestNfs(t *testing.T) {
