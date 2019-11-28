@@ -75,7 +75,7 @@ func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
 	if !ok {
 		return 0, false
 	}
-	ok1 := (*txn).Write(fs.bitmapStart(), blk)
+	ok1 := (*txn).WriteMeta(fs.bitmapStart(), blk)
 	if !ok1 {
 		panic("allocBlock")
 	}
@@ -85,7 +85,7 @@ func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
 func (fs *FsSuper) freeBlock(txn *Txn, bn uint64) {
 	blk := (*txn).Read(fs.bitmapStart())
 	freeBit(blk, bn)
-	ok1 := (*txn).Write(fs.bitmapStart(), blk)
+	ok1 := (*txn).WriteMeta(fs.bitmapStart(), blk)
 	if !ok1 {
 		panic("freeBlock")
 	}
@@ -113,7 +113,7 @@ func (fs *FsSuper) writeInodeBlock(txn *Txn, inum uint64, blk disk.Block) bool {
 	if inum >= fs.nInode {
 		return false
 	}
-	ok := (*txn).Write(fs.inodeStart()+inum, blk)
+	ok := (*txn).WriteMeta(fs.inodeStart()+inum, blk)
 	if !ok {
 		panic("writeInodeBlock")
 	}

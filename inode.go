@@ -220,6 +220,7 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) uint64 {
 	if bn < NDIRECT {
 		if ip.blks[bn] == 0 {
 			blkno, ok := txn.fs.allocBlock(txn)
+			log.Printf("allocblock: %d\n", blkno)
 			if !ok {
 				panic("bmap")
 			}
@@ -283,7 +284,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		for b := uint64(0); b < nbytes; b++ {
 			blk[byteoff+b] = data[b]
 		}
-		ok := txn.Write(blkno, blk)
+		ok := txn.WriteData(blkno, blk)
 		if !ok {
 			break
 		}

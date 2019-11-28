@@ -83,12 +83,12 @@ func (suite *NfsSuite) Setattr(fh Nfs_fh3, sz uint64) {
 	suite.Equal(reply.Status, NFS3_OK)
 }
 
-func (suite *NfsSuite) Write(fh Nfs_fh3, data []byte) {
+func (suite *NfsSuite) Write(fh Nfs_fh3, data []byte, how Stable_how) {
 	args := &WRITE3args{
 		File:   fh,
 		Offset: Offset3(0),
 		Count:  Count3(len(data)),
-		Stable: FILE_SYNC,
+		Stable: how,
 		Data:   data}
 	reply := &WRITE3res{}
 	res := suite.nfs.Write(args, reply)
@@ -121,6 +121,17 @@ func (suite *NfsSuite) Remove(name string) {
 	suite.Equal(reply.Status, NFS3_OK)
 }
 
+func (suite *NfsSuite) Commit(fh Nfs_fh3, cnt uint64) {
+	args := &COMMIT3args{
+		File:   fh,
+		Offset: Offset3(0),
+		Count:  Count3(cnt)}
+	reply := &COMMIT3res{}
+	res := suite.nfs.Commit(args, reply)
+	suite.Require().Nil(res)
+	suite.Equal(reply.Status, NFS3_OK)
+}
+
 func mkdata(sz uint64) []byte {
 	data := make([]byte, sz)
 	l := uint64(len(data))
@@ -147,7 +158,7 @@ func (suite *NfsSuite) TestFile() {
 	data := mkdata(sz)
 	suite.Setattr(fh, sz)
 	suite.Getattr(fh, sz)
-	suite.Write(fh, data)
+	suite.Write(fh, data, FILE_SYNC)
 	suite.readcheck(fh, data)
 	suite.Remove("x")
 	_ = suite.Lookup("x", false)
@@ -162,7 +173,7 @@ func (suite *NfsSuite) TestFile1() {
 	suite.Create("x")
 	fh := suite.Lookup("x", true)
 	data := mkdata(uint64(sz))
-	suite.Write(fh, data)
+	suite.Write(fh, data, FILE_SYNC)
 	suite.readcheck(fh, data)
 	suite.nfs.ShutdownNfs()
 	log.Printf("TestFile1 done\n")
@@ -186,6 +197,24 @@ func (suite *NfsSuite) TestRename() {
 	_ = suite.Lookup("x", false)
 	fh := suite.Lookup("y", true)
 	suite.Getattr(fh, 0)
+
+	suite.nfs.ShutdownNfs()
+	log.Printf("TestRename done\n")
+}
+
+func (suite *NfsSuite) TestUnstable() {
+	log.Printf("TestUnstable\n")
+	suite.Create("x")
+
+	sz := uint64(4096)
+	fh := suite.Lookup("x", true)
+	data := mkdata(sz)
+	suite.Write(fh, data, UNSTABLE)
+	suite.Commit(fh, sz)
+	suite.Write(fh, data, UNSTABLE)
+	suite.Commit(fh, sz)
+
+	suite.readcheck(fh, data)
 
 	suite.nfs.ShutdownNfs()
 	log.Printf("TestRename done\n")

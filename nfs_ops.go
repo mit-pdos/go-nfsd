@@ -160,8 +160,33 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	} else {
 		reply.Status = NFS3_OK
 		reply.Resok.Count = Count3(count)
-		how, _ := txn.CommitHow([]*Inode{ip}, fh, args.Stable)
-		reply.Resok.Committed = how
+		if args.Stable == FILE_SYNC {
+			// RFC: "FILE_SYNC, the server must commit the
+			// data written plus all file system metadata
+			// to stable storage before returning results."
+			txn.Commit([]*Inode{ip})
+		} else if args.Stable == DATA_SYNC {
+			// RFC: "DATA_SYNC, then the server must commit
+			// all of the data to stable storage and
+			// enough of the metadata to retrieve the data
+			// before returning."
+			txn.CommitData([]*Inode{ip}, fh)
+		} else {
+			// RFC:	"UNSTABLE, the server is free to commit
+			// any part of the data and the metadata to
+			// stable storage, including all or none,
+			// before returning a reply to the
+			// client. There is no guarantee whether or
+			// when any uncommitted data will subsequently
+			// be committed to stable storage. The only
+			// guarantees made by the server are that it
+			// will not destroy any data without changing
+			// the value of verf and that it will not
+			// commit the data and metadata at a level
+			// less than that requested by the client."
+			txn.CommitUnstable([]*Inode{ip}, fh)
+		}
+		reply.Resok.Committed = args.Stable
 	}
 	return nil
 }
@@ -377,8 +402,22 @@ func (nfs *Nfs) PathConf(args *PATHCONF3args, reply *PATHCONF3res) error {
 	return nil
 }
 
-func (nfs *Nfs) COMMIT(args *COMMIT3args, reply *COMMIT3res) error {
+func (nfs *Nfs) Commit(args *COMMIT3args, reply *COMMIT3res) error {
 	log.Printf("Commit %v\n", args)
-	reply.Status = NFS3ERR_NOTSUPP
+	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	ip := getInode(txn, args.File)
+	fh := args.File.makeFh()
+	if ip == nil {
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
+	}
+	if ip.kind != NF3REG {
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
+	}
+	ok := txn.CommitFh(fh, []*Inode{ip})
+	if ok {
+		reply.Status = NFS3_OK
+	} else {
+		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{ip})
+	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package goose_nfs
 
 import (
+	"log"
 	"sync"
 )
 
@@ -117,4 +118,29 @@ func (c *Cache) delSlot(id uint64) bool {
 	}
 	c.mu.Unlock()
 	panic("delSlot")
+}
+
+// Returns buffers associated with fh
+func (c *Cache) BufsFh(fh Fh) []*Buf {
+	c.mu.Lock()
+	bufs := new([]*Buf)
+	for _, entry := range c.entries {
+		buf := entry.slot.obj.(*Buf)
+		if buf.fh == fh {
+			*bufs = append(*bufs, buf)
+		}
+		continue
+	}
+	c.mu.Unlock()
+	log.Printf("buf %v\n", *bufs)
+	return *bufs
+}
+
+func (c *Cache) Unpin(ids []uint64) {
+	c.mu.Lock()
+	for _, id := range ids {
+		entry := c.entries[id]
+		entry.pin = false
+	}
+	c.mu.Unlock()
 }

@@ -100,7 +100,7 @@ func (l *Log) memWrite(bufs []Buf) {
 	}
 }
 
-func (l *Log) memAppend(bufs []Buf) (bool, uint64) {
+func (l *Log) MemAppend(bufs []Buf) (bool, uint64) {
 	l.memLock.Lock()
 	if l.memLen+uint64(len(bufs)) >= l.logSz-1 {
 		l.memLock.Unlock()
@@ -137,7 +137,7 @@ func (l *Log) Append(bufs []Buf) bool {
 	if len(bufs) == 0 {
 		return true
 	}
-	ok, txn := l.memAppend(bufs)
+	ok, txn := l.MemAppend(bufs)
 	if ok {
 		l.diskAppendWait(txn)
 	}
@@ -175,6 +175,7 @@ func (l *Log) diskAppend() {
 	l.logLock.Unlock()
 }
 
+// XXX flushes too eager
 func (l *Log) Logger() {
 	for !l.shutdown {
 		l.diskAppend()

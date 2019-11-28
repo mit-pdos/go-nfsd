@@ -12,6 +12,8 @@ type Buf struct {
 	slot  *Cslot
 	blk   disk.Block
 	blkno uint64
+	meta  bool // does the block contain metadata?
+	fh    Fh   // for non-meta blocks
 }
 
 func (buf *Buf) lock() {
@@ -84,12 +86,37 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 	}
 }
 
+// Unqualified write is always written to log. Assumes transaction has the buf locked.
 func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	_, ok := txn.bufs[addr]
 	if !ok {
 		panic("Write: blind write")
 	}
 	// This transaction owns the locked block; update the block
+	txn.bufs[addr].meta = true
+	txn.bufs[addr].blk = blk
+	return true
+}
+
+// Write of a metadata block. Assumes transaction has the buf locked
+func (txn *Txn) WriteMeta(addr uint64, blk disk.Block) bool {
+	_, ok := txn.bufs[addr]
+	if !ok {
+		panic("Write: blind write")
+	}
+	// This transaction owns the locked block; update the block
+	txn.bufs[addr].meta = true
+	txn.bufs[addr].blk = blk
+	return true
+}
+
+// Write of a data block.  Assumes transaction has the buf locked
+func (txn *Txn) WriteData(addr uint64, blk disk.Block) bool {
+	_, ok := txn.bufs[addr]
+	if !ok {
+		panic("Write: blind write")
+	}
+	txn.bufs[addr].meta = false
 	txn.bufs[addr].blk = blk
 	return true
 }
@@ -122,8 +149,53 @@ func (txn *Txn) Commit(inodes []*Inode) bool {
 	return ok
 }
 
-func (txn *Txn) CommitHow(inodes []*Inode, fh Fh, stable Stable_how) (Stable_how, bool) {
-	return FILE_SYNC, txn.Commit(inodes)
+// XXX don't write inode if mtime is only change
+func (txn *Txn) CommitData(inodes []*Inode, fh Fh) bool {
+	return txn.Commit(inodes)
+}
+
+// If metadata changes, write metadata and data blocks through log,
+// but without waiting for commit. otherwise, don't write data to log,
+// just leave it in the cache.
+func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
+	log.Printf("CommitUnstable\n")
+	var ok bool = true
+	if len(inodes) > 1 {
+		panic("CommitUnstable")
+	}
+
+	bufs := new([]Buf)
+	for _, buf := range txn.bufs {
+		*bufs = append(*bufs, *buf)
+	}
+	if len(*bufs) > 0 {
+		// append to in-memory log, but don't wait for the logger
+		// to complete diskAppend
+		log.Printf("commitunstable: log\n")
+		ok, _ = (*txn.log).MemAppend(*bufs)
+	} else {
+		// release will pin buffers in cache until CommmitFh
+	}
+
+	txn.release()
+
+	unlockInodes(inodes)
+
+	return ok
+}
+
+// Write data blocks associated with fh to their home location (i.e., not though log)
+func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
+	bufs := txn.bc.BufsFh(fh)
+	ids := new([]uint64)
+	for _, b := range bufs {
+		log.Printf("CommitFh %v\n", b.blkno)
+		*ids = append(*ids, b.blkno)
+		disk.Write(b.blkno, b.blk)
+	}
+	txn.bc.Unpin(*ids)
+	unlockInodes(inodes)
+	return true
 }
 
 func (txn *Txn) Abort(inodes []*Inode) {
