@@ -149,6 +149,7 @@ func (suite *NfsSuite) readcheck(fh Nfs_fh3, data []byte) {
 	}
 }
 
+// Grow file with setattr before writing
 func (suite *NfsSuite) TestFile() {
 	log.Printf("TestFile\n")
 	sz := uint64(8192)
@@ -167,6 +168,7 @@ func (suite *NfsSuite) TestFile() {
 	log.Printf("TestFile done\n")
 }
 
+// Grow file by writing
 func (suite *NfsSuite) TestFile1() {
 	log.Printf("TestFile1\n")
 	sz := uint64(122)
@@ -175,6 +177,22 @@ func (suite *NfsSuite) TestFile1() {
 	data := mkdata(uint64(sz))
 	suite.Write(fh, data, FILE_SYNC)
 	suite.readcheck(fh, data)
+	suite.nfs.ShutdownNfs()
+	log.Printf("TestFile1 done\n")
+}
+
+// Many files
+func (suite *NfsSuite) TestManyFiles() {
+	log.Printf("TestManyFiles\n")
+	for i := 0; i < 100; i++ {
+		//sz := uint64(122)
+		suite.Create("x")
+		// fh := suite.Lookup("x", true)
+		//data := mkdata(uint64(sz))
+		//suite.Write(fh, data, FILE_SYNC)
+		//suite.readcheck(fh, data)
+		suite.Remove("x")
+	}
 	suite.nfs.ShutdownNfs()
 	log.Printf("TestFile1 done\n")
 }

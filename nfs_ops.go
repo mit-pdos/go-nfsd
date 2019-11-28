@@ -18,7 +18,7 @@ type Nfs struct {
 func MkNfs() *Nfs {
 	log.Printf("\nMake FsSuper\n")
 	fs := mkFsSuper() // run first so that disk is initialized before mkLog
-	l := mkLog(fs.nLog)
+	l := mkLog()
 	if l == nil {
 		panic("mkLog failed")
 	}
@@ -26,6 +26,7 @@ func MkNfs() *Nfs {
 	ic := mkCache(ICACHESZ)
 	bc := mkCache(BCACHESZ)
 	go l.Logger()
+	go l.Installer()
 	return &Nfs{log: l, ic: ic, bc: bc, fs: fs}
 }
 

@@ -58,7 +58,7 @@ func writeLink(blk disk.Block, txn *Txn, inum uint64, name Filename3, blkno uint
 }
 
 func delLink(blk disk.Block, txn *Txn, blkno uint64) bool {
-	de := &DirEnt{Valid: true, Inum: NULLINUM, Name: string("")}
+	de := &DirEnt{Valid: false, Inum: NULLINUM, Name: string("")}
 	encodeDirEnt(de, blk)
 	ok := (*txn).Write(blkno, blk)
 	return ok
@@ -106,7 +106,6 @@ func (dip *Inode) remLink(txn *Txn, name Filename3) Inum {
 		blk := (*txn).Read(dip.blks[b])
 		de := decodeDirEnt(blk)
 		if de.Valid && de.Name == string(name) {
-			de.Valid = false
 			inum = de.Inum
 			delLink(blk, txn, dip.blks[b])
 			break

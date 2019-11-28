@@ -16,7 +16,7 @@ type FsSuper struct {
 func mkFsSuper() *FsSuper {
 	sz := uint64(10 * 1000)
 	disk.Init(disk.NewMemDisk(sz))
-	return &FsSuper{nLog: 60, nBitmap: 1, nInode: 10, maxAddr: sz}
+	return &FsSuper{nLog: LOGSIZE, nBitmap: 1, nInode: 10, maxAddr: sz}
 }
 
 func (fs *FsSuper) bitmapStart() uint64 {

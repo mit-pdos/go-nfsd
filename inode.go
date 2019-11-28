@@ -297,6 +297,8 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	if cnt > 0 {
 		if off+cnt > ip.size {
 			ip.size = off + cnt
+			// update size, so write inode. also records
+			// inode changes we might have done in bmap()
 			ok := txn.fs.writeInode(txn, ip)
 			if !ok {
 				panic("write")

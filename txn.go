@@ -91,7 +91,7 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	if !ok {
 		panic("Write: blind write")
 	}
-	log.Printf("write %d\n", addr)
+	log.Printf("Write block %d\n", addr)
 	txn.bufs[addr].meta = true
 	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
@@ -175,7 +175,7 @@ func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 		// append to in-memory log, but don't wait for the logger
 		// to complete diskAppend
 		log.Printf("Commitunstable: log\n")
-		ok, _ = (*txn.log).MemAppend(bufs)
+		(*txn.log).MemAppend(bufs)
 	} else {
 		// don't write buffers, but tag them with fh for CommitFh
 		for _, buf := range bufs {
