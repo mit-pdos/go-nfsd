@@ -6,15 +6,13 @@ import (
 	"log"
 )
 
-// XXX keep track whether buffer was modified so that we don't write
-// it into log on commit.
 type Buf struct {
 	slot  *Cslot
 	blk   disk.Block
 	blkno uint64
 	dirty bool // has this block been written to?
 	meta  bool // does the block contain metadata?
-	fh    Fh   // for non-meta blocks
+	fh    Fh   // for non-meta blocks of fh in unstable writes
 }
 
 func (buf *Buf) lock() {
@@ -28,7 +26,7 @@ func (buf *Buf) unlock() {
 type Txn struct {
 	log  *Log
 	bc   *Cache          // a cache of Buf's shared between transactions
-	bufs map[uint64]*Buf // Locked bufs in use by this transaction
+	bufs map[uint64]*Buf // locked bufs in use by this transaction
 	fs   *FsSuper
 	ic   *Cache
 }
@@ -93,20 +91,6 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	if !ok {
 		panic("Write: blind write")
 	}
-	// This transaction owns the locked block; update the block
-	txn.bufs[addr].meta = true
-	txn.bufs[addr].dirty = true
-	txn.bufs[addr].blk = blk
-	return true
-}
-
-// Write of a metadata block. Assumes transaction has the buf locked
-func (txn *Txn) WriteMeta(addr uint64, blk disk.Block) bool {
-	_, ok := txn.bufs[addr]
-	if !ok {
-		panic("Write: blind write")
-	}
-	// This transaction owns the locked block; update the block
 	txn.bufs[addr].meta = true
 	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
@@ -131,20 +115,27 @@ func (txn *Txn) putInodes(inodes []*Inode) {
 	}
 }
 
-func (txn *Txn) Commit(inodes []*Inode) bool {
-	log.Printf("commit\n")
-
-	// may free an inode so must be done before Append
-	txn.putInodes(inodes)
-
-	// commit all buffers used by this transaction
+func (txn *Txn) dirtyBufs() ([]Buf, bool) {
+	var meta bool = false
 	bufs := new([]Buf)
 	for _, buf := range txn.bufs {
 		if buf.dirty {
 			*bufs = append(*bufs, *buf)
 		}
+		if buf.meta {
+			meta = true
+		}
 	}
-	ok := (*txn.log).Append(*bufs)
+	return *bufs, meta
+}
+
+func (txn *Txn) Commit(inodes []*Inode) bool {
+	// may free an inode so must be done before Append
+	txn.putInodes(inodes)
+
+	// commit all buffers written by this transaction
+	bufs, _ := txn.dirtyBufs()
+	ok := (*txn.log).Append(bufs)
 
 	// release the buffers used in this transaction
 	txn.release()
@@ -171,26 +162,16 @@ func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 		panic("CommitUnstable")
 	}
 
-	bufs := new([]Buf)
-	for _, buf := range txn.bufs {
-		if buf.dirty {
-			*bufs = append(*bufs, *buf)
-		}
-		if buf.meta {
-			meta = true
-		}
-	}
+	bufs, meta := txn.dirtyBufs()
 	if meta {
 		// append to in-memory log, but don't wait for the logger
 		// to complete diskAppend
 		log.Printf("Commitunstable: log\n")
-		ok, _ = (*txn.log).MemAppend(*bufs)
+		ok, _ = (*txn.log).MemAppend(bufs)
 	} else {
 		// don't write buffers, but tag them with fh for CommitFh
-		for _, buf := range txn.bufs {
-			if buf.dirty {
-				buf.fh = fh
-			}
+		for _, buf := range bufs {
+			buf.fh = fh
 		}
 		// release will pin buffers in cache until CommmitFh
 	}
@@ -216,14 +197,10 @@ func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
 	return true
 }
 
-func (txn *Txn) Abort(inodes []*Inode) {
+func (txn *Txn) Abort(inodes []*Inode) bool {
 	log.Printf("abort\n")
 
-	// XXX txn.putInodes(inodes)
-	// XXX may have to commit free inodes from put
-
-	txn.release()
-
-	// unlock all inodes used in this transaction
-	unlockInodes(inodes)
+	// An an abort may free an inode, which results in dirty
+	// buffers that need to be written to log. So, call commit.
+	return txn.Commit(inodes)
 }
