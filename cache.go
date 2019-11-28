@@ -1,7 +1,6 @@
 package goose_nfs
 
 import (
-	"log"
 	"sync"
 )
 
@@ -132,7 +131,6 @@ func (c *Cache) BufsFh(fh Fh) []*Buf {
 		continue
 	}
 	c.mu.Unlock()
-	log.Printf("buf %v\n", *bufs)
 	return *bufs
 }
 

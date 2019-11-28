@@ -12,6 +12,7 @@ type Buf struct {
 	slot  *Cslot
 	blk   disk.Block
 	blkno uint64
+	dirty bool // has this block been written to?
 	meta  bool // does the block contain metadata?
 	fh    Fh   // for non-meta blocks
 }
@@ -94,6 +95,7 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	}
 	// This transaction owns the locked block; update the block
 	txn.bufs[addr].meta = true
+	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
 	return true
 }
@@ -106,6 +108,7 @@ func (txn *Txn) WriteMeta(addr uint64, blk disk.Block) bool {
 	}
 	// This transaction owns the locked block; update the block
 	txn.bufs[addr].meta = true
+	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
 	return true
 }
@@ -117,6 +120,7 @@ func (txn *Txn) WriteData(addr uint64, blk disk.Block) bool {
 		panic("Write: blind write")
 	}
 	txn.bufs[addr].meta = false
+	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
 	return true
 }
@@ -136,7 +140,9 @@ func (txn *Txn) Commit(inodes []*Inode) bool {
 	// commit all buffers used by this transaction
 	bufs := new([]Buf)
 	for _, buf := range txn.bufs {
-		*bufs = append(*bufs, *buf)
+		if buf.dirty {
+			*bufs = append(*bufs, *buf)
+		}
 	}
 	ok := (*txn.log).Append(*bufs)
 
@@ -160,20 +166,32 @@ func (txn *Txn) CommitData(inodes []*Inode, fh Fh) bool {
 func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 	log.Printf("CommitUnstable\n")
 	var ok bool = true
+	var meta bool = false
 	if len(inodes) > 1 {
 		panic("CommitUnstable")
 	}
 
 	bufs := new([]Buf)
 	for _, buf := range txn.bufs {
-		*bufs = append(*bufs, *buf)
+		if buf.dirty {
+			*bufs = append(*bufs, *buf)
+		}
+		if buf.meta {
+			meta = true
+		}
 	}
-	if len(*bufs) > 0 {
+	if meta {
 		// append to in-memory log, but don't wait for the logger
 		// to complete diskAppend
-		log.Printf("commitunstable: log\n")
+		log.Printf("Commitunstable: log\n")
 		ok, _ = (*txn.log).MemAppend(*bufs)
 	} else {
+		// don't write buffers, but tag them with fh for CommitFh
+		for _, buf := range txn.bufs {
+			if buf.dirty {
+				buf.fh = fh
+			}
+		}
 		// release will pin buffers in cache until CommmitFh
 	}
 
@@ -189,7 +207,7 @@ func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
 	bufs := txn.bc.BufsFh(fh)
 	ids := new([]uint64)
 	for _, b := range bufs {
-		log.Printf("CommitFh %v\n", b.blkno)
+		log.Printf("CommitFh: install blk %v\n", b.blkno)
 		*ids = append(*ids, b.blkno)
 		disk.Write(b.blkno, b.blk)
 	}
