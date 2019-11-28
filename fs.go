@@ -7,28 +7,28 @@ import (
 )
 
 type FsSuper struct {
-	nLog    uint64 // including commit block
-	nBitmap uint64
-	nInode  uint64
-	maxAddr uint64
+	NLog    uint64 // including commit block
+	NBitmap uint64
+	NInode  uint64
+	MaxAddr uint64
 }
 
 func mkFsSuper() *FsSuper {
-	sz := uint64(10 * 1000)
+	sz := uint64(6 * 1000)
 	disk.Init(disk.NewMemDisk(sz))
-	return &FsSuper{nLog: LOGSIZE, nBitmap: 1, nInode: 10, maxAddr: sz}
+	return &FsSuper{NLog: LOGSIZE, NBitmap: 2, NInode: 100, MaxAddr: sz}
 }
 
 func (fs *FsSuper) bitmapStart() uint64 {
-	return fs.nLog
+	return fs.NLog
 }
 
 func (fs *FsSuper) inodeStart() uint64 {
-	return fs.nLog + fs.nBitmap
+	return fs.NLog + fs.NBitmap
 }
 
 func (fs *FsSuper) dataStart() uint64 {
-	return fs.nLog + fs.nBitmap + fs.nInode
+	return fs.NLog + fs.NBitmap + fs.NInode
 }
 
 func (fs *FsSuper) initFs() {
@@ -40,7 +40,7 @@ func (fs *FsSuper) initFs() {
 	rootblk := make(disk.Block, disk.BlockSize)
 	root.encode(rootblk)
 	fs.putBlkDirect(ROOTINUM, rootblk)
-	fs.markAlloc(fs.inodeStart() + fs.nInode)
+	fs.markAlloc(fs.inodeStart()+fs.NInode, fs.MaxAddr)
 }
 
 // Find a free bit in blk and toggle it
@@ -68,31 +68,43 @@ func freeBit(blk disk.Block, bn uint64) {
 	blk[byte] = blk[byte] & ^(1 << bit)
 }
 
-// XXX support several bitmap blocks
 func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
-	blk := (*txn).Read(fs.bitmapStart())
-	bit, ok := findAndMark(blk)
-	if !ok {
-		return 0, false
+	var found bool = false
+	var bit uint64 = 0
+
+	for i := uint64(0); i < fs.NBitmap; i++ {
+		blkno := fs.bitmapStart() + i
+		blk := (*txn).Read(blkno)
+		bit, found = findAndMark(blk)
+		if !found {
+			continue
+		}
+		ok := (*txn).Write(blkno, blk)
+		if !ok {
+			panic("allocBlock")
+		}
+		bit = i*disk.BlockSize + bit
+		break
 	}
-	ok1 := (*txn).Write(fs.bitmapStart(), blk)
-	if !ok1 {
-		panic("allocBlock")
-	}
-	return bit, true
+	return bit, found
 }
 
 func (fs *FsSuper) freeBlock(txn *Txn, bn uint64) {
-	blk := (*txn).Read(fs.bitmapStart())
-	freeBit(blk, bn)
-	ok1 := (*txn).Write(fs.bitmapStart(), blk)
+	i := bn / disk.BlockSize
+	if i >= fs.NBitmap {
+		panic("freeBlock")
+	}
+	blkno := fs.bitmapStart() + i
+	blk := (*txn).Read(blkno)
+	freeBit(blk, bn%disk.BlockSize)
+	ok1 := (*txn).Write(blkno, blk)
 	if !ok1 {
 		panic("freeBlock")
 	}
 }
 
 func (fs *FsSuper) readInodeBlock(txn *Txn, inum uint64) (disk.Block, bool) {
-	if inum >= fs.nInode {
+	if inum >= fs.NInode {
 		return nil, false
 	}
 	blk := (*txn).Read(fs.inodeStart() + inum)
@@ -100,7 +112,7 @@ func (fs *FsSuper) readInodeBlock(txn *Txn, inum uint64) (disk.Block, bool) {
 }
 
 func (fs *FsSuper) readInode(txn *Txn, inum uint64) (*Inode, bool) {
-	if inum >= fs.nInode {
+	if inum >= fs.NInode {
 		return nil, false
 	}
 	blk, ok := fs.readInodeBlock(txn, inum)
@@ -110,7 +122,7 @@ func (fs *FsSuper) readInode(txn *Txn, inum uint64) (*Inode, bool) {
 }
 
 func (fs *FsSuper) writeInodeBlock(txn *Txn, inum uint64, blk disk.Block) bool {
-	if inum >= fs.nInode {
+	if inum >= fs.NInode {
 		return false
 	}
 	ok := (*txn).Write(fs.inodeStart()+inum, blk)
@@ -147,7 +159,7 @@ func (fs *FsSuper) loadInode(txn *Txn, slot *Cslot, a uint64) *Inode {
 
 func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) Inum {
 	var inode *Inode
-	for inum := uint64(1); inum < fs.nInode; inum++ {
+	for inum := uint64(1); inum < fs.NInode; inum++ {
 		i, ok := fs.readInode(txn, inum)
 		if !ok {
 			break
@@ -189,9 +201,12 @@ func (fs *FsSuper) freeInum(txn *Txn, inum Inum) bool {
 
 // for mkfs
 
-// XXX mark bn > maximum size of disk has allocated
-func (fs *FsSuper) markAlloc(n uint64) {
-	log.Printf("markAlloc: %d\n", n)
+// XXX several bitmap blocks
+func (fs *FsSuper) markAlloc(n uint64, m uint64) {
+	log.Printf("markAlloc: [0, %d) and [%d,%d)\n", n, m, fs.NBitmap*disk.BlockSize)
+	if n >= disk.BlockSize || m >= disk.BlockSize*fs.NBitmap || m < disk.BlockSize {
+		panic("markAlloc")
+	}
 	blk := make(disk.Block, disk.BlockSize)
 	for bn := uint64(0); bn < n; bn++ {
 		byte := bn / 8
@@ -199,10 +214,19 @@ func (fs *FsSuper) markAlloc(n uint64) {
 		blk[byte] |= 1 << bit
 	}
 	disk.Write(fs.bitmapStart(), blk)
+
+	blk1 := make(disk.Block, disk.BlockSize)
+	blkno := m/disk.BlockSize + fs.bitmapStart()
+	for bn := m % disk.BlockSize; bn < disk.BlockSize; bn++ {
+		byte := bn / 8
+		bit := bn % 8
+		blk[byte] |= 1 << bit
+	}
+	disk.Write(blkno, blk1)
 }
 
 func (fs *FsSuper) putBlkDirect(inum uint64, blk disk.Block) bool {
-	if inum >= fs.nInode {
+	if inum >= fs.NInode {
 		return false
 	}
 	log.Printf("write blk direct %d\n", fs.inodeStart()+inum)

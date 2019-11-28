@@ -1,6 +1,7 @@
 package goose_nfs
 
 import (
+	"log"
 	"sync"
 )
 
@@ -62,6 +63,7 @@ func (c *Cache) evict() {
 	if addr == 0 {
 		panic("evict")
 	}
+	log.Printf("evict: %d\n", addr)
 	delete(c.entries, addr)
 	c.cnt = c.cnt - 1
 }

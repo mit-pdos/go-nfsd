@@ -185,12 +185,7 @@ func (suite *NfsSuite) TestFile1() {
 func (suite *NfsSuite) TestManyFiles() {
 	log.Printf("TestManyFiles\n")
 	for i := 0; i < 100; i++ {
-		//sz := uint64(122)
 		suite.Create("x")
-		// fh := suite.Lookup("x", true)
-		//data := mkdata(uint64(sz))
-		//suite.Write(fh, data, FILE_SYNC)
-		//suite.readcheck(fh, data)
 		suite.Remove("x")
 	}
 	suite.nfs.ShutdownNfs()
