@@ -14,7 +14,7 @@ type Log struct {
 	logLock   *sync.RWMutex // protects on disk log
 	memLock   *sync.RWMutex // protects in-memory state
 	logSz     uint64
-	memLog    []Buf  // in-memory log
+	memLog    []*Buf // in-memory log
 	memLen    uint64 // length of in-memory log
 	memTxnNxt uint64 // next in-memory transaction number
 	logTxnNxt uint64 // next log transaction number
@@ -30,7 +30,7 @@ func mkLog(sz uint64) *Log {
 		logLock:   new(sync.RWMutex),
 		memLock:   new(sync.RWMutex),
 		logSz:     sz,
-		memLog:    make([]Buf, 0),
+		memLog:    make([]*Buf, 0),
 		memLen:    0,
 		memTxnNxt: 0,
 		logTxnNxt: 0,
@@ -59,7 +59,7 @@ func encodeHdr(hdr Hdr, blk disk.Block) {
 	enc.PutInts(hdr.addrs)
 }
 
-func (l *Log) writeHdr(len uint64, bufs []Buf) {
+func (l *Log) writeHdr(len uint64, bufs []*Buf) {
 	addrs := make([]uint64, len)
 	for i := uint64(0); i < len; i++ {
 		addrs[i] = bufs[i].blkno
@@ -93,14 +93,14 @@ func (l *Log) Read() []disk.Block {
 	return blks
 }
 
-func (l *Log) memWrite(bufs []Buf) {
+func (l *Log) memWrite(bufs []*Buf) {
 	n := uint64(len(bufs))
 	for i := uint64(0); i < n; i++ {
 		l.memLog = append(l.memLog, bufs[i])
 	}
 }
 
-func (l *Log) MemAppend(bufs []Buf) (bool, uint64) {
+func (l *Log) MemAppend(bufs []*Buf) (bool, uint64) {
 	l.memLock.Lock()
 	if l.memLen+uint64(len(bufs)) >= l.logSz-1 {
 		l.memLock.Unlock()
@@ -133,7 +133,7 @@ func (l *Log) diskAppendWait(txn uint64) {
 	}
 }
 
-func (l *Log) Append(bufs []Buf) bool {
+func (l *Log) Append(bufs []*Buf) bool {
 	if len(bufs) == 0 {
 		return true
 	}
@@ -145,7 +145,7 @@ func (l *Log) Append(bufs []Buf) bool {
 	return ok
 }
 
-func (l *Log) writeBlocks(bufs []Buf, pos uint64) {
+func (l *Log) writeBlocks(bufs []*Buf, pos uint64) {
 	n := uint64(len(bufs))
 	for i := uint64(0); i < n; i++ {
 		bk := bufs[i].blk

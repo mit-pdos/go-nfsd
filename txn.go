@@ -91,6 +91,7 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	if !ok {
 		panic("Write: blind write")
 	}
+	log.Printf("write %d\n", addr)
 	txn.bufs[addr].meta = true
 	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
@@ -115,18 +116,24 @@ func (txn *Txn) putInodes(inodes []*Inode) {
 	}
 }
 
-func (txn *Txn) dirtyBufs() ([]Buf, bool) {
+func (txn *Txn) dirtyBufs() ([]*Buf, bool) {
 	var meta bool = false
-	bufs := new([]Buf)
+	bufs := new([]*Buf)
 	for _, buf := range txn.bufs {
 		if buf.dirty {
-			*bufs = append(*bufs, *buf)
+			*bufs = append(*bufs, buf)
 		}
 		if buf.meta {
 			meta = true
 		}
 	}
 	return *bufs, meta
+}
+
+func (txn *Txn) clearDirty(bufs []*Buf) {
+	for _, b := range bufs {
+		b.dirty = false
+	}
 }
 
 func (txn *Txn) Commit(inodes []*Inode) bool {
@@ -136,6 +143,7 @@ func (txn *Txn) Commit(inodes []*Inode) bool {
 	// commit all buffers written by this transaction
 	bufs, _ := txn.dirtyBufs()
 	ok := (*txn.log).Append(bufs)
+	txn.clearDirty(bufs)
 
 	// release the buffers used in this transaction
 	txn.release()
@@ -192,6 +200,7 @@ func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
 		*ids = append(*ids, b.blkno)
 		disk.Write(b.blkno, b.blk)
 	}
+	txn.clearDirty(bufs)
 	txn.bc.Unpin(*ids)
 	unlockInodes(inodes)
 	return true

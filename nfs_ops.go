@@ -141,7 +141,6 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	return nil
 }
 
-// XXX deal with stable_how and committed
 // XXX Mtime
 func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
