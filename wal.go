@@ -149,7 +149,7 @@ func (l *Log) writeBlocks(bufs []Buf, pos uint64) {
 	n := uint64(len(bufs))
 	for i := uint64(0); i < n; i++ {
 		bk := bufs[i].blk
-		log.Printf("write %d to block %v\n", bufs[i].blkno, pos+i)
+		log.Printf("write %d to log block %v\n", bufs[i].blkno, pos+i)
 		disk.Write(pos+i, bk)
 	}
 }

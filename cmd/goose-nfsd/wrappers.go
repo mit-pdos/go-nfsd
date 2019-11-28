@@ -193,6 +193,19 @@ func (w *nfsWrapper) fsinfo(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	return &out, err
 }
 
+func (w *nfsWrapper) commit(args *xdr.XdrState) (res xdr.Xdrable, err error) {
+	var in goose_nfs.COMMIT3args
+	in.Xdr(args)
+	err = args.Error()
+	if err != nil {
+		return
+	}
+
+	var out goose_nfs.COMMIT3res
+	err = w.nfs.Commit(&in, &out)
+	return &out, err
+}
+
 func registerNFS(srv *rfc1057.Server, nfs *goose_nfs.Nfs) {
 	w := &nfsWrapper{nfs}
 
@@ -244,4 +257,7 @@ func registerNFS(srv *rfc1057.Server, nfs *goose_nfs.Nfs) {
 
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_FSINFO, w.fsinfo)
+
+	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
+		goose_nfs.NFSPROC3_COMMIT, w.commit)
 }

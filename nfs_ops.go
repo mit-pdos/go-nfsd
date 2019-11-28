@@ -145,7 +145,8 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 // XXX Mtime
 func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
-	log.Printf("Write %v off %d cnt %d\n", args.File, args.Offset, args.Count)
+	log.Printf("Write %v off %d cnt %d how %d\n", args.File, args.Offset,
+		args.Count, args.Stable)
 	ip := getInode(txn, args.File)
 	fh := args.File.makeFh()
 	if ip == nil {
