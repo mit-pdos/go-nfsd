@@ -154,6 +154,19 @@ func (w *nfsWrapper) create(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	return &out, err
 }
 
+func (w *nfsWrapper) mkdir(args *xdr.XdrState) (res xdr.Xdrable, err error) {
+	var in goose_nfs.MKDIR3args
+	in.Xdr(args)
+	err = args.Error()
+	if err != nil {
+		return
+	}
+
+	var out goose_nfs.MKDIR3res
+	err = w.nfs.MakeDir(&in, &out)
+	return &out, err
+}
+
 func (w *nfsWrapper) remove(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	var in goose_nfs.REMOVE3args
 	in.Xdr(args)
@@ -245,6 +258,9 @@ func registerNFS(srv *rfc1057.Server, nfs *goose_nfs.Nfs) {
 
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_CREATE, w.create)
+
+	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
+		goose_nfs.NFSPROC3_MKDIR, w.mkdir)
 
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_REMOVE, w.remove)

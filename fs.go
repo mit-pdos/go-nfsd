@@ -170,6 +170,7 @@ func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) Inum {
 			inode.inum = inum
 			inode.kind = kind
 			inode.nlink = 1
+			inode.gen = inode.gen + 1
 			break
 		}
 		// XXX release inode block from txn

@@ -8,6 +8,11 @@ type DirEnt struct {
 	Name string // <= MAXNAMELEN
 }
 
+func illegalName(name Filename3) bool {
+	n := string(name)
+	return n == "." || n == ".."
+}
+
 func (dip *Inode) lookupName(txn *Txn, name Filename3) (Inum, uint64) {
 	if dip.kind != NF3DIR {
 		return NULLINUM, 0
@@ -71,9 +76,22 @@ func (dip *Inode) remName(txn *Txn, name Filename3) bool {
 	return ok
 }
 
-// XXX . and ..
-func (dip *Inode) dirEmpty(txn *Txn) bool {
-	return dip.size == 0
+func (dip *Inode) isDirEmpty(txn *Txn) bool {
+	var empty bool = true
+	for off := uint64(2 * DIRENTSZ); off < dip.size; {
+		data, _, ok := dip.read(txn, off, DIRENTSZ)
+		if !ok {
+			panic("isDirEmpty")
+		}
+		de := decodeDirEnt(data)
+		if de.Inum == NULLINUM {
+			off = off + DIRENTSZ
+			continue
+		}
+		empty = false
+		break
+	}
+	return empty
 }
 
 func (dip *Inode) mkdir(txn *Txn, parent Inum) bool {
@@ -81,6 +99,16 @@ func (dip *Inode) mkdir(txn *Txn, parent Inum) bool {
 		return false
 	}
 	if !dip.addName(txn, parent, "..") {
+		return false
+	}
+	return true
+}
+
+func (dip *Inode) mkRootDir(txn *Txn) bool {
+	if !dip.addName(txn, dip.inum, ".") {
+		return false
+	}
+	if !dip.addName(txn, dip.inum, "..") {
 		return false
 	}
 	return true

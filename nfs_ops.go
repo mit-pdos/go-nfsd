@@ -27,7 +27,19 @@ func MkNfs() *Nfs {
 	go l.Logger()
 	go l.Installer()
 
-	return &Nfs{log: l, ic: ic, bc: bc, fs: fs}
+	nfs := &Nfs{log: l, ic: ic, bc: bc, fs: fs}
+	nfs.makeRootDir()
+	return nfs
+}
+
+func (nfs *Nfs) makeRootDir() {
+	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	ip := getInodeInum(txn, ROOTINUM)
+	if ip == nil {
+		panic("makeRootDir")
+	}
+	ip.mkRootDir(txn)
+	txn.Commit([]*Inode{ip})
 }
 
 func (nfs *Nfs) ShutdownNfs() {
@@ -97,7 +109,7 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	var ip *Inode = dip
 	var inodes []*Inode
 	if inum != dip.inum {
-		ip := loadInode(txn, inum)
+		ip = loadInode(txn, inum)
 		if ip == nil {
 			return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
 
@@ -201,7 +213,6 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 }
 
 // XXX deal with how
-// XXX Check for . and ..
 func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("NFS Create %v\n", args)
@@ -257,6 +268,11 @@ func (nfs *Nfs) MakeDir(args *MKDIR3args, reply *MKDIR3res) error {
 		ip.decLink(txn)
 		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip, ip})
 	}
+	dip.nlink = dip.nlink + 1 // for ..
+	ok = txn.fs.writeInode(txn, dip)
+	if !ok {
+		panic("mkdir")
+	}
 	txn.Commit([]*Inode{dip, ip})
 	reply.Status = NFS3_OK
 	return nil
@@ -274,13 +290,15 @@ func (nfs *Nfs) MakeNod(args *MKNOD3args, reply *MKNOD3res) error {
 	return nil
 }
 
-// XXX Check for . and ..
 func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("NFS Remove %v\n", args)
 	dip := getInode(txn, args.Object.Dir)
 	if dip == nil {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
+	}
+	if illegalName(args.Object.Name) {
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{dip})
 	}
 	inum, _ := dip.lookupName(txn, args.Object.Name)
 	if inum == NULLINUM {
@@ -310,7 +328,6 @@ func (nfs *Nfs) RmDir(args *RMDIR3args, reply *RMDIR3res) error {
 	return nil
 }
 
-// XXX check for . and ..
 func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("NFS Rename %v\n", args)
@@ -321,6 +338,10 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 	inodes := make([]*Inode, 0, 4)
 	var dipto *Inode
 	var dipfrom *Inode
+
+	if illegalName(args.From.Name) {
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, nil)
+	}
 
 	if args.From.Dir.equal(args.To.Dir) {
 		dipfrom = getInode(txn, args.From.Dir)
@@ -381,7 +402,7 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 		if to.kind != from.kind {
 			return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
 		}
-		if to.kind == NF3DIR && !to.dirEmpty(txn) {
+		if to.kind == NF3DIR && !to.isDirEmpty(txn) {
 			return errRet(txn, &reply.Status, NFS3ERR_NOTEMPTY, inodes)
 		}
 		ok := dipto.remName(txn, args.To.Name)

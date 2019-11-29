@@ -12,14 +12,19 @@ type TestState struct {
 	nfs *Nfs
 }
 
-func (ts *TestState) Create(name string) {
-	where := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
+func (ts *TestState) CreateFh(fh Nfs_fh3, name string) {
+	where := Diropargs3{Dir: fh, Name: Filename3(name)}
 	how := Createhow3{}
 	args := &CREATE3args{Where: where, How: how}
 	attr := &CREATE3res{}
 	res := ts.nfs.Create(args, attr)
 	assert.Nil(ts.t, res)
 	assert.Equal(ts.t, attr.Status, NFS3_OK)
+}
+
+func (ts *TestState) Create(name string) {
+	fh := MkRootFh3()
+	ts.CreateFh(fh, name)
 }
 
 func (ts *TestState) Lookup(name string, succeed bool) Nfs_fh3 {
@@ -50,30 +55,29 @@ func (ts *TestState) LookupDir(fh Nfs_fh3, name string, succeed bool) Nfs_fh3 {
 	return reply.Resok.Object
 }
 
-func (ts *TestState) Getattr(fh Nfs_fh3, sz uint64) {
+func (ts *TestState) GetattrOp(fh Nfs_fh3) *GETATTR3res {
 	args := &GETATTR3args{Object: fh}
 	attr := &GETATTR3res{}
 	res := ts.nfs.GetAttr(args, attr)
 	assert.Nil(ts.t, res)
+	return attr
+}
+
+func (ts *TestState) Getattr(fh Nfs_fh3, sz uint64) {
+	attr := ts.GetattrOp(fh)
 	assert.Equal(ts.t, attr.Status, NFS3_OK)
 	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3REG)
 	assert.Equal(ts.t, attr.Resok.Obj_attributes.Size, Size3(sz))
 }
 
 func (ts *TestState) GetattrDir(fh Nfs_fh3) {
-	args := &GETATTR3args{Object: fh}
-	attr := &GETATTR3res{}
-	res := ts.nfs.GetAttr(args, attr)
-	assert.Nil(ts.t, res)
+	attr := ts.GetattrOp(fh)
 	assert.Equal(ts.t, attr.Status, NFS3_OK)
 	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3DIR)
 }
 
 func (ts *TestState) GetattrFail(fh Nfs_fh3) {
-	args := &GETATTR3args{Object: fh}
-	attr := &GETATTR3res{}
-	res := ts.nfs.GetAttr(args, attr)
-	assert.Nil(ts.t, res)
+	attr := ts.GetattrOp(fh)
 	assert.Equal(ts.t, attr.Status, NFS3ERR_STALE)
 }
 
@@ -146,7 +150,7 @@ func (ts *TestState) Commit(fh Nfs_fh3, cnt uint64) {
 	assert.Equal(ts.t, reply.Status, NFS3_OK)
 }
 
-func (ts *TestState) Rename(from string, to string) {
+func (ts *TestState) RenameOp(from string, to string) Nfsstat3 {
 	args := &RENAME3args{
 		From: Diropargs3{Dir: MkRootFh3(), Name: Filename3(from)},
 		To:   Diropargs3{Dir: MkRootFh3(), Name: Filename3(to)},
@@ -154,7 +158,17 @@ func (ts *TestState) Rename(from string, to string) {
 	reply := &RENAME3res{}
 	res := ts.nfs.Rename(args, reply)
 	assert.Nil(ts.t, res)
-	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	return reply.Status
+}
+
+func (ts *TestState) Rename(from string, to string) {
+	status := ts.RenameOp(from, to)
+	assert.Equal(ts.t, status, NFS3_OK)
+}
+
+func (ts *TestState) RenameFail(from string, to string) {
+	status := ts.RenameOp(from, to)
+	assert.Equal(ts.t, status, NFS3ERR_NOTEMPTY)
 }
 
 func mkdata(sz uint64) []byte {
@@ -174,15 +188,16 @@ func (ts *TestState) readcheck(fh Nfs_fh3, data []byte) {
 	}
 }
 
-func TestGetRoot(t *testing.T) {
+func TestRoot(t *testing.T) {
 	fmt.Printf("TestGetRoot\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
-	args := &GETATTR3args{Object: MkRootFh3()}
-	attr := &GETATTR3res{}
-	res := ts.nfs.GetAttr(args, attr)
-	assert.Nil(ts.t, res)
-	assert.Equal(ts.t, attr.Status, NFS3_OK)
-	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3DIR)
+	fh := MkRootFh3()
+	ts.GetattrDir(fh)
+	fhdot := ts.LookupDir(fh, ".", true)
+	ts.GetattrDir(fhdot)
+	fhdotdot := ts.LookupDir(fh, "..", true)
+	ts.GetattrDir(fhdotdot)
+	// assert.Equal(ts.t, fhdot.ino, fhdotdot.ino)
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestGetRoot done\n")
 }
@@ -227,8 +242,34 @@ func TestDir(t *testing.T) {
 	ts.MkDir("d")
 	fh := ts.Lookup("d", true)
 	ts.GetattrDir(fh)
+
+	// . and ..
 	fhdot := ts.LookupDir(fh, ".", true)
 	ts.GetattrDir(fhdot)
+	fhdotdot := ts.LookupDir(fh, "..", true)
+	ts.GetattrDir(fhdotdot)
+
+	ts.Rename("d", "d1")
+	_ = ts.Lookup("d", false)
+	fh = ts.Lookup("d1", true)
+	ts.GetattrDir(fh)
+
+	// rename d1 into an existing, empty dir d2
+	ts.MkDir("d2")
+	fh = ts.Lookup("d2", true)
+	ts.GetattrDir(fh)
+	ts.Rename("d1", "d2")
+	_ = ts.Lookup("d1", false)
+	fh = ts.Lookup("d2", true)
+	ts.GetattrDir(fh)
+
+	// rename into non-empty dir d3
+	ts.MkDir("d3")
+	fh3 := ts.Lookup("d3", true)
+	ts.GetattrDir(fh3)
+	ts.CreateFh(fh3, "f")
+	ts.RenameFail("d2", "d3")
+
 	// Rmdir("d")
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestDir done\n")
@@ -254,7 +295,6 @@ func TestRename(t *testing.T) {
 	_ = ts.Lookup("x", false)
 	fh := ts.Lookup("y", true)
 	ts.Getattr(fh, 0)
-
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestRename done\n")
 }

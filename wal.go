@@ -193,8 +193,8 @@ func (l *Log) logAppend() {
 	}
 	l.memLock.Unlock()
 
-	log.Printf("logAppend memhead %d memtail %d diskhead %d disktail %d\n",
-		memhead, memtail, hdr.Head, hdr.Tail)
+	//log.Printf("logAppend memhead %d memtail %d diskhead %d disktail %d\n",
+	//	memhead, memtail, hdr.Head, hdr.Tail)
 	newbufs := memlog[l.index(hdr.Head):l.index(memhead)]
 	l.logBlocks(memhead, hdr.Head, newbufs)
 	l.writeHdr(memhead, memtail, memlog)
