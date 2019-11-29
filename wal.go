@@ -228,7 +228,7 @@ func (l *Log) logInstall() {
 	l.logLock.Lock()
 	hdr := l.readHdr()
 	blks := l.readLogBlocks(hdr.Head - hdr.Tail)
-	log.Printf("logInstall diskhead %d disktail %d\n", hdr.Head, hdr.Tail)
+	//log.Printf("logInstall diskhead %d disktail %d\n", hdr.Head, hdr.Tail)
 	l.installBlocks(hdr.Addrs, blks)
 	hdr.Tail = hdr.Head
 	l.writeHdr(hdr.Head, hdr.Tail, []*Buf{})
