@@ -35,34 +35,6 @@ func (enc *Enc) PutInts(xs []uint64) {
 	}
 }
 
-func (enc *Enc) PutBool(b bool) {
-	off := enc.off
-	if b {
-		enc.b[off] = 1
-	}
-	if !b {
-		enc.b[off] = 0
-	}
-	enc.off = enc.off + 1
-}
-
-func (enc *Enc) PutBytes(b []byte) {
-	off := enc.off
-	for i := uint64(0); i < uint64(len(b)); i++ {
-		enc.b[off+i] = b[i]
-	}
-	enc.off = enc.off + uint64(len(b))
-}
-
-func (enc *Enc) PutString(s string) {
-	(*enc).PutInt(uint64(len(s)))
-	(*enc).PutBytes([]byte(s))
-}
-
-func (enc *Enc) Finish() disk.Block {
-	return enc.b
-}
-
 type Dec struct {
 	b   disk.Block
 	off uint64
@@ -94,28 +66,28 @@ func (dec *Dec) GetInts(len uint64) []uint64 {
 	return xs
 }
 
-func (dec *Dec) GetBool() bool {
-	off := dec.off
-	x := dec.b[off]
-	var b bool
-	if x == 0 {
-		b = false
+func PutBytes(d []byte, b []byte) {
+	for i := uint64(0); i < uint64(len(b)); i++ {
+		d[i] = b[i]
 	}
-	if x == 1 {
-		b = true
-	}
-	dec.off = dec.off + 1
-	return b
 }
 
-func (dec *Dec) GetBytes(length uint64) []byte {
-	off := dec.off
-	bs := dec.b[off : off+length]
-	dec.off = dec.off + length
-	return bs
+func encodeDirEnt(de *DirEnt) []byte {
+	l := uint64(len(de.Name)) + 2*uint64(8)
+	if l >= DIRENTSZ {
+		panic("directory entry name doesn't fit")
+	}
+	d := make([]byte, DIRENTSZ)
+	machine.UInt64Put(d[:8], de.Inum)
+	machine.UInt64Put(d[8:16], uint64(len(de.Name)))
+	PutBytes(d[16:], []byte(de.Name))
+	return d
 }
 
-func (dec *Dec) GetString() string {
-	length := (*dec).GetInt()
-	return string((*dec).GetBytes(length))
+func decodeDirEnt(d []byte) *DirEnt {
+	de := &DirEnt{}
+	de.Inum = machine.UInt64Get(d[:8])
+	l := machine.UInt64Get(d[8:16])
+	de.Name = string(d[16 : 16+l])
+	return de
 }

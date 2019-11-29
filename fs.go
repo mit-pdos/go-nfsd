@@ -32,7 +32,7 @@ func (fs *FsSuper) dataStart() uint64 {
 }
 
 func (fs *FsSuper) initFs() {
-	nulli := mkNullInode()
+	nulli := mkNullInode() // inum = 0 is reserved
 	nullblk := make(disk.Block, disk.BlockSize)
 	nulli.encode(nullblk)
 	fs.putBlkDirect(NULLINUM, nullblk)
@@ -199,9 +199,10 @@ func (fs *FsSuper) freeInum(txn *Txn, inum Inum) bool {
 	return fs.freeInode(txn, i)
 }
 
+//
 // for mkfs
+//
 
-// XXX several bitmap blocks
 func (fs *FsSuper) markAlloc(n uint64, m uint64) {
 	log.Printf("markAlloc: [0, %d) and [%d,%d)\n", n, m, fs.NBitmap*disk.BlockSize)
 	if n >= disk.BlockSize || m >= disk.BlockSize*fs.NBitmap || m < disk.BlockSize {

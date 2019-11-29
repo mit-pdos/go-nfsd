@@ -108,7 +108,6 @@ func (l *Log) Read() (Hdr, []disk.Block) {
 }
 
 func (l *Log) memWrite(bufs []*Buf) {
-	log.Printf("memWrite: head %d tail %d len %d\n", l.memHead, l.memTail, len(bufs))
 	n := uint64(len(bufs))
 	for i := uint64(0); i < n; i++ {
 		l.memLog = append(l.memLog, bufs[i])
@@ -154,7 +153,6 @@ func (l *Log) MemAppend(bufs []*Buf) uint64 {
 		done, txn = l.doMemAppend(bufs)
 		if !done {
 			log.Printf("out of space; wait")
-			// panic("MemAppend")
 		}
 		continue
 	}
@@ -167,7 +165,7 @@ func (l *Log) Append(bufs []*Buf) bool {
 	}
 	txn := l.MemAppend(bufs)
 	l.diskAppendWait(txn)
-	log.Printf("txn %d logged\n", txn)
+	log.Printf("Append: txn %d logged\n", txn)
 	return true
 }
 
@@ -175,8 +173,8 @@ func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []*Buf) {
 	for i := diskhead; i < memhead; i++ {
 		bindex := i - diskhead
 		blk := bufs[bindex].blk
-		log.Printf("logBlocks: %d to log block %v\n", bufs[bindex].blkno,
-			l.index(i))
+		//log.Printf("logBlocks: %d to log block %v\n", bufs[bindex].blkno,
+		//	l.index(i))
 		disk.Write(l.index(i), blk)
 	}
 }

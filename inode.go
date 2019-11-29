@@ -69,14 +69,13 @@ func (ip *Inode) mkFattr() Fattr3 {
 	}
 }
 
-func (ip *Inode) encode(blk disk.Block) disk.Block {
+func (ip *Inode) encode(blk disk.Block) {
 	enc := NewEnc(blk)
 	enc.PutInt32(uint32(ip.kind))
 	enc.PutInt32(ip.nlink)
 	enc.PutInt(ip.gen)
 	enc.PutInt(ip.size)
 	enc.PutInts(ip.blks)
-	return enc.Finish()
 }
 
 func decode(blk disk.Block, inum uint64) *Inode {

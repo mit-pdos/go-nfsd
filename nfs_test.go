@@ -1,89 +1,93 @@
 package goose_nfs
 
 import (
-	"testing"
+	"fmt"
 
-	"github.com/stretchr/testify/suite"
-	"log"
+	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
-type NfsSuite struct {
-	suite.Suite
+type TestState struct {
+	t   *testing.T
 	nfs *Nfs
 }
 
-func (suite *NfsSuite) SetupTest() {
-	suite.nfs = MkNfs()
-}
-
-func (suite *NfsSuite) TestGetRoot() {
-	log.Printf("TestGetRoot\n")
-	nfs := suite.nfs
-	args := &GETATTR3args{Object: MkRootFh3()}
-	attr := &GETATTR3res{}
-
-	res := nfs.GetAttr(args, attr)
-	suite.Require().Nil(res)
-	suite.Equal(attr.Status, NFS3_OK)
-	suite.Equal(attr.Resok.Obj_attributes.Ftype, NF3DIR)
-
-	nfs.ShutdownNfs()
-	log.Printf("TestGetRoot done\n")
-}
-
-func (suite *NfsSuite) Create(name string) {
+func (ts *TestState) Create(name string) {
 	where := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
 	how := Createhow3{}
 	args := &CREATE3args{Where: where, How: how}
 	attr := &CREATE3res{}
-	res := suite.nfs.Create(args, attr)
-	suite.Require().Nil(res)
-	suite.Equal(attr.Status, NFS3_OK)
+	res := ts.nfs.Create(args, attr)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, attr.Status, NFS3_OK)
 }
 
-func (suite *NfsSuite) Lookup(name string, succeed bool) Nfs_fh3 {
+func (ts *TestState) Lookup(name string, succeed bool) Nfs_fh3 {
 	what := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
 	args := &LOOKUP3args{What: what}
 	reply := &LOOKUP3res{}
-	res := suite.nfs.Lookup(args, reply)
-	suite.Require().Nil(res)
+	res := ts.nfs.Lookup(args, reply)
+	assert.Nil(ts.t, res)
 	if succeed {
-		suite.Equal(reply.Status, NFS3_OK)
+		assert.Equal(ts.t, reply.Status, NFS3_OK)
 	} else {
-		suite.NotEqual(reply.Status, NFS3_OK)
+		assert.NotEqual(ts.t, reply.Status, NFS3_OK)
 	}
 	return reply.Resok.Object
 }
 
-func (suite *NfsSuite) Getattr(fh Nfs_fh3, sz uint64) {
-	args := &GETATTR3args{Object: fh}
-	attr := &GETATTR3res{}
-	res := suite.nfs.GetAttr(args, attr)
-	suite.Require().Nil(res)
-	suite.Equal(attr.Status, NFS3_OK)
-	suite.Equal(attr.Resok.Obj_attributes.Ftype, NF3REG)
-	suite.Equal(attr.Resok.Obj_attributes.Size, Size3(sz))
+func (ts *TestState) LookupDir(fh Nfs_fh3, name string, succeed bool) Nfs_fh3 {
+	what := Diropargs3{Dir: fh, Name: Filename3(name)}
+	args := &LOOKUP3args{What: what}
+	reply := &LOOKUP3res{}
+	res := ts.nfs.Lookup(args, reply)
+	assert.Nil(ts.t, res)
+	if succeed {
+		assert.Equal(ts.t, reply.Status, NFS3_OK)
+	} else {
+		assert.NotEqual(ts.t, reply.Status, NFS3_OK)
+	}
+	return reply.Resok.Object
 }
 
-func (suite *NfsSuite) GetattrFail(fh Nfs_fh3) {
+func (ts *TestState) Getattr(fh Nfs_fh3, sz uint64) {
 	args := &GETATTR3args{Object: fh}
 	attr := &GETATTR3res{}
-	res := suite.nfs.GetAttr(args, attr)
-	suite.Require().Nil(res)
-	suite.Equal(attr.Status, NFS3ERR_STALE)
+	res := ts.nfs.GetAttr(args, attr)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, attr.Status, NFS3_OK)
+	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3REG)
+	assert.Equal(ts.t, attr.Resok.Obj_attributes.Size, Size3(sz))
 }
 
-func (suite *NfsSuite) Setattr(fh Nfs_fh3, sz uint64) {
+func (ts *TestState) GetattrDir(fh Nfs_fh3) {
+	args := &GETATTR3args{Object: fh}
+	attr := &GETATTR3res{}
+	res := ts.nfs.GetAttr(args, attr)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, attr.Status, NFS3_OK)
+	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3DIR)
+}
+
+func (ts *TestState) GetattrFail(fh Nfs_fh3) {
+	args := &GETATTR3args{Object: fh}
+	attr := &GETATTR3res{}
+	res := ts.nfs.GetAttr(args, attr)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, attr.Status, NFS3ERR_STALE)
+}
+
+func (ts *TestState) Setattr(fh Nfs_fh3, sz uint64) {
 	size := Set_size3{Set_it: true, Size: Size3(sz)}
 	attr := Sattr3{Size: size}
 	args := &SETATTR3args{Object: fh, New_attributes: attr}
 	reply := &SETATTR3res{}
-	res := suite.nfs.SetAttr(args, reply)
-	suite.Require().Nil(res)
-	suite.Equal(reply.Status, NFS3_OK)
+	res := ts.nfs.SetAttr(args, reply)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, reply.Status, NFS3_OK)
 }
 
-func (suite *NfsSuite) Write(fh Nfs_fh3, data []byte, how Stable_how) {
+func (ts *TestState) Write(fh Nfs_fh3, data []byte, how Stable_how) {
 	args := &WRITE3args{
 		File:   fh,
 		Offset: Offset3(0),
@@ -91,45 +95,66 @@ func (suite *NfsSuite) Write(fh Nfs_fh3, data []byte, how Stable_how) {
 		Stable: how,
 		Data:   data}
 	reply := &WRITE3res{}
-	res := suite.nfs.Write(args, reply)
-	suite.Require().Nil(res)
-	suite.Equal(reply.Status, NFS3_OK)
-	suite.Equal(reply.Resok.Count, Count3(len(data)))
+	res := ts.nfs.Write(args, reply)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	assert.Equal(ts.t, reply.Resok.Count, Count3(len(data)))
 }
 
-func (suite *NfsSuite) Read(fh Nfs_fh3, sz uint64) []byte {
+func (ts *TestState) Read(fh Nfs_fh3, sz uint64) []byte {
 	args := &READ3args{
 		File:   fh,
 		Offset: Offset3(0),
 		Count:  Count3(8192)}
 	reply := &READ3res{}
-	res := suite.nfs.Read(args, reply)
-	suite.Require().Nil(res)
-	suite.Equal(reply.Status, NFS3_OK)
-	suite.Equal(reply.Resok.Count, Count3(sz))
+	res := ts.nfs.Read(args, reply)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	assert.Equal(ts.t, reply.Resok.Count, Count3(sz))
 	return reply.Resok.Data
 }
 
-func (suite *NfsSuite) Remove(name string) {
+func (ts *TestState) Remove(name string) {
 	what := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
 	args := &REMOVE3args{
 		Object: what,
 	}
 	reply := &REMOVE3res{}
-	res := suite.nfs.Remove(args, reply)
-	suite.Require().Nil(res)
-	suite.Equal(reply.Status, NFS3_OK)
+	res := ts.nfs.Remove(args, reply)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, reply.Status, NFS3_OK)
 }
 
-func (suite *NfsSuite) Commit(fh Nfs_fh3, cnt uint64) {
+func (ts *TestState) MkDir(name string) {
+	where := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
+	sattr := Sattr3{}
+	args := &MKDIR3args{Where: where, Attributes: sattr}
+	attr := &MKDIR3res{}
+	res := ts.nfs.MakeDir(args, attr)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, attr.Status, NFS3_OK)
+}
+
+func (ts *TestState) Commit(fh Nfs_fh3, cnt uint64) {
 	args := &COMMIT3args{
 		File:   fh,
 		Offset: Offset3(0),
 		Count:  Count3(cnt)}
 	reply := &COMMIT3res{}
-	res := suite.nfs.Commit(args, reply)
-	suite.Require().Nil(res)
-	suite.Equal(reply.Status, NFS3_OK)
+	res := ts.nfs.Commit(args, reply)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, reply.Status, NFS3_OK)
+}
+
+func (ts *TestState) Rename(from string, to string) {
+	args := &RENAME3args{
+		From: Diropargs3{Dir: MkRootFh3(), Name: Filename3(from)},
+		To:   Diropargs3{Dir: MkRootFh3(), Name: Filename3(to)},
+	}
+	reply := &RENAME3res{}
+	res := ts.nfs.Rename(args, reply)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, reply.Status, NFS3_OK)
 }
 
 func mkdata(sz uint64) []byte {
@@ -141,98 +166,113 @@ func mkdata(sz uint64) []byte {
 	return data
 }
 
-func (suite *NfsSuite) readcheck(fh Nfs_fh3, data []byte) {
-	d := suite.Read(fh, uint64(len(data)))
-	suite.Equal(len(data), len(d))
+func (ts *TestState) readcheck(fh Nfs_fh3, data []byte) {
+	d := ts.Read(fh, uint64(len(data)))
+	assert.Equal(ts.t, len(data), len(d))
 	for i := uint64(0); i < uint64(len(data)); i++ {
-		suite.Equal(data[i], d[i])
+		assert.Equal(ts.t, data[i], d[i])
 	}
+}
+
+func TestGetRoot(t *testing.T) {
+	fmt.Printf("TestGetRoot\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+	args := &GETATTR3args{Object: MkRootFh3()}
+	attr := &GETATTR3res{}
+	res := ts.nfs.GetAttr(args, attr)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, attr.Status, NFS3_OK)
+	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3DIR)
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestGetRoot done\n")
 }
 
 // Grow file with setattr before writing
-func (suite *NfsSuite) TestFile() {
-	log.Printf("TestFile\n")
+func TestFile(t *testing.T) {
+	fmt.Printf("TestFile\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
 	sz := uint64(8192)
-	suite.Create("x")
-	fh := suite.Lookup("x", true)
-	suite.Getattr(fh, 0)
+	ts.Create("x")
+	fh := ts.Lookup("x", true)
+	ts.Getattr(fh, 0)
 	data := mkdata(sz)
-	suite.Setattr(fh, sz)
-	suite.Getattr(fh, sz)
-	suite.Write(fh, data, FILE_SYNC)
-	suite.readcheck(fh, data)
-	suite.Remove("x")
-	_ = suite.Lookup("x", false)
-	suite.GetattrFail(fh)
-	suite.nfs.ShutdownNfs()
-	log.Printf("TestFile done\n")
+	ts.Setattr(fh, sz)
+	ts.Getattr(fh, sz)
+	ts.Write(fh, data, FILE_SYNC)
+	ts.readcheck(fh, data)
+	ts.Remove("x")
+	_ = ts.Lookup("x", false)
+	ts.GetattrFail(fh)
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestFile done\n")
 }
 
 // Grow file by writing
-func (suite *NfsSuite) TestFile1() {
-	log.Printf("TestFile1\n")
+func TestFile1(t *testing.T) {
+	fmt.Printf("TestFile1\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
 	sz := uint64(122)
-	suite.Create("x")
-	fh := suite.Lookup("x", true)
+	ts.Create("x")
+	fh := ts.Lookup("x", true)
 	data := mkdata(uint64(sz))
-	suite.Write(fh, data, FILE_SYNC)
-	suite.readcheck(fh, data)
-	suite.nfs.ShutdownNfs()
-	log.Printf("TestFile1 done\n")
+	ts.Write(fh, data, FILE_SYNC)
+	ts.readcheck(fh, data)
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestFile1 done\n")
+}
+
+func TestDir(t *testing.T) {
+	fmt.Printf("TestDir\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+	ts.MkDir("d")
+	fh := ts.Lookup("d", true)
+	ts.GetattrDir(fh)
+	fhdot := ts.LookupDir(fh, ".", true)
+	ts.GetattrDir(fhdot)
+	// Rmdir("d")
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestDir done\n")
 }
 
 // Many files
-func (suite *NfsSuite) TestManyFiles() {
-	log.Printf("TestManyFiles\n")
+func TestManyFiles(t *testing.T) {
+	fmt.Printf("TestManyFiles\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
 	for i := 0; i < 100; i++ {
-		suite.Create("x")
-		suite.Remove("x")
+		ts.Create("x")
+		ts.Remove("x")
 	}
-	suite.nfs.ShutdownNfs()
-	log.Printf("TestFile1 done\n")
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestManyFiles done\n")
 }
 
-func (suite *NfsSuite) Rename(from string, to string) {
-	args := &RENAME3args{
-		From: Diropargs3{Dir: MkRootFh3(), Name: Filename3(from)},
-		To:   Diropargs3{Dir: MkRootFh3(), Name: Filename3(to)},
-	}
-	reply := &RENAME3res{}
-	res := suite.nfs.Rename(args, reply)
-	suite.Require().Nil(res)
-	suite.Equal(reply.Status, NFS3_OK)
+func TestRename(t *testing.T) {
+	fmt.Printf("TestRename\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+	ts.Create("x")
+	ts.Rename("x", "y")
+	_ = ts.Lookup("x", false)
+	fh := ts.Lookup("y", true)
+	ts.Getattr(fh, 0)
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestRename done\n")
 }
 
-func (suite *NfsSuite) TestRename() {
-	log.Printf("TestRename\n")
-	suite.Create("x")
-	suite.Rename("x", "y")
-	_ = suite.Lookup("x", false)
-	fh := suite.Lookup("y", true)
-	suite.Getattr(fh, 0)
-
-	suite.nfs.ShutdownNfs()
-	log.Printf("TestRename done\n")
-}
-
-func (suite *NfsSuite) TestUnstable() {
-	log.Printf("TestUnstable\n")
-	suite.Create("x")
-
+func TestUnstable(t *testing.T) {
+	fmt.Printf("TestUnstable\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+	ts.Create("x")
 	sz := uint64(4096)
-	fh := suite.Lookup("x", true)
+	fh := ts.Lookup("x", true)
 	data := mkdata(sz)
-	suite.Write(fh, data, UNSTABLE)
-	suite.Commit(fh, sz)
-	suite.Write(fh, data, UNSTABLE)
-	suite.Commit(fh, sz)
+	ts.Write(fh, data, UNSTABLE)
+	ts.Commit(fh, sz)
+	ts.Write(fh, data, UNSTABLE)
+	ts.Commit(fh, sz)
 
-	suite.readcheck(fh, data)
+	ts.readcheck(fh, data)
 
-	suite.nfs.ShutdownNfs()
-	log.Printf("TestRename done\n")
-}
-
-func TestNfs(t *testing.T) {
-	suite.Run(t, new(NfsSuite))
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestUnstable done\n")
 }
