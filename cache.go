@@ -29,7 +29,7 @@ func (slot *Cslot) unlock() {
 
 type entry struct {
 	ref  uint32 // the slot's reference count
-	pin  bool   // is the slot pinned?
+	pin  TxnNum // is the slot pinned until transaction pin?
 	slot Cslot
 }
 
@@ -50,17 +50,25 @@ func mkCache(sz uint64) *Cache {
 	}
 }
 
+func (c *Cache) printCache() {
+	for k, v := range c.entries {
+		log.Printf("Entry %v: %v\n", k, v)
+	}
+}
+
 // Evict a not-inuse slot. Assume locked cache.
 func (c *Cache) evict() {
 	var addr uint64 = 0
 	for a, entry := range c.entries {
-		if entry.ref == 0 && !entry.pin {
+		if entry.ref == 0 && entry.pin == 0 {
 			addr = a
 			break
 		}
 		continue
 	}
 	if addr == 0 {
+		c.printCache()
+		// XXX wait until installer has run
 		panic("evict")
 	}
 	log.Printf("evict: %d\n", addr)
@@ -69,7 +77,8 @@ func (c *Cache) evict() {
 }
 
 // Lookup the cache slot for id.  Create the slot if id isn't in the
-// cache, perhaps evicting a not in-use slot in the cache.
+// cache and if there is space in the cache. If no space, return
+// nil to indicate the caller to evict entries.
 func (c *Cache) lookupSlot(id uint64) *Cslot {
 	c.mu.Lock()
 	e := c.entries[id]
@@ -83,21 +92,20 @@ func (c *Cache) lookupSlot(id uint64) *Cslot {
 		c.evict()
 	}
 	s := Cslot{mu: new(sync.RWMutex), obj: nil}
-	enew := &entry{ref: 1, pin: false, slot: s}
+	enew := &entry{ref: 1, pin: 0, slot: s}
 	c.entries[id] = enew
 	c.cnt = c.cnt + 1
 	c.mu.Unlock()
 	return &enew.slot
 }
 
-// Decrease ref count of the cache slot for id and entry.obj
-// maybe deleted by evict
-func (c *Cache) freeSlot(id uint64, pin bool) {
+// Decrease ref count of the cache slot for id so that entry.obj maybe
+// deleted by evict
+func (c *Cache) freeSlot(id uint64) {
 	c.mu.Lock()
 	entry := c.entries[id]
 	if entry != nil {
 		entry.ref = entry.ref - 1
-		entry.pin = pin
 		c.mu.Unlock()
 		return
 	}
@@ -136,11 +144,25 @@ func (c *Cache) BufsFh(fh Fh) []*Buf {
 	return *bufs
 }
 
-func (c *Cache) Unpin(ids []uint64) {
+func (c *Cache) Pin(ids []uint64, txn TxnNum) {
+	c.mu.Lock()
+	log.Printf("Pin %d %v\n", txn, ids)
+	for _, id := range ids {
+		e := c.entries[id]
+		e.pin = txn
+	}
+	c.mu.Unlock()
+}
+
+func (c *Cache) UnPin(ids []uint64, txn TxnNum) {
 	c.mu.Lock()
 	for _, id := range ids {
 		entry := c.entries[id]
-		entry.pin = false
+		if txn >= entry.pin {
+			entry.pin = 0
+		} else {
+			log.Printf("Unpin: keep %d pinned at %d\n", id, entry.pin)
+		}
 	}
 	c.mu.Unlock()
 }

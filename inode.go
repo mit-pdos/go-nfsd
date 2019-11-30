@@ -93,6 +93,9 @@ func decode(blk disk.Block, inum uint64) *Inode {
 
 func loadInode(txn *Txn, inum Inum) *Inode {
 	slot := txn.ic.lookupSlot(inum)
+	if slot == nil {
+		panic("loadInode")
+	}
 	ip := txn.fs.loadInode(txn, slot, inum)
 	log.Printf("loadInode %v\n", ip)
 	return ip
@@ -249,8 +252,8 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool, bool
 			nbytes = count - n
 		}
 		blkno := ip.bmap(txn, boff)
-		log.Printf("read %d %d\n", blkno, nbytes)
 		blk := txn.Read(blkno)
+		log.Printf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, blk[0:32])
 		for b := uint64(0); b < nbytes; b++ {
 			data[n+b] = blk[byteoff+b]
 		}

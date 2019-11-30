@@ -5,8 +5,8 @@ import (
 	"log"
 )
 
-const ICACHESZ uint64 = 10
-const BCACHESZ uint64 = 10
+const ICACHESZ uint64 = 20
+const BCACHESZ uint64 = 20
 
 type Nfs struct {
 	log *Log
@@ -25,7 +25,7 @@ func MkNfs() *Nfs {
 	ic := mkCache(ICACHESZ)
 	bc := mkCache(BCACHESZ)
 	go l.Logger()
-	go l.Installer()
+	go Installer(bc, l)
 
 	nfs := &Nfs{log: l, ic: ic, bc: bc, fs: fs}
 	nfs.makeRootDir()
@@ -141,7 +141,7 @@ func (nfs *Nfs) ReadLink(args *READLINK3args, reply *READLINK3res) error {
 
 func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
-	log.Printf("NFS Read %v\n", args.File)
+	log.Printf("NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
 	ip := getInode(txn, args.File)
 	if ip == nil {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)

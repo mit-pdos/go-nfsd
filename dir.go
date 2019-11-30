@@ -21,6 +21,7 @@ func (dip *Inode) lookupName(txn *Txn, name Filename3) (Inum, uint64) {
 		data, _, ok := dip.read(txn, off, DIRENTSZ)
 		if !ok {
 			// XXX return false?
+			panic("lookupName")
 			break
 		}
 		de := decodeDirEnt(data)

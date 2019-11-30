@@ -38,6 +38,7 @@ func (txn *Txn) load(slot *Cslot, a uint64) *Buf {
 		// blk hasn't been read yet from disk; read it and put
 		// the buf with the read blk in the cache slot.
 		blk := disk.Read(a)
+		log.Printf("Load blk %d, %v..\n", a, blk[0:32])
 		buf := &Buf{slot: slot, blk: blk, blkno: a}
 		slot.obj = buf
 	}
@@ -45,14 +46,12 @@ func (txn *Txn) load(slot *Cslot, a uint64) *Buf {
 	return buf
 }
 
-// Release locks and cache slots, but pin buffers in cache until they
-// have been installed.
-// XXX support installing
+// Release locks and cache slots
 func (txn *Txn) release() {
 	log.Printf("release bufs")
 	for _, buf := range txn.bufs {
 		buf.unlock()
-		txn.bc.freeSlot(buf.blkno, true)
+		txn.bc.freeSlot(buf.blkno)
 	}
 }
 
@@ -76,7 +75,7 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 	} else {
 		slot := txn.bc.lookupSlot(addr)
 		if slot == nil {
-			return nil
+			panic("Read")
 		}
 		// load the slot and lock it
 		buf := txn.load(slot, addr)
@@ -91,7 +90,6 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	if !ok {
 		panic("Write: blind write")
 	}
-	log.Printf("Write block %d\n", addr)
 	txn.bufs[addr].meta = true
 	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
@@ -136,14 +134,28 @@ func (txn *Txn) clearDirty(bufs []*Buf) {
 	}
 }
 
+func (txn *Txn) Pin(bufs []*Buf, n TxnNum) {
+	ids := make([]uint64, len(bufs))
+	for i, b := range bufs {
+		ids[i] = b.blkno
+	}
+	txn.bc.Pin(ids, n)
+}
+
+// Commit blocks of the transaction into the log. Pin the blocks in
+// the cache until installer has installed all the blocks in the log
+// of this transaction.
 func (txn *Txn) Commit(inodes []*Inode) bool {
 	// may free an inode so must be done before Append
 	txn.putInodes(inodes)
 
 	// commit all buffers written by this transaction
 	bufs, _ := txn.dirtyBufs()
-	ok := (*txn.log).Append(bufs)
-	txn.clearDirty(bufs)
+	if len(bufs) > 0 {
+		n := (*txn.log).Append(bufs)
+		txn.clearDirty(bufs)
+		txn.Pin(bufs, n)
+	}
 
 	// release the buffers used in this transaction
 	txn.release()
@@ -151,7 +163,7 @@ func (txn *Txn) Commit(inodes []*Inode) bool {
 	// unlock all inodes used in this transaction
 	unlockInodes(inodes)
 
-	return ok
+	return true
 }
 
 // XXX don't write inode if mtime is only change
@@ -160,7 +172,7 @@ func (txn *Txn) CommitData(inodes []*Inode, fh Fh) bool {
 }
 
 // If metadata changes, write metadata and data blocks through log,
-// but without waiting for commit. otherwise, don't write data to log,
+// but without waiting for commit. Otherwise, don't write data to log,
 // just leave it in the cache.
 func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 	log.Printf("CommitUnstable\n")
@@ -172,16 +184,25 @@ func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 
 	bufs, meta := txn.dirtyBufs()
 	if meta {
-		// append to in-memory log, but don't wait for the logger
-		// to complete diskAppend
+		// Append to in-memory log, but don't wait for the
+		// logger to complete diskAppend
 		log.Printf("Commitunstable: log\n")
-		(*txn.log).MemAppend(bufs)
+		n := (*txn.log).MemAppend(bufs)
+		txn.Pin(bufs, n)
 	} else {
-		// don't write buffers, but tag them with fh for CommitFh
-		for _, buf := range bufs {
-			buf.fh = fh
+		// Don't write buffers, but tag them with fh for
+		// CommitFh.  There are no modified meta blocks
+		// pointing to these blocks, so it is safe to delay
+		// writing them and write them to their home
+		// locations.  We must install log before writing
+		// them, since earlier versions of the blocks maybe in
+		// the log.
+		ids := new([]uint64)
+		for _, b := range bufs {
+			*ids = append(*ids, b.blkno)
+			b.fh = fh
 		}
-		// release will pin buffers in cache until CommmitFh
+		txn.Pin(bufs, 1) // fake txn
 	}
 
 	txn.release()
@@ -191,7 +212,9 @@ func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 	return ok
 }
 
-// Write data blocks associated with fh to their home location (i.e., not though log)
+// Write data blocks associated with fh to their home location (i.e.,
+// not though log).
+// XXX check if any of the blocks is in the log; if any. flush log
 func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
 	bufs := txn.bc.BufsFh(fh)
 	ids := new([]uint64)
@@ -201,7 +224,7 @@ func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
 		disk.Write(b.blkno, b.blk)
 	}
 	txn.clearDirty(bufs)
-	txn.bc.Unpin(*ids)
+	txn.bc.UnPin(*ids, 0)
 	unlockInodes(inodes)
 	return true
 }
@@ -212,4 +235,20 @@ func (txn *Txn) Abort(inodes []*Inode) bool {
 	// An an abort may free an inode, which results in dirty
 	// buffers that need to be written to log. So, call commit.
 	return txn.Commit(inodes)
+}
+
+// XXX would be nice to install from buffer cache, but blocks in
+// buffer cache may already have been updated since previous
+// transactions committed.  Maybe keep several versions
+// XXX installs too eager
+func Installer(bc *Cache, l *Log) {
+	for !l.shutdown {
+		blknos, txn := l.logInstall()
+		// Make space in cache by unpinning buffers that have
+		// been installed
+		if len(blknos) > 0 {
+			log.Printf("Installed txn %d: unpin: %v\n", txn, blknos)
+			bc.UnPin(blknos, txn)
+		}
+	}
 }

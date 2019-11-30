@@ -7,6 +7,8 @@ import (
 	"sync"
 )
 
+type TxnNum = uint64
+
 const LOGHDR = uint64(0)
 const LOGSTART = uint64(1)
 
@@ -17,14 +19,15 @@ type Log struct {
 	memLog    []*Buf // in-memory log [memTail,memHead)
 	memHead   uint64 // head of in-memory log
 	memTail   uint64 // tail of in-memory log
-	memTxnNxt uint64 // next in-memory transaction number
-	logTxnNxt uint64 // next log transaction number
+	txnNxt    TxnNum // next transaction number
+	logTxnNxt TxnNum // next transaction number to log
+	dskTxnNxt TxnNum // next transaction number to install
 	shutdown  bool
 }
 
-const HDRINDICES = uint64(2 * 8)        // space for head and tail
-const HDRADDRS = (512 - HDRINDICES) / 8 // XXX disk.BlockSize != 512
-const LOGSIZE = HDRADDRS + 1            // 1 for HDR
+const HDRMETA = uint64(2 * 8)        // space for head and tail
+const HDRADDRS = (512 - HDRMETA) / 8 // XXX disk.BlockSize != 512
+const LOGSIZE = HDRADDRS + 1         // 1 for log header
 
 func mkLog() *Log {
 	l := &Log{
@@ -34,19 +37,21 @@ func mkLog() *Log {
 		memLog:    make([]*Buf, 0),
 		memHead:   0,
 		memTail:   0,
-		memTxnNxt: 0,
+		txnNxt:    0,
 		logTxnNxt: 0,
+		dskTxnNxt: 0,
 		shutdown:  false,
 	}
 	log.Printf("mkLog: size %d\n", l.logSz)
-	l.writeHdr(0, 0, l.memLog)
+	l.writeHdr(0, 0, 0, l.memLog)
 	return l
 }
 
 type Hdr struct {
-	Head  uint64
-	Tail  uint64
-	Addrs []uint64
+	Head      uint64
+	Tail      uint64
+	LogTxnNxt TxnNum // next txn to log
+	Addrs     []uint64
 }
 
 func decodeHdr(blk disk.Block) Hdr {
@@ -54,6 +59,7 @@ func decodeHdr(blk disk.Block) Hdr {
 	dec := NewDec(blk)
 	hdr.Head = dec.GetInt()
 	hdr.Tail = dec.GetInt()
+	hdr.LogTxnNxt = dec.GetInt()
 	hdr.Addrs = dec.GetInts(hdr.Head - hdr.Tail)
 	return hdr
 }
@@ -62,6 +68,7 @@ func encodeHdr(hdr Hdr, blk disk.Block) {
 	enc := NewEnc(blk)
 	enc.PutInt(hdr.Head)
 	enc.PutInt(hdr.Tail)
+	enc.PutInt(hdr.LogTxnNxt)
 	enc.PutInts(hdr.Addrs)
 }
 
@@ -69,7 +76,7 @@ func (l *Log) index(index uint64) uint64 {
 	return index - l.memTail
 }
 
-func (l *Log) writeHdr(head uint64, tail uint64, bufs []*Buf) {
+func (l *Log) writeHdr(head uint64, tail uint64, dsktxnnxt TxnNum, bufs []*Buf) {
 	n := uint64(len(bufs))
 	addrs := make([]uint64, n)
 	if n != head-tail {
@@ -78,7 +85,7 @@ func (l *Log) writeHdr(head uint64, tail uint64, bufs []*Buf) {
 	for i := tail; i < head; i++ {
 		addrs[l.index(i)] = bufs[l.index(i)].blkno
 	}
-	hdr := Hdr{Head: head, Tail: tail, Addrs: addrs}
+	hdr := Hdr{Head: head, Tail: tail, LogTxnNxt: dsktxnnxt, Addrs: addrs}
 	blk := make(disk.Block, disk.BlockSize)
 	encodeHdr(hdr, blk)
 	disk.Write(LOGHDR, blk)
@@ -95,6 +102,7 @@ func (l *Log) readLogBlocks(len uint64) []disk.Block {
 	for i := uint64(0); i < len; i++ {
 		blk := disk.Read(LOGSTART + i)
 		blks[i] = blk
+		log.Printf("readLogBlocks: %d %v\n", i, blk[0:32])
 	}
 	return blks
 }
@@ -115,28 +123,36 @@ func (l *Log) memWrite(bufs []*Buf) {
 	l.memHead = l.memHead + n
 }
 
-func (l *Log) doMemAppend(bufs []*Buf) (bool, uint64) {
+func (l *Log) doMemAppend(bufs []*Buf) (bool, TxnNum) {
 	l.memLock.Lock()
 	if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {
 		l.memLock.Unlock()
 		return false, uint64(0)
 	}
 	l.memWrite(bufs)
-	txn := l.memTxnNxt
-	l.memTxnNxt = l.memTxnNxt + 1
+	txn := l.logTxnNxt
+	l.txnNxt = l.txnNxt + 1
 	l.memLock.Unlock()
 	return true, txn
 }
 
 // XXX just an atomic read?
-func (l *Log) readLogTxnNxt() uint64 {
+func (l *Log) readLogTxnNxt() TxnNum {
 	l.memLock.Lock()
 	n := l.logTxnNxt
 	l.memLock.Unlock()
 	return n
 }
 
-func (l *Log) diskAppendWait(txn uint64) {
+// XXX just an atomic read?
+func (l *Log) readDskTxnNxt() TxnNum {
+	l.memLock.Lock()
+	n := l.dskTxnNxt
+	l.memLock.Unlock()
+	return n
+}
+
+func (l *Log) diskAppendWait(txn TxnNum) {
 	for {
 		logtxn := l.readLogTxnNxt()
 		if txn < logtxn {
@@ -146,7 +162,7 @@ func (l *Log) diskAppendWait(txn uint64) {
 	}
 }
 
-func (l *Log) MemAppend(bufs []*Buf) uint64 {
+func (l *Log) MemAppend(bufs []*Buf) TxnNum {
 	var txn uint64 = 0
 	var done bool = false
 	for !done {
@@ -159,23 +175,21 @@ func (l *Log) MemAppend(bufs []*Buf) uint64 {
 	return txn
 }
 
-func (l *Log) Append(bufs []*Buf) bool {
-	if len(bufs) == 0 {
-		return true
-	}
+func (l *Log) Append(bufs []*Buf) TxnNum {
 	txn := l.MemAppend(bufs)
 	l.diskAppendWait(txn)
 	log.Printf("Append: txn %d logged\n", txn)
-	return true
+	return txn
 }
 
 func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []*Buf) {
 	for i := diskhead; i < memhead; i++ {
 		bindex := i - diskhead
 		blk := bufs[bindex].blk
-		//log.Printf("logBlocks: %d to log block %v\n", bufs[bindex].blkno,
-		//	l.index(i))
-		disk.Write(l.index(i), blk)
+		blkno := bufs[bindex].blkno
+		log.Printf("logBlocks: %d to log block %d, %v..\n", blkno,
+			l.index(i), blk[0:32])
+		disk.Write(LOGSTART+l.index(i), blk)
 	}
 }
 
@@ -187,19 +201,18 @@ func (l *Log) logAppend() {
 	memhead := l.memHead
 	memtail := l.memTail
 	memlog := l.memLog
-	memnxt := l.memTxnNxt
+	txnnxt := l.txnNxt
 	if memtail != hdr.Tail || memhead < hdr.Head {
 		panic("logAppend")
 	}
 	l.memLock.Unlock()
 
-	//log.Printf("logAppend memhead %d memtail %d diskhead %d disktail %d\n",
-	//	memhead, memtail, hdr.Head, hdr.Tail)
+	//log.Printf("logAppend memhead %d memtail %d diskhead %d disktail %d txnnxt %d\n", memhead, memtail, hdr.Head, hdr.Tail, txnnxt)
 	newbufs := memlog[l.index(hdr.Head):l.index(memhead)]
 	l.logBlocks(memhead, hdr.Head, newbufs)
-	l.writeHdr(memhead, memtail, memlog)
+	l.writeHdr(memhead, memtail, txnnxt, memlog)
 
-	l.logTxnNxt = memnxt // XXX updating wo holding lock, atomic write?
+	l.logTxnNxt = txnnxt // XXX updating wo holding lock, atomic write?
 
 	l.logLock.Unlock()
 }
@@ -215,23 +228,22 @@ func (l *Log) installBlocks(addrs []uint64, blks []disk.Block) {
 	n := uint64(len(blks))
 	for i := uint64(0); i < n; i++ {
 		blkno := addrs[i]
-		log.Printf("installBlocks: write log block %d to %d\n", i, blkno)
-		disk.Write(blkno, blks[i])
+		blk := blks[i]
+		log.Printf("installBlocks: write log block %d to %d %v..\n", i, blkno,
+			blk[0:32])
+		disk.Write(blkno, blk)
 	}
 }
 
-// XXX would be nice to install from buffer cache, but blocks in
-// buffer cache may already have been updated since previous
-// transactions committed.
 // XXX absorp
-func (l *Log) logInstall() {
+func (l *Log) logInstall() ([]uint64, TxnNum) {
 	l.logLock.Lock()
 	hdr := l.readHdr()
 	blks := l.readLogBlocks(hdr.Head - hdr.Tail)
 	//log.Printf("logInstall diskhead %d disktail %d\n", hdr.Head, hdr.Tail)
 	l.installBlocks(hdr.Addrs, blks)
 	hdr.Tail = hdr.Head
-	l.writeHdr(hdr.Head, hdr.Tail, []*Buf{})
+	l.writeHdr(hdr.Head, hdr.Tail, hdr.LogTxnNxt, []*Buf{})
 	l.memLock.Lock()
 
 	if hdr.Tail < l.memTail {
@@ -239,15 +251,10 @@ func (l *Log) logInstall() {
 	}
 	l.memLog = l.memLog[l.index(hdr.Tail):l.index(l.memHead)]
 	l.memTail = hdr.Tail
+	l.dskTxnNxt = hdr.LogTxnNxt
 	l.memLock.Unlock()
 	l.logLock.Unlock()
-}
-
-// XXX installs too eager
-func (l *Log) Installer() {
-	for !l.shutdown {
-		l.logInstall()
-	}
+	return hdr.Addrs, hdr.LogTxnNxt
 }
 
 func (l *Log) Shutdown() {

@@ -2,6 +2,7 @@ package goose_nfs
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -23,8 +24,7 @@ func (ts *TestState) CreateFh(fh Nfs_fh3, name string) {
 }
 
 func (ts *TestState) Create(name string) {
-	fh := MkRootFh3()
-	ts.CreateFh(fh, name)
+	ts.CreateFh(MkRootFh3(), name)
 }
 
 func (ts *TestState) LookupOp(fh Nfs_fh3, name string) *LOOKUP3res {
@@ -88,10 +88,10 @@ func (ts *TestState) Setattr(fh Nfs_fh3, sz uint64) {
 	assert.Equal(ts.t, reply.Status, NFS3_OK)
 }
 
-func (ts *TestState) Write(fh Nfs_fh3, data []byte, how Stable_how) {
+func (ts *TestState) WriteOff(fh Nfs_fh3, off uint64, data []byte, how Stable_how) {
 	args := &WRITE3args{
 		File:   fh,
-		Offset: Offset3(0),
+		Offset: Offset3(off),
 		Count:  Count3(len(data)),
 		Stable: how,
 		Data:   data}
@@ -102,11 +102,15 @@ func (ts *TestState) Write(fh Nfs_fh3, data []byte, how Stable_how) {
 	assert.Equal(ts.t, reply.Resok.Count, Count3(len(data)))
 }
 
+func (ts *TestState) Write(fh Nfs_fh3, data []byte, how Stable_how) {
+	ts.WriteOff(fh, uint64(0), data, how)
+}
+
 func (ts *TestState) Read(fh Nfs_fh3, sz uint64) []byte {
 	args := &READ3args{
 		File:   fh,
 		Offset: Offset3(0),
-		Count:  Count3(8192)}
+		Count:  Count3(sz)}
 	reply := &READ3res{}
 	res := ts.nfs.Read(args, reply)
 	assert.Nil(ts.t, res)
@@ -176,9 +180,16 @@ func (ts *TestState) RenameFail(from string, to string) {
 
 func mkdata(sz uint64) []byte {
 	data := make([]byte, sz)
-	l := uint64(len(data))
-	for i := uint64(0); i < l; i++ {
-		data[i] = byte(i % uint64(128))
+	for i := range data {
+		data[i] = byte(i % 128)
+	}
+	return data
+}
+
+func mkdataval(b byte, sz uint64) []byte {
+	data := make([]byte, sz)
+	for i := range data {
+		data[i] = b
 	}
 	return data
 }
@@ -332,4 +343,39 @@ func TestUnstable(t *testing.T) {
 
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestUnstable done\n")
+}
+
+func TestConcurWrite(t *testing.T) {
+	fmt.Printf("TestConcurWrite\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+
+	names := []string{"f0", "f1", "f3", "f4"}
+	const N uint64 = 32
+	const SZ uint64 = 512
+	var wg sync.WaitGroup
+	for g, n := range names {
+		ts.Create(n)
+		fh := ts.Lookup(n, true)
+		wg.Add(1)
+		go func(fh Nfs_fh3, v byte) {
+			for i := uint64(0); i < N; i++ {
+				data := mkdataval(v, SZ)
+				ts.WriteOff(fh, i*SZ, data, FILE_SYNC)
+			}
+			wg.Done()
+		}(fh, byte(g))
+	}
+
+	wg.Wait()
+	for g, n := range names {
+		fh := ts.Lookup(n, true)
+		buf := ts.Read(fh, N*SZ)
+		assert.Equal(t, N*SZ, uint64(len(buf)))
+		for _, v := range buf {
+			assert.Equal(t, byte(g), v)
+		}
+	}
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestConcurWrite done\n")
 }
