@@ -461,6 +461,9 @@ func (nfs *Nfs) PathConf(args *PATHCONF3args, reply *PATHCONF3res) error {
 	return nil
 }
 
+// RFC: forces or flushes data to stable storage that was previously
+// written with a WRITE procedure call with the stable field set to
+// UNSTABLE.
 func (nfs *Nfs) Commit(args *COMMIT3args, reply *COMMIT3res) error {
 	log.Printf("NFS Commit %v\n", args)
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)

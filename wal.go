@@ -152,7 +152,19 @@ func (l *Log) readDskTxnNxt() TxnNum {
 	return n
 }
 
-func (l *Log) diskAppendWait(txn TxnNum) {
+func (l *Log) readTxnNxt() TxnNum {
+	l.memLock.Lock()
+	n := l.txnNxt
+	l.memLock.Unlock()
+	return n
+}
+
+func (l *Log) FlushMemLog() {
+	n := l.readTxnNxt() - 1
+	l.logAppendWait(n)
+}
+
+func (l *Log) logAppendWait(txn TxnNum) {
 	for {
 		logtxn := l.readLogTxnNxt()
 		if txn < logtxn {
@@ -175,9 +187,11 @@ func (l *Log) MemAppend(bufs []*Buf) TxnNum {
 	return txn
 }
 
+// Wait until in-memory log has been written to on-disk log
+// through transaction txn
 func (l *Log) Append(bufs []*Buf) TxnNum {
 	txn := l.MemAppend(bufs)
-	l.diskAppendWait(txn)
+	l.logAppendWait(txn)
 	log.Printf("Append: txn %d logged\n", txn)
 	return txn
 }

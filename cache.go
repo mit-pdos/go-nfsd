@@ -129,21 +129,6 @@ func (c *Cache) delSlot(id uint64) bool {
 	panic("delSlot")
 }
 
-// Returns buffers associated with fh
-func (c *Cache) BufsFh(fh Fh) []*Buf {
-	c.mu.Lock()
-	bufs := new([]*Buf)
-	for _, entry := range c.entries {
-		buf := entry.slot.obj.(*Buf)
-		if buf.fh == fh {
-			*bufs = append(*bufs, buf)
-		}
-		continue
-	}
-	c.mu.Unlock()
-	return *bufs
-}
-
 func (c *Cache) Pin(ids []uint64, txn TxnNum) {
 	c.mu.Lock()
 	log.Printf("Pin %d %v\n", txn, ids)

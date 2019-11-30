@@ -331,15 +331,22 @@ func TestUnstable(t *testing.T) {
 	fmt.Printf("TestUnstable\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
 	ts.Create("x")
+	ts.Create("y")
 	sz := uint64(4096)
-	fh := ts.Lookup("x", true)
-	data := mkdata(sz)
-	ts.Write(fh, data, UNSTABLE)
-	ts.Commit(fh, sz)
-	ts.Write(fh, data, UNSTABLE)
-	ts.Commit(fh, sz)
+	x := ts.Lookup("x", true)
+	y := ts.Lookup("y", true)
 
-	ts.readcheck(fh, data)
+	// This write will stay in memory log
+	data1 := mkdataval(1, sz)
+	ts.Write(x, data1, UNSTABLE)
+
+	ts.Write(y, data1, FILE_SYNC)
+
+	data2 := mkdataval(2, sz)
+	ts.Write(x, data2, UNSTABLE)
+	ts.Commit(x, sz)
+
+	ts.readcheck(x, data2)
 
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestUnstable done\n")

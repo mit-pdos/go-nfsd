@@ -12,7 +12,6 @@ type Buf struct {
 	blkno uint64
 	dirty bool // has this block been written to?
 	meta  bool // does the block contain metadata?
-	fh    Fh   // for non-meta blocks of fh in unstable writes
 }
 
 func (buf *Buf) lock() {
@@ -90,7 +89,6 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	if !ok {
 		panic("Write: blind write")
 	}
-	txn.bufs[addr].meta = true
 	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
 	return true
@@ -102,7 +100,6 @@ func (txn *Txn) WriteData(addr uint64, blk disk.Block) bool {
 	if !ok {
 		panic("Write: blind write")
 	}
-	txn.bufs[addr].meta = false
 	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
 	return true
@@ -114,18 +111,14 @@ func (txn *Txn) putInodes(inodes []*Inode) {
 	}
 }
 
-func (txn *Txn) dirtyBufs() ([]*Buf, bool) {
-	var meta bool = false
+func (txn *Txn) dirtyBufs() []*Buf {
 	bufs := new([]*Buf)
 	for _, buf := range txn.bufs {
 		if buf.dirty {
 			*bufs = append(*bufs, buf)
 		}
-		if buf.meta {
-			meta = true
-		}
 	}
-	return *bufs, meta
+	return *bufs
 }
 
 func (txn *Txn) clearDirty(bufs []*Buf) {
@@ -145,14 +138,19 @@ func (txn *Txn) Pin(bufs []*Buf, n TxnNum) {
 // Commit blocks of the transaction into the log. Pin the blocks in
 // the cache until installer has installed all the blocks in the log
 // of this transaction.
-func (txn *Txn) Commit(inodes []*Inode) bool {
+func (txn *Txn) CommitWait(inodes []*Inode, wait bool) bool {
 	// may free an inode so must be done before Append
 	txn.putInodes(inodes)
 
 	// commit all buffers written by this transaction
-	bufs, _ := txn.dirtyBufs()
+	bufs := txn.dirtyBufs()
 	if len(bufs) > 0 {
-		n := (*txn.log).Append(bufs)
+		var n TxnNum
+		if wait {
+			n = (*txn.log).Append(bufs)
+		} else {
+			n = (*txn.log).MemAppend(bufs)
+		}
 		txn.clearDirty(bufs)
 		txn.Pin(bufs, n)
 	}
@@ -166,65 +164,32 @@ func (txn *Txn) Commit(inodes []*Inode) bool {
 	return true
 }
 
-// XXX don't write inode if mtime is only change
-func (txn *Txn) CommitData(inodes []*Inode, fh Fh) bool {
-	return txn.Commit(inodes)
+// Append to in-memory log and wait until logger has logged this
+// transaction.
+func (txn *Txn) Commit(inodes []*Inode) bool {
+	return txn.CommitWait(inodes, true)
 }
 
-// If metadata changes, write metadata and data blocks through log,
-// but without waiting for commit. Otherwise, don't write data to log,
-// just leave it in the cache.
+// XXX don't write inode if mtime is only change
+func (txn *Txn) CommitData(inodes []*Inode, fh Fh) bool {
+	return txn.CommitWait(inodes, true)
+}
+
+// Append to in-memory log, but don't wait for the logger to complete
+// diskAppend.
 func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 	log.Printf("CommitUnstable\n")
-	var ok bool = true
-	var meta bool = false
 	if len(inodes) > 1 {
 		panic("CommitUnstable")
 	}
-
-	bufs, meta := txn.dirtyBufs()
-	if meta {
-		// Append to in-memory log, but don't wait for the
-		// logger to complete diskAppend
-		log.Printf("Commitunstable: log\n")
-		n := (*txn.log).MemAppend(bufs)
-		txn.Pin(bufs, n)
-	} else {
-		// Don't write buffers, but tag them with fh for
-		// CommitFh.  There are no modified meta blocks
-		// pointing to these blocks, so it is safe to delay
-		// writing them and write them to their home
-		// locations.  We must install log before writing
-		// them, since earlier versions of the blocks maybe in
-		// the log.
-		ids := new([]uint64)
-		for _, b := range bufs {
-			*ids = append(*ids, b.blkno)
-			b.fh = fh
-		}
-		txn.Pin(bufs, 1) // fake txn
-	}
-
-	txn.release()
-
-	unlockInodes(inodes)
-
-	return ok
+	return txn.CommitWait(inodes, false)
 }
 
-// Write data blocks associated with fh to their home location (i.e.,
-// not though log).
-// XXX check if any of the blocks is in the log; if any. flush log
+// XXX Don't have to flush all data, but that is only an option if we
+// do log-by-pass writes.
 func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
-	bufs := txn.bc.BufsFh(fh)
-	ids := new([]uint64)
-	for _, b := range bufs {
-		log.Printf("CommitFh: install blk %v\n", b.blkno)
-		*ids = append(*ids, b.blkno)
-		disk.Write(b.blkno, b.blk)
-	}
-	txn.clearDirty(bufs)
-	txn.bc.UnPin(*ids, 0)
+	txn.log.FlushMemLog()
+	txn.release()
 	unlockInodes(inodes)
 	return true
 }
