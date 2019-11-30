@@ -290,7 +290,7 @@ func TestDir(t *testing.T) {
 	fmt.Printf("TestDir done\n")
 }
 
-// Many files
+// Many filesgg
 func TestManyFiles(t *testing.T) {
 	fmt.Printf("TestManyFiles\n")
 	ts := &TestState{t: t, nfs: MkNfs()}

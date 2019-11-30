@@ -77,6 +77,7 @@ func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
 		blk := (*txn).Read(blkno)
 		bit, found = findAndMark(blk)
 		if !found {
+			(*txn).ReleaseBlock(blkno)
 			continue
 		}
 		ok := (*txn).Write(blkno, blk)
