@@ -142,6 +142,14 @@ func (fs *FsSuper) writeInode(txn *Txn, inode *Inode) bool {
 	return fs.writeInodeBlock(txn, inode.inum, blk)
 }
 
+func (fs *FsSuper) releaseInodeBlock(txn *Txn, inum uint64) bool {
+	if inum >= fs.NInode {
+		return false
+	}
+	(*txn).ReleaseBlock(fs.inodeStart() + inum)
+	return true
+}
+
 func (fs *FsSuper) loadInode(txn *Txn, slot *Cslot, a uint64) *Inode {
 	slot.lock()
 	if slot.obj == nil {
@@ -173,7 +181,7 @@ func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) Inum {
 			inode.gen = inode.gen + 1
 			break
 		}
-		// XXX release inode block from txn
+		fs.releaseInodeBlock(txn, inum)
 		continue
 	}
 	if inode == nil {

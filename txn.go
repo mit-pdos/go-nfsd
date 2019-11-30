@@ -11,7 +11,6 @@ type Buf struct {
 	blk   disk.Block
 	blkno uint64
 	dirty bool // has this block been written to?
-	meta  bool // does the block contain metadata?
 }
 
 func (buf *Buf) lock() {
@@ -67,10 +66,10 @@ func Begin(log *Log, cache *Cache, fs *FsSuper, ic *Cache) *Txn {
 }
 
 func (txn *Txn) Read(addr uint64) disk.Block {
-	v, ok := txn.bufs[addr]
+	b, ok := txn.bufs[addr]
 	if ok {
 		// this transaction already has the buf locked
-		return v.blk
+		return b.blk
 	} else {
 		slot := txn.bc.lookupSlot(addr)
 		if slot == nil {
@@ -81,6 +80,19 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 		txn.bufs[addr] = buf
 		return buf.blk
 	}
+}
+
+func (txn *Txn) ReleaseBlock(addr uint64) {
+	b, ok := txn.bufs[addr]
+	if !ok {
+		panic("ReleaseBlock")
+	}
+	if b.dirty {
+		panic("ReleaseBlock")
+	}
+	b.unlock()
+	txn.bc.freeSlot(b.blkno)
+	delete(txn.bufs, addr)
 }
 
 // Unqualified write is always written to log. Assumes transaction has the buf locked.
@@ -94,7 +106,9 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
 	return true
 }
 
-// Write of a data block.  Assumes transaction has the buf locked
+// Write of a data block.  Assumes transaction has the buf locked.
+// Separate from Write() in order to support log-by-pass writes in the
+// future.
 func (txn *Txn) WriteData(addr uint64, blk disk.Block) bool {
 	_, ok := txn.bufs[addr]
 	if !ok {

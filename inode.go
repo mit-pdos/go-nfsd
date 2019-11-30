@@ -253,7 +253,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool, bool
 		}
 		blkno := ip.bmap(txn, boff)
 		blk := txn.Read(blkno)
-		log.Printf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, blk[0:32])
+		// log.Printf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, blk[0:32])
 		for b := uint64(0); b < nbytes; b++ {
 			data[n+b] = blk[byteoff+b]
 		}

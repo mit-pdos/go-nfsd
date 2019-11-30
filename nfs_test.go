@@ -2,6 +2,7 @@ package goose_nfs
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/stretchr/testify/assert"
@@ -293,12 +294,32 @@ func TestDir(t *testing.T) {
 func TestManyFiles(t *testing.T) {
 	fmt.Printf("TestManyFiles\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
+
 	for i := 0; i < 100; i++ {
 		ts.Create("x")
 		ts.Remove("x")
 	}
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestManyFiles done\n")
+}
+
+// Create many files and then delete
+func TestManyFiles1(t *testing.T) {
+	const N = 50
+	fmt.Printf("TestManyFiles1\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+
+	for i := 0; i < N; i++ {
+		s := strconv.Itoa(i)
+		ts.Create("x" + s)
+	}
+	for i := 0; i < N; i++ {
+		s := strconv.Itoa(i)
+		ts.Remove("x" + s)
+	}
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestManyFiles1 done\n")
 }
 
 func TestRename(t *testing.T) {
