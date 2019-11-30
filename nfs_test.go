@@ -407,3 +407,38 @@ func TestConcurWrite(t *testing.T) {
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestConcurWrite done\n")
 }
+
+func TestConcurCreateDelete(t *testing.T) {
+	fmt.Printf("TestConcurCreateDelete\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+
+	names := []string{"f0", "f1", "f3", "f4"}
+	const N = 10
+	var wg sync.WaitGroup
+	for _, n := range names {
+		wg.Add(1)
+		go func(n string) {
+			for i := 0; i < N; i++ {
+				s := strconv.Itoa(i)
+				ts.Create(n + s)
+				if i > 0 && (i%2) == 0 {
+					s := strconv.Itoa(i / 2)
+					ts.Remove(n + s)
+				}
+			}
+			wg.Done()
+		}(n)
+	}
+	wg.Wait()
+	for _, n := range names {
+		for i := 0; i < N; i++ {
+			s := strconv.Itoa(i)
+			if i > 0 && i < N/2 {
+				ts.Lookup(n+s, false)
+			} else {
+				ts.Lookup(n+s, true)
+			}
+		}
+	}
+	fmt.Printf("TestConcurCreateDelete done\n")
+}
