@@ -81,6 +81,9 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 	}
 }
 
+// Release a not-used buffer during the transaction (e.g., during
+// scanning inode or bitmap blocks that don't have free inodes or
+// bits).
 func (txn *Txn) ReleaseBlock(addr uint64) {
 	b, ok := txn.bufs[addr]
 	if !ok {

@@ -135,7 +135,6 @@ func (l *Log) doMemAppend(bufs []*Buf) (bool, TxnNum) {
 	return true, txn
 }
 
-// XXX just an atomic read?
 func (l *Log) readLogTxnNxt() TxnNum {
 	l.memLock.Lock()
 	n := l.logTxnNxt
@@ -143,7 +142,6 @@ func (l *Log) readLogTxnNxt() TxnNum {
 	return n
 }
 
-// XXX just an atomic read?
 func (l *Log) readDskTxnNxt() TxnNum {
 	l.memLock.Lock()
 	n := l.dskTxnNxt
