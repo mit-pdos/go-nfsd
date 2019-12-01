@@ -94,7 +94,37 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 	return nil
 }
 
-// XXX potential deadlock with concurrent renames and lookup of ".."
+// First lookup inode up for child, then for parent, because parent inum > child inum
+func (nfs *Nfs) LookupOrdered(name Filename3, parent Inum, inum Inum, reply *LOOKUP3res) error {
+	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	log.Printf("NFS LookupOrdered child %d parent %d\n", inum, parent)
+	ip := getInodeInum(txn, inum)
+	if ip == nil {
+		// not a valid entry anymore; maybe client will retry?
+		return errRet(txn, &reply.Status, NFS3ERR_IO, nil)
+	}
+	dip := getInodeInum(txn, parent)
+	// XXX check gen number of parent?
+	if dip == nil {
+		// not a valid directory anymore; maybe client will retry?
+		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{ip})
+	}
+	inodes := []*Inode{ip, dip}
+	child, _ := dip.lookupName(txn, name)
+	if child == NULLINUM {
+		return errRet(txn, &reply.Status, NFS3ERR_NOENT, inodes)
+	}
+	if child != inum {
+		// name is pointing to a differen inode now; maybe client will retry?
+		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{ip})
+	}
+	fh := Fh{ino: inum, gen: ip.gen}
+	reply.Status = NFS3_OK
+	reply.Resok.Object = fh.makeFh3()
+	txn.Commit(inodes)
+	return nil
+}
+
 func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("NFS Lookup %v\n", args)
@@ -109,6 +139,13 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	var ip *Inode = dip
 	var inodes []*Inode
 	if inum != dip.inum {
+		if inum < dip.inum {
+			// Lock inodes in ascending order.  Inum may
+			// be a directory (e.g., ..).
+			parent := dip.inum
+			txn.Abort([]*Inode{dip})
+			return nfs.LookupOrdered(args.What.Name, parent, inum, reply)
+		}
 		ip = loadInode(txn, inum)
 		if ip == nil {
 			return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
