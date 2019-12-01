@@ -102,7 +102,6 @@ func (l *Log) readLogBlocks(len uint64) []disk.Block {
 	for i := uint64(0); i < len; i++ {
 		blk := disk.Read(LOGSTART + i)
 		blks[i] = blk
-		log.Printf("readLogBlocks: %d %v\n", i, blk[0:32])
 	}
 	return blks
 }
@@ -201,8 +200,7 @@ func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []*Buf) {
 		bindex := i - diskhead
 		blk := bufs[bindex].blk
 		blkno := bufs[bindex].blkno
-		log.Printf("logBlocks: %d to log block %d, %v..\n", blkno,
-			l.index(i), blk[0:32])
+		log.Printf("logBlocks: %d to log block %d\n", blkno, l.index(i))
 		disk.Write(LOGSTART+l.index(i), blk)
 	}
 }
@@ -243,8 +241,7 @@ func (l *Log) installBlocks(addrs []uint64, blks []disk.Block) {
 	for i := uint64(0); i < n; i++ {
 		blkno := addrs[i]
 		blk := blks[i]
-		log.Printf("installBlocks: write log block %d to %d %v..\n", i, blkno,
-			blk[0:32])
+		log.Printf("installBlocks: write log block %d to %d\n", i, blkno)
 		disk.Write(blkno, blk)
 	}
 }

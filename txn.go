@@ -36,7 +36,6 @@ func (txn *Txn) load(slot *Cslot, a uint64) *Buf {
 		// blk hasn't been read yet from disk; read it and put
 		// the buf with the read blk in the cache slot.
 		blk := disk.Read(a)
-		log.Printf("Load blk %d, %v..\n", a, blk[0:32])
 		buf := &Buf{slot: slot, blk: blk, blkno: a}
 		slot.obj = buf
 	}

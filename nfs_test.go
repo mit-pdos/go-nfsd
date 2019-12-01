@@ -440,5 +440,33 @@ func TestConcurCreateDelete(t *testing.T) {
 			}
 		}
 	}
+	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestConcurCreateDelete done\n")
+}
+
+func TestConcurRename(t *testing.T) {
+	fmt.Printf("Rename\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+
+	const NGO = 4
+	const N = 20
+	var wg sync.WaitGroup
+
+	for i := 0; i < NGO; i++ {
+		wg.Add(1)
+		go func(id int) {
+			for i := 0; i < N; i++ {
+				from := "f" + strconv.Itoa(id)
+				to := "g" + strconv.Itoa(id)
+				ts.Create(from)
+				ts.Rename(from, to)
+				ts.Remove(to)
+			}
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestConcurRename done\n")
 }
