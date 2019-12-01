@@ -95,18 +95,23 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 }
 
 // First lookup inode up for child, then for parent, because parent inum > child inum
-func (nfs *Nfs) LookupOrdered(name Filename3, parent Inum, inum Inum, reply *LOOKUP3res) error {
+// and child and parent may be directories.
+func (nfs *Nfs) LookupOrdered(name Filename3, parent Fh, inum Inum, reply *LOOKUP3res) error {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
-	log.Printf("NFS LookupOrdered child %d parent %d\n", inum, parent)
+	log.Printf("NFS LookupOrdered child %d parent %v\n", inum, parent)
 	ip := getInodeInum(txn, inum)
 	if ip == nil {
 		// not a valid entry anymore; maybe client will retry?
 		return errRet(txn, &reply.Status, NFS3ERR_IO, nil)
 	}
-	dip := getInodeInum(txn, parent)
+	dip := getInodeInum(txn, parent.ino)
 	// XXX check gen number of parent?
 	if dip == nil {
 		// not a valid directory anymore; maybe client will retry?
+		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{ip})
+	}
+	if dip.gen != parent.gen {
+		// not same fh anymore; maybe client will retry?
 		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{ip})
 	}
 	inodes := []*Inode{ip, dip}
@@ -142,8 +147,8 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 		if inum < dip.inum {
 			// Lock inodes in ascending order.  Inum may
 			// be a directory (e.g., ..).
-			parent := dip.inum
 			txn.Abort([]*Inode{dip})
+			parent := args.What.Dir.makeFh()
 			return nfs.LookupOrdered(args.What.Name, parent, inum, reply)
 		}
 		ip = loadInode(txn, inum)
