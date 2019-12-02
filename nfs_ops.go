@@ -418,7 +418,35 @@ func (nfs *Nfs) RmDir(args *RMDIR3args, reply *RMDIR3res) error {
 	return nil
 }
 
-func (nfs *Nfs) lookInodes([]Inum) {
+func validateRename(txn *Txn, inodes []*Inode, fromfh Fh, tofh Fh,
+	fromn Filename3, ton Filename3) bool {
+	var dipto *Inode
+	var dipfrom *Inode
+	var from *Inode
+	var to *Inode
+	if len(inodes) == 3 {
+		dipfrom = inodes[0]
+		dipto = inodes[0]
+		from = inodes[1]
+		to = inodes[2]
+	} else {
+		dipfrom = inodes[0]
+		dipto = inodes[1]
+		from = inodes[2]
+		to = inodes[3]
+	}
+	if dipfrom.inum != fromfh.ino || dipfrom.gen != fromfh.gen ||
+		dipto.inum != tofh.ino || dipto.gen != tofh.gen {
+		log.Printf("revalidate ino failed\n")
+		return false
+	}
+	frominum, _ := dipfrom.lookupName(txn, fromn)
+	toinum, _ := dipto.lookupName(txn, ton)
+	if from.inum != frominum || toinum != to.inum {
+		log.Printf("revalidate inums failed\n")
+		return false
+	}
+	return true
 }
 
 func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
@@ -426,83 +454,97 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 	var dipfrom *Inode
 	var txn *Txn
 	var inodes []*Inode
+	var frominum Inum
+	var toinum Inum
+	var success bool = false
 
-	txn = Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
-	log.Printf("NFS Rename %v\n", args)
-
-	toh := args.To.Dir.makeFh()
-	fromh := args.From.Dir.makeFh()
-
-	if illegalName(args.From.Name) {
-		return errRet(txn, &reply.Status, NFS3ERR_INVAL, nil)
-	}
-
-	if args.From.Dir.equal(args.To.Dir) {
-		dipfrom = getInode(txn, args.From.Dir)
-		if dipfrom == nil {
-			return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-		}
-		dipto = dipfrom
-		inodes = append(inodes, dipfrom)
-	} else {
-		inodes = lockInodes(txn, []Inum{fromh.ino, toh.ino})
-		if inodes == nil {
-			return errRet(txn, &reply.Status, NFS3ERR_STALE, inodes)
-		}
-		dipfrom = inodes[0]
-		dipto = inodes[1]
-	}
-
-	log.Printf("from %v to %v\n", dipfrom, dipto)
-
-	frominum, _ := dipfrom.lookupName(txn, args.From.Name)
-	if frominum == NULLINUM {
-		return errRet(txn, &reply.Status, NFS3ERR_NOENT, inodes)
-	}
-
-	toinum, _ := dipto.lookupName(txn, args.To.Name)
-
-	log.Printf("frominum %d toinum %d\n", frominum, toinum)
-
-	// rename to itself?
-	if dipto == dipfrom && toinum == frominum {
-		reply.Status = NFS3_OK
-		txn.Commit(inodes)
-		return nil
-	}
-
-	// does to exist?
-	if toinum != NULLINUM {
-		var to *Inode
-		var from *Inode
-		txn.Abort(inodes)
+	for !success {
 		txn = Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
-		if dipto != dipfrom {
-			inodes = lockInodes(txn, []Inum{dipfrom.inum, dipto.inum,
-				frominum, toinum})
+		log.Printf("NFS Rename %v\n", args)
+
+		toh := args.To.Dir.makeFh()
+		fromh := args.From.Dir.makeFh()
+
+		if illegalName(args.From.Name) {
+			return errRet(txn, &reply.Status, NFS3ERR_INVAL, nil)
+		}
+
+		if args.From.Dir.equal(args.To.Dir) {
+			dipfrom = getInode(txn, args.From.Dir)
+			if dipfrom == nil {
+				return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
+			}
+			dipto = dipfrom
+			inodes = []*Inode{dipfrom}
+		} else {
+			inodes = lockInodes(txn, []Inum{fromh.ino, toh.ino})
+			if inodes == nil {
+				return errRet(txn, &reply.Status, NFS3ERR_STALE, inodes)
+			}
 			dipfrom = inodes[0]
 			dipto = inodes[1]
-			from = inodes[2]
-			to = inodes[3]
+		}
+
+		log.Printf("from %v to %v\n", dipfrom, dipto)
+
+		frominum, _ = dipfrom.lookupName(txn, args.From.Name)
+		if frominum == NULLINUM {
+			return errRet(txn, &reply.Status, NFS3ERR_NOENT, inodes)
+		}
+
+		toinum, _ = dipto.lookupName(txn, args.To.Name)
+
+		log.Printf("frominum %d toinum %d\n", frominum, toinum)
+
+		// rename to itself?
+		if dipto == dipfrom && toinum == frominum {
+			reply.Status = NFS3_OK
+			txn.Commit(inodes)
+			return nil
+		}
+
+		// does to exist?
+		if toinum != NULLINUM {
+			// need lock 4 inodes in order
+			var to *Inode
+			var from *Inode
+			txn.Abort(inodes)
+			txn = Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+			if dipto != dipfrom {
+				inodes = lockInodes(txn, []Inum{dipfrom.inum, dipto.inum,
+					frominum, toinum})
+				dipfrom = inodes[0]
+				dipto = inodes[1]
+				from = inodes[2]
+				to = inodes[3]
+			} else {
+				inodes = lockInodes(txn, []Inum{dipfrom.inum, frominum, toinum})
+				dipfrom = inodes[0]
+				dipto = inodes[0]
+				from = inodes[1]
+				to = inodes[2]
+			}
+			log.Printf("inodes %v\n", inodes)
+			if validateRename(txn, inodes, fromh, toh,
+				args.From.Name, args.To.Name) {
+				if to.kind != from.kind {
+					return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
+				}
+				if to.kind == NF3DIR && !to.isDirEmpty(txn) {
+					return errRet(txn, &reply.Status, NFS3ERR_NOTEMPTY, inodes)
+				}
+				ok := dipto.remName(txn, args.To.Name)
+				if !ok {
+					return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
+				}
+				to.decLink(txn)
+				success = true
+			} else { // retry
+				txn.Abort(inodes)
+			}
 		} else {
-			inodes = lockInodes(txn, []Inum{dipfrom.inum, frominum, toinum})
-			dipfrom = inodes[0]
-			dipto = inodes[0]
-			from = inodes[1]
-			to = inodes[2]
+			success = true
 		}
-		// XXX revalidate results and start over on failure
-		if to.kind != from.kind {
-			return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
-		}
-		if to.kind == NF3DIR && !to.isDirEmpty(txn) {
-			return errRet(txn, &reply.Status, NFS3ERR_NOTEMPTY, inodes)
-		}
-		ok := dipto.remName(txn, args.To.Name)
-		if !ok {
-			return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
-		}
-		to.decLink(txn)
 	}
 	ok := dipfrom.remName(txn, args.From.Name)
 	if !ok {

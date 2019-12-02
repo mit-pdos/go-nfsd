@@ -206,6 +206,7 @@ func (ts *TestState) readcheck(fh Nfs_fh3, data []byte) {
 func TestRoot(t *testing.T) {
 	fmt.Printf("TestGetRoot\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
+
 	fh := MkRootFh3()
 	ts.GetattrDir(fh)
 	fhdot := ts.LookupFh(fh, ".")
@@ -213,6 +214,7 @@ func TestRoot(t *testing.T) {
 	fhdotdot := ts.LookupFh(fh, "..")
 	ts.GetattrDir(fhdotdot)
 	// assert.Equal(ts.t, fhdot.ino, fhdotdot.ino)
+
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestGetRoot done\n")
 }
@@ -241,12 +243,14 @@ func TestFile(t *testing.T) {
 func TestFile1(t *testing.T) {
 	fmt.Printf("TestFile1\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
+
 	sz := uint64(122)
 	ts.Create("x")
 	fh := ts.Lookup("x", true)
 	data := mkdata(uint64(sz))
 	ts.Write(fh, data, FILE_SYNC)
 	ts.readcheck(fh, data)
+
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestFile1 done\n")
 }
@@ -254,6 +258,7 @@ func TestFile1(t *testing.T) {
 func TestDir(t *testing.T) {
 	fmt.Printf("TestDir\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
+
 	ts.MkDir("d")
 	fh := ts.Lookup("d", true)
 	ts.GetattrDir(fh)
@@ -299,6 +304,7 @@ func TestManyFiles(t *testing.T) {
 		ts.Create("x")
 		ts.Remove("x")
 	}
+
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestManyFiles done\n")
 }
@@ -344,7 +350,6 @@ func TestRename(t *testing.T) {
 	ts.RenameFhs(d1, "f1", d2, "f1")
 
 	ts.nfs.ShutdownNfs()
-
 	fmt.Printf("TestRename done\n")
 }
 
@@ -440,6 +445,7 @@ func TestConcurCreateDelete(t *testing.T) {
 			}
 		}
 	}
+
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestConcurCreateDelete done\n")
 }
