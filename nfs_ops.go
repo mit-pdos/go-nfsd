@@ -95,7 +95,8 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 }
 
 // First lookup inode up for child, then for parent, because parent
-// inum > child inum and child and parent may be directories.
+// inum > child inum and then revalidate that child is still in parent
+// directory.
 func (nfs *Nfs) LookupOrdered(name Filename3, parent Fh, inum Inum) (*Txn, *Inode, []*Inode) {
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("NFS LookupOrdered child %d parent %v\n", inum, parent)
@@ -126,6 +127,8 @@ func (nfs *Nfs) LookupOrdered(name Filename3, parent Fh, inum Inum) (*Txn, *Inod
 	return txn, ip, inodes
 }
 
+// Lookup must lock child inode to find gen number, but child maybe a
+// directory. We must lock directories in ascending inum order.
 func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	var ip *Inode
 	var inodes []*Inode
@@ -346,6 +349,7 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 	if inum == NULLINUM {
 		return errRet(txn, &reply.Status, NFS3ERR_NOENT, []*Inode{dip})
 	}
+	// XXX ip maybe a directory. lock in ascending order.
 	ip := loadInode(txn, inum)
 	if ip == nil {
 		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
@@ -431,6 +435,8 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 
 	// does to exist?
 	if toinum != NULLINUM {
+		// XXX to and from maybe directories.  Need to lock
+		// them in ascending order.
 		to := getInodeInum(txn, toinum)
 		if to == nil {
 			return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
