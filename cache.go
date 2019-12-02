@@ -140,7 +140,7 @@ func (c *Cache) Pin(ids []uint64, txn TxnNum) {
 	c.mu.Unlock()
 }
 
-// Pin ids until txn (but not including txn)
+// Unpin ids until txn (but not including txn)
 func (c *Cache) UnPin(ids []uint64, txn TxnNum) {
 	c.mu.Lock()
 	log.Printf("Unpin %d %v\n", txn, ids)
