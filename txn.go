@@ -161,14 +161,14 @@ func (txn *Txn) CommitWait(inodes []*Inode, wait bool) bool {
 	// commit all buffers written by this transaction
 	bufs := txn.dirtyBufs()
 	if len(bufs) > 0 {
-		var n TxnNum
+		n := (*txn.log).MemAppend(bufs)
+		// must pin before waiting, otherwise unpin by installer may happen
+		// before pin.  XXX logger and installer run before Pin
+		txn.Pin(bufs, n)
 		if wait {
-			n = (*txn.log).Append(bufs)
-		} else {
-			n = (*txn.log).MemAppend(bufs)
+			(*txn.log).logAppendWait(n)
 		}
 		txn.clearDirty(bufs)
-		txn.Pin(bufs, n)
 	}
 
 	// release the buffers used in this transaction
@@ -228,7 +228,7 @@ func Installer(bc *Cache, l *Log) {
 		// Make space in cache by unpinning buffers that have
 		// been installed
 		if len(blknos) > 0 {
-			log.Printf("Installed txn %d: unpin: %v\n", txn, blknos)
+			log.Printf("Installed txn %d\n", txn)
 			bc.UnPin(blknos, txn)
 		}
 	}
