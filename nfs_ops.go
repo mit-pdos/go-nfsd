@@ -137,11 +137,7 @@ func (nfs *Nfs) LookupOrdered(txn *Txn, name Filename3, parent Fh, inum Inum) []
 		return nil
 	}
 	child, _ := dip.lookupName(txn, name)
-	if child == NULLINUM {
-		txn.Abort(inodes)
-		return nil
-	}
-	if child != inum {
+	if child == NULLINUM || child != inum {
 		txn.Abort(inodes)
 		return nil
 	}
