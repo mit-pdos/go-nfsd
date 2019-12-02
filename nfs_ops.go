@@ -3,6 +3,7 @@ package goose_nfs
 import (
 	"github.com/zeldovich/go-rpcgen/xdr"
 	"log"
+	"sort"
 )
 
 const ICACHESZ uint64 = 20
@@ -94,37 +95,57 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 	return nil
 }
 
+// Lock inodes in sorted order, but return the pointers in the same order as in inums
+func lockInodes(txn *Txn, inums []Inum) []*Inode {
+	log.Printf("lock inodes %v\n", inums)
+	sorted := make([]Inum, len(inums))
+	copy(sorted, inums)
+	sort.Slice(sorted, func(i, j int) bool { return inums[i] < inums[j] })
+	var inodes = make([]*Inode, len(inums))
+	for _, inum := range sorted {
+		ip := getInodeInum(txn, inum)
+		if ip == nil {
+			txn.Abort(inodes)
+			return nil
+		}
+		// put in same position as in inums
+		pos := func(inum uint64) int {
+			for i, v := range inums {
+				if v == inum {
+					return i
+				}
+			}
+			panic("func")
+		}(inum)
+		inodes[pos] = ip
+	}
+	return inodes
+}
+
 // First lookup inode up for child, then for parent, because parent
 // inum > child inum and then revalidate that child is still in parent
 // directory.
-func (nfs *Nfs) LookupOrdered(name Filename3, parent Fh, inum Inum) (*Txn, []*Inode) {
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+func (nfs *Nfs) LookupOrdered(txn *Txn, name Filename3, parent Fh, inum Inum) []*Inode {
 	log.Printf("NFS LookupOrdered child %d parent %v\n", inum, parent)
-	ip := getInodeInum(txn, inum)
-	if ip == nil {
-		txn.Abort(nil)
-		return nil, nil
+	inodes := lockInodes(txn, []Inum{inum, parent.ino})
+	if inodes == nil {
+		return nil
 	}
-	dip := getInodeInum(txn, parent.ino)
-	if dip == nil {
-		txn.Abort([]*Inode{ip})
-		return nil, nil
-	}
-	inodes := []*Inode{ip, dip}
+	dip := inodes[1]
 	if dip.gen != parent.gen {
-		txn.Abort([]*Inode{ip})
-		return nil, nil
+		txn.Abort(inodes)
+		return nil
 	}
 	child, _ := dip.lookupName(txn, name)
 	if child == NULLINUM {
-		txn.Abort([]*Inode{ip})
-		return nil, nil
+		txn.Abort(inodes)
+		return nil
 	}
 	if child != inum {
-		txn.Abort([]*Inode{ip})
-		return nil, nil
+		txn.Abort(inodes)
+		return nil
 	}
-	return txn, inodes
+	return inodes
 }
 
 // Lookup must lock child inode to find gen number, but child maybe a
@@ -151,10 +172,14 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 				// Abort. Try to lock inodes in order
 				txn.Abort([]*Inode{dip})
 				parent := args.What.Dir.makeFh()
-				txn, inodes = nfs.LookupOrdered(args.What.Name,
+				txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+				inodes = nfs.LookupOrdered(txn, args.What.Name,
 					parent, inum)
-				ip = inodes[0]
-				dip = inodes[1]
+				if inodes != nil {
+					ip = inodes[0]
+				} else {
+					ip = nil
+				}
 			} else {
 				ip = loadInode(txn, inum)
 				if ip == nil {
@@ -359,8 +384,9 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 		if inum < dip.inum {
 			// Abort. Try to lock inodes in order
 			txn.Abort([]*Inode{dip})
+			txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 			parent := args.Object.Dir.makeFh()
-			txn, inodes = nfs.LookupOrdered(args.Object.Name, parent, inum)
+			inodes = nfs.LookupOrdered(txn, args.Object.Name, parent, inum)
 			ip = inodes[0]
 			dip = inodes[1]
 		} else {
@@ -392,16 +418,20 @@ func (nfs *Nfs) RmDir(args *RMDIR3args, reply *RMDIR3res) error {
 	return nil
 }
 
+func (nfs *Nfs) lookInodes([]Inum) {
+}
+
 func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	var dipto *Inode
+	var dipfrom *Inode
+	var txn *Txn
+	var inodes []*Inode
+
+	txn = Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	log.Printf("NFS Rename %v\n", args)
 
 	toh := args.To.Dir.makeFh()
 	fromh := args.From.Dir.makeFh()
-
-	inodes := make([]*Inode, 0, 4)
-	var dipto *Inode
-	var dipfrom *Inode
 
 	if illegalName(args.From.Name) {
 		return errRet(txn, &reply.Status, NFS3ERR_INVAL, nil)
@@ -415,22 +445,12 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 		dipto = dipfrom
 		inodes = append(inodes, dipfrom)
 	} else {
-		var ok bool
-		if toh.ino < fromh.ino {
-			inodes, ok = getInodes(txn, []Fh{toh, fromh})
-		} else {
-			inodes, ok = getInodes(txn, []Fh{fromh, toh})
-		}
-		if !ok {
+		inodes = lockInodes(txn, []Inum{fromh.ino, toh.ino})
+		if inodes == nil {
 			return errRet(txn, &reply.Status, NFS3ERR_STALE, inodes)
 		}
-		if toh.ino < fromh.ino {
-			dipto = inodes[0]
-			dipfrom = inodes[1]
-		} else {
-			dipto = inodes[1]
-			dipfrom = inodes[0]
-		}
+		dipfrom = inodes[0]
+		dipto = inodes[1]
 	}
 
 	log.Printf("from %v to %v\n", dipfrom, dipto)
@@ -453,18 +473,25 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 
 	// does to exist?
 	if toinum != NULLINUM {
-		// XXX to and from maybe directories.  Need to lock
-		// them in ascending order.
-		to := getInodeInum(txn, toinum)
-		if to == nil {
-			return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
+		var to *Inode
+		var from *Inode
+		txn.Abort(inodes)
+		txn = Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+		if dipto != dipfrom {
+			inodes = lockInodes(txn, []Inum{dipfrom.inum, dipto.inum,
+				frominum, toinum})
+			dipfrom = inodes[0]
+			dipto = inodes[1]
+			from = inodes[2]
+			to = inodes[3]
+		} else {
+			inodes = lockInodes(txn, []Inum{dipfrom.inum, frominum, toinum})
+			dipfrom = inodes[0]
+			dipto = inodes[0]
+			from = inodes[1]
+			to = inodes[2]
 		}
-		inodes = append(inodes, to)
-		from := getInodeInum(txn, frominum)
-		if from == nil {
-			return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
-		}
-		inodes = append(inodes, from)
+		// XXX revalidate results and start over on failure
 		if to.kind != from.kind {
 			return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
 		}
