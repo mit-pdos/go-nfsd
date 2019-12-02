@@ -31,7 +31,7 @@ func (enc *Enc) PutInts(xs []uint64) {
 	// the offset
 	n := uint64(len(xs))
 	for i := uint64(0); i < n; i++ {
-		(*enc).PutInt(xs[i])
+		enc.PutInt(xs[i])
 	}
 }
 
@@ -61,7 +61,7 @@ func (dec *Dec) GetInt32() uint32 {
 func (dec *Dec) GetInts(len uint64) []uint64 {
 	xs := make([]uint64, len)
 	for i := uint64(0); i < len; i++ {
-		xs[i] = (*dec).GetInt()
+		xs[i] = dec.GetInt()
 	}
 	return xs
 }

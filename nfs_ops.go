@@ -161,9 +161,10 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 		if inum == NULLINUM {
 			return errRet(txn, &reply.Status, NFS3ERR_NOENT, []*Inode{dip})
 		}
-		ip = dip
 		inodes = []*Inode{dip}
-		if inum != dip.inum {
+		if inum == dip.inum {
+			ip = dip
+		} else {
 			if inum < dip.inum {
 				// Abort. Try to lock inodes in order
 				txn.Abort([]*Inode{dip})
@@ -171,10 +172,10 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 				txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 				inodes = nfs.LookupOrdered(txn, args.What.Name,
 					parent, inum)
-				if inodes != nil {
-					ip = inodes[0]
-				} else {
+				if inodes == nil {
 					ip = nil
+				} else {
+					ip = inodes[0]
 				}
 			} else {
 				ip = loadInode(txn, inum)

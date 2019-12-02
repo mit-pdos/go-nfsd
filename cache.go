@@ -140,13 +140,17 @@ func (c *Cache) Pin(ids []uint64, txn TxnNum) {
 	c.mu.Unlock()
 }
 
-// Unpin ids until txn (but not including txn)
+// Unpin ids through txn
 func (c *Cache) UnPin(ids []uint64, txn TxnNum) {
 	c.mu.Lock()
-	log.Printf("Unpin %d %v\n", txn, ids)
+	log.Printf("Unpin through %d %v\n", txn, ids)
 	for _, id := range ids {
 		entry := c.entries[id]
-		if txn > entry.pin {
+		if entry == nil {
+			log.Printf("Unpin %d isn't present\n", id)
+			panic("Unpin")
+		}
+		if txn >= entry.pin {
 			entry.pin = 0
 		} else {
 			log.Printf("Unpin: keep %d pinned at %d\n", id, entry.pin)

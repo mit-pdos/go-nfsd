@@ -74,13 +74,13 @@ func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
 
 	for i := uint64(0); i < fs.NBitmap; i++ {
 		blkno := fs.bitmapStart() + i
-		blk := (*txn).Read(blkno)
+		blk := txn.Read(blkno)
 		bit, found = findAndMark(blk)
 		if !found {
-			(*txn).ReleaseBlock(blkno)
+			txn.ReleaseBlock(blkno)
 			continue
 		}
-		ok := (*txn).Write(blkno, blk)
+		ok := txn.Write(blkno, blk)
 		if !ok {
 			panic("allocBlock")
 		}
@@ -96,9 +96,9 @@ func (fs *FsSuper) freeBlock(txn *Txn, bn uint64) {
 		panic("freeBlock")
 	}
 	blkno := fs.bitmapStart() + i
-	blk := (*txn).Read(blkno)
+	blk := txn.Read(blkno)
 	freeBit(blk, bn%disk.BlockSize)
-	ok1 := (*txn).Write(blkno, blk)
+	ok1 := txn.Write(blkno, blk)
 	if !ok1 {
 		panic("freeBlock")
 	}
@@ -108,7 +108,7 @@ func (fs *FsSuper) readInodeBlock(txn *Txn, inum uint64) (disk.Block, bool) {
 	if inum >= fs.NInode {
 		return nil, false
 	}
-	blk := (*txn).Read(fs.inodeStart() + inum)
+	blk := txn.Read(fs.inodeStart() + inum)
 	return blk, true
 }
 
@@ -126,7 +126,7 @@ func (fs *FsSuper) writeInodeBlock(txn *Txn, inum uint64, blk disk.Block) bool {
 	if inum >= fs.NInode {
 		return false
 	}
-	ok := (*txn).Write(fs.inodeStart()+inum, blk)
+	ok := txn.Write(fs.inodeStart()+inum, blk)
 	if !ok {
 		panic("writeInodeBlock")
 	}
@@ -147,14 +147,14 @@ func (fs *FsSuper) releaseInodeBlock(txn *Txn, inum uint64) bool {
 	if inum >= fs.NInode {
 		return false
 	}
-	(*txn).ReleaseBlock(fs.inodeStart() + inum)
+	txn.ReleaseBlock(fs.inodeStart() + inum)
 	return true
 }
 
 func (fs *FsSuper) loadInode(txn *Txn, slot *Cslot, a uint64) *Inode {
 	slot.lock()
 	if slot.obj == nil {
-		i, ok := (*fs).readInode(txn, a)
+		i, ok := fs.readInode(txn, a)
 		if !ok {
 			return nil
 		}
