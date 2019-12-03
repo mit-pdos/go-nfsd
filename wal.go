@@ -158,7 +158,7 @@ func (l *Log) readTxnNxt() TxnNum {
 
 // Wait until last started transaction has been appended to log.  If
 // it is logged, then all preceeding transactions are also logged.
-func (l *Log) FlushMemLog() {
+func (l *Log) WaitFlushMemLog() {
 	n := l.readTxnNxt() - 1
 	l.logAppendWait(n)
 }

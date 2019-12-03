@@ -56,8 +56,7 @@ func (c *Cache) printCache() {
 	}
 }
 
-// Evict a not-inuse slot. Assume locked cache.
-func (c *Cache) evict() {
+func (c *Cache) evict() uint64 {
 	var addr uint64 = 0
 	for a, entry := range c.entries {
 		if entry.ref == 0 && entry.pin == 0 {
@@ -66,14 +65,12 @@ func (c *Cache) evict() {
 		}
 		continue
 	}
-	if addr == 0 {
-		c.printCache()
-		// XXX wait until installer has run
-		panic("evict")
+	if addr != 0 {
+		log.Printf("findVictim: evict %d\n", addr)
+		delete(c.entries, addr)
+		c.cnt = c.cnt - 1
 	}
-	log.Printf("evict: %d\n", addr)
-	delete(c.entries, addr)
-	c.cnt = c.cnt - 1
+	return addr
 }
 
 // Lookup the cache slot for id.  Create the slot if id isn't in the
@@ -87,9 +84,13 @@ func (c *Cache) lookupSlot(id uint64) *Cslot {
 		c.mu.Unlock()
 		return &e.slot
 	}
-
 	if c.cnt >= c.sz {
-		c.evict()
+		if c.evict() == 0 {
+			// failed to find victim. caller is
+			// responsible for creating space.
+			c.mu.Unlock()
+			return nil
+		}
 	}
 	s := Cslot{mu: new(sync.RWMutex), obj: nil}
 	enew := &entry{ref: 1, pin: 0, slot: s}

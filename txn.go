@@ -64,15 +64,22 @@ func Begin(log *Log, cache *Cache, fs *FsSuper, ic *Cache) *Txn {
 	return txn
 }
 
+// If Read cannot find a cache slot, wait until logger flushes memlog,
+// which may contain unstable writes.  The installer can then install
+// them and unpin the buffer from the cache.
 func (txn *Txn) Read(addr uint64) disk.Block {
 	b, ok := txn.bufs[addr]
 	if ok {
 		// this transaction already has the buf locked
 		return b.blk
 	} else {
-		slot := txn.bc.lookupSlot(addr)
-		if slot == nil {
-			panic("Read")
+		var slot *Cslot
+		slot = txn.bc.lookupSlot(addr)
+		for slot == nil {
+			log.Printf("Read: WaitFlushMemLog\n")
+			txn.log.WaitFlushMemLog()
+			// Try again; a slot should free up eventually.
+			slot = txn.bc.lookupSlot(addr)
 		}
 		// load the slot and lock it
 		buf := txn.load(slot, addr)
@@ -232,7 +239,7 @@ func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 // XXX Don't have to flush all data, but that is only an option if we
 // do log-by-pass writes.
 func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
-	txn.log.FlushMemLog()
+	txn.log.WaitFlushMemLog()
 	txn.release()
 	unlockInodes(inodes)
 	return true

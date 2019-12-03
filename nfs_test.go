@@ -520,3 +520,49 @@ func TestFileHole(t *testing.T) {
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestFileHole done\n")
 }
+
+func (ts *TestState) evict(names []string) {
+	const N uint64 = ICACHESZ * uint64(10)
+	var wg sync.WaitGroup
+	for _, n := range names {
+		wg.Add(1)
+		go func(n string) {
+			ts.Create(n)
+			sz := uint64(4096)
+			x := ts.Lookup(n, true)
+			for i := 0; i < int(ICACHESZ)*10; i++ {
+				data1 := mkdataval(1, sz)
+				ts.Write(x, data1, UNSTABLE)
+			}
+			ts.Commit(x, sz*N)
+			wg.Done()
+		}(n)
+	}
+	wg.Wait()
+}
+
+func TestSerialEvict(t *testing.T) {
+	fmt.Printf("TestSerialEvict\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+
+	ts.evict([]string{"f0"})
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestSerialEvict\n")
+}
+
+func TestConcurEvict(t *testing.T) {
+	fmt.Printf("TestConcurEvict\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+	const N = 10
+
+	names := make([]string, N)
+	for i := 0; i < 10; i++ {
+		names[i] = "f" + strconv.Itoa(i)
+	}
+
+	ts.evict(names)
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestConcurEvict\n")
+}
