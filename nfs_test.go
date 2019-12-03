@@ -522,7 +522,7 @@ func TestFileHole(t *testing.T) {
 }
 
 func (ts *TestState) evict(names []string) {
-	const N uint64 = ICACHESZ * uint64(10)
+	const N uint64 = BCACHESZ * uint64(10)
 	var wg sync.WaitGroup
 	for _, n := range names {
 		wg.Add(1)
@@ -530,7 +530,7 @@ func (ts *TestState) evict(names []string) {
 			ts.Create(n)
 			sz := uint64(4096)
 			x := ts.Lookup(n, true)
-			for i := 0; i < int(ICACHESZ)*10; i++ {
+			for i := uint64(0); i < N; i++ {
 				data1 := mkdataval(1, sz)
 				ts.Write(x, data1, UNSTABLE)
 			}
