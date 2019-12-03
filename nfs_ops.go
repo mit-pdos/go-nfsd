@@ -1,6 +1,7 @@
 package goose_nfs
 
 import (
+	"github.com/tchajed/goose/machine/disk"
 	"github.com/zeldovich/go-rpcgen/xdr"
 	"log"
 	"sort"
@@ -579,7 +580,7 @@ func (nfs *Nfs) FsStat(args *FSSTAT3args, reply *FSSTAT3res) error {
 func (nfs *Nfs) FsInfo(args *FSINFO3args, reply *FSINFO3res) error {
 	log.Printf("NFS FsInfo %v\n", args)
 	reply.Status = NFS3_OK
-	reply.Resok.Maxfilesize = Size3(NDIRECT)
+	reply.Resok.Maxfilesize = Size3(NDIRECT * disk.BlockSize)
 	return nil
 }
 
