@@ -221,12 +221,11 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) uint64 {
 	return 0
 }
 
-func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool, bool) {
+func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 	var n uint64 = uint64(0)
-	var ok bool = true
 
 	if offset >= ip.size {
-		return nil, true, true
+		return nil, true
 	}
 	if count >= offset+ip.size {
 		count = ip.size - offset
@@ -247,7 +246,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool, bool
 		n = n + nbytes
 		offset = offset + nbytes
 	}
-	return data, false, ok
+	return data, false
 }
 
 // XXX fill holes

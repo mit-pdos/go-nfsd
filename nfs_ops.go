@@ -218,16 +218,12 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 	if ip.kind != NF3REG {
 		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
 	}
-	data, eof, ok := ip.read(txn, uint64(args.Offset), uint64(args.Count))
-	if !ok {
-		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{ip})
-	} else {
-		reply.Status = NFS3_OK
-		reply.Resok.Count = Count3(len(data))
-		reply.Resok.Data = data
-		reply.Resok.Eof = eof
-		txn.Commit([]*Inode{ip})
-	}
+	data, eof := ip.read(txn, uint64(args.Offset), uint64(args.Count))
+	reply.Status = NFS3_OK
+	reply.Resok.Count = Count3(len(data))
+	reply.Resok.Data = data
+	reply.Resok.Eof = eof
+	txn.Commit([]*Inode{ip})
 	return nil
 }
 

@@ -18,12 +18,7 @@ func (dip *Inode) lookupName(txn *Txn, name Filename3) (Inum, uint64) {
 		return NULLINUM, 0
 	}
 	for off := uint64(0); off < dip.size; {
-		data, _, ok := dip.read(txn, off, DIRENTSZ)
-		if !ok {
-			// XXX return false?
-			panic("lookupName")
-			break
-		}
+		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.Inum == NULLINUM {
 			off = off + DIRENTSZ
@@ -45,11 +40,7 @@ func (dip *Inode) addName(txn *Txn, inum uint64, name Filename3) bool {
 		return false
 	}
 	for off = uint64(0); off < dip.size; {
-		data, _, ok := dip.read(txn, off, DIRENTSZ)
-		if !ok {
-			fail = true
-			break
-		}
+		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.Inum == NULLINUM {
 			break
@@ -80,10 +71,7 @@ func (dip *Inode) remName(txn *Txn, name Filename3) bool {
 func (dip *Inode) isDirEmpty(txn *Txn) bool {
 	var empty bool = true
 	for off := uint64(2 * DIRENTSZ); off < dip.size; {
-		data, _, ok := dip.read(txn, off, DIRENTSZ)
-		if !ok {
-			panic("isDirEmpty")
-		}
+		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.Inum == NULLINUM {
 			off = off + DIRENTSZ
