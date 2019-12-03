@@ -577,8 +577,6 @@ func (nfs *Nfs) ReadDirPlus(args *READDIRPLUS3args, reply *READDIRPLUS3res) erro
 		return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
 	}
 	dirlist := ip.ls3(txn, args.Cookie, args.Dircount)
-	log.Printf("dirlist %v\n", dirlist)
-	// XXX check that entries fit in Count
 	txn.Commit(inodes)
 	reply.Status = NFS3_OK
 	reply.Resok.Reply = dirlist

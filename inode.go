@@ -193,6 +193,7 @@ func allocInode(txn *Txn, kind Ftype3) Inum {
 			inode.gen = inode.gen + 1
 			break
 		}
+		// Remove this unused block from txn
 		txn.releaseInodeBlock(inum)
 		continue
 	}

@@ -74,6 +74,8 @@ func (dip *Inode) remName(txn *Txn, name Filename3) bool {
 
 func (dip *Inode) isDirEmpty(txn *Txn) bool {
 	var empty bool = true
+
+	// check all entries after . and ..
 	for off := uint64(2 * DIRENTSZ); off < dip.size; {
 		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
