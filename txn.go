@@ -228,7 +228,7 @@ func Installer(bc *Cache, l *Log) {
 		// Make space in cache by unpinning buffers that have
 		// been installed
 		if len(blknos) > 0 {
-			log.Printf("Installed txn %d\n", txn)
+			log.Printf("Installed through txn %d\n", txn-1)
 			bc.UnPin(blknos, txn-1)
 		}
 	}

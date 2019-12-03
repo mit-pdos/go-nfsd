@@ -129,7 +129,7 @@ func (l *Log) doMemAppend(bufs []*Buf) (bool, TxnNum) {
 		return false, uint64(0)
 	}
 	l.memWrite(bufs)
-	txn := l.logTxnNxt
+	txn := l.txnNxt
 	l.txnNxt = l.txnNxt + 1
 	l.memLock.Unlock()
 	return true, txn
@@ -156,6 +156,8 @@ func (l *Log) readTxnNxt() TxnNum {
 	return n
 }
 
+// Wait until last started transaction has been appended to log.  If
+// it is logged, then all preceeding transactions are also logged.
 func (l *Log) FlushMemLog() {
 	n := l.readTxnNxt() - 1
 	l.logAppendWait(n)
@@ -177,7 +179,7 @@ func (l *Log) MemAppend(bufs []*Buf) TxnNum {
 	for !done {
 		done, txn = l.doMemAppend(bufs)
 		if !done {
-			log.Printf("out of space; wait")
+			log.Printf("MemAppend: out of space; wait")
 		}
 		continue
 	}
