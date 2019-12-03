@@ -205,7 +205,8 @@ func (ip *Inode) resize(txn *Txn, sz uint64) bool {
 	return ok
 }
 
-func (ip *Inode) bmap(txn *Txn, bn uint64) uint64 {
+func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
+	var alloc bool = false
 	if bn < NDIRECT {
 		if ip.blks[bn] == 0 {
 			blkno, ok := txn.fs.allocBlock(txn)
@@ -213,12 +214,13 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) uint64 {
 			if !ok {
 				panic("bmap")
 			}
+			alloc = true
 			ip.blks[bn] = blkno
 
 		}
-		return ip.blks[bn]
+		return ip.blks[bn], alloc
 	}
-	return 0
+	return 0, alloc
 }
 
 func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
@@ -237,7 +239,10 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 		if count-n < nbytes {
 			nbytes = count - n
 		}
-		blkno := ip.bmap(txn, boff)
+		blkno, alloc := ip.bmap(txn, boff)
+		if alloc { // fill in a hole
+			txn.fs.writeInode(txn, ip)
+		}
 		blk := txn.Read(blkno)
 		// log.Printf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, blk[0:32])
 		for b := uint64(0); b < nbytes; b++ {
@@ -249,21 +254,21 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 	return data, false
 }
 
-// XXX fill holes
 func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
 	var ok bool = true
+	var alloc bool = false
 	n := count
 
-	if offset > ip.size {
-		return 0, false
-	}
 	if offset+count > NDIRECT*disk.BlockSize {
 		return 0, false
 	}
 	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
-		blkno := ip.bmap(txn, boff)
+		blkno, new := ip.bmap(txn, boff)
+		if new {
+			alloc = true
+		}
 		blk := txn.Read(blkno)
 		byteoff := offset % disk.BlockSize
 		nbytes := disk.BlockSize - byteoff
@@ -282,8 +287,8 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		offset = offset + nbytes
 		cnt = cnt + nbytes
 	}
-	if cnt > 0 {
-		if off+cnt > ip.size {
+	if alloc || cnt > 0 {
+		if alloc || off+cnt > ip.size {
 			ip.size = off + cnt
 			// update size, so write inode. also records
 			// inode changes we might have done in bmap()

@@ -518,3 +518,21 @@ func TestConcurRename(t *testing.T) {
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestConcurRename done\n")
 }
+
+func TestFileHole(t *testing.T) {
+	fmt.Printf("TestFileHole\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+
+	sz := uint64(122)
+	ts.Create("x")
+	fh := ts.Lookup("x", true)
+
+	data := mkdata(uint64(sz))
+	ts.WriteOff(fh, 4096, data, FILE_SYNC)
+
+	null := mkdataval(0, 4096)
+	ts.readcheck(fh, null)
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestFileHole done\n")
+}
