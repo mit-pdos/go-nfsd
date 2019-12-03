@@ -296,7 +296,7 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	}
 	ok := dip.addName(txn, inum, args.Where.Name)
 	if !ok {
-		nfs.fs.freeInum(txn, inum)
+		freeInum(txn, inum)
 		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
 	}
 	txn.Commit([]*Inode{dip})
@@ -335,7 +335,7 @@ func (nfs *Nfs) MakeDir(args *MKDIR3args, reply *MKDIR3res) error {
 		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip, ip})
 	}
 	dip.nlink = dip.nlink + 1 // for ..
-	ok = txn.fs.writeInode(txn, dip)
+	ok = dip.writeInode(txn)
 	if !ok {
 		panic("mkdir")
 	}

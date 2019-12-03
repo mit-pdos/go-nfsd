@@ -145,6 +145,40 @@ func unlockInodes(inodes []*Inode) {
 	}
 }
 
+func readInode(txn *Txn, inum uint64) (*Inode, bool) {
+	blk, ok := txn.fs.readInodeBlock(txn, inum)
+	i := decode(blk, inum)
+	log.Printf("readInode %v %v\n", inum, i)
+	return i, ok
+}
+
+func (ip *Inode) writeInode(txn *Txn) bool {
+	blk, ok := txn.fs.readInodeBlock(txn, ip.inum)
+	if !ok {
+		return false
+	}
+	log.Printf("writeInode %d %v\n", ip.inum, ip)
+	ip.encode(blk)
+	return txn.fs.writeInodeBlock(txn, ip.inum, blk)
+}
+
+func (ip *Inode) freeInode(txn *Txn) bool {
+	ip.kind = NF3FREE
+	ip.gen = ip.gen + 1
+	return ip.writeInode(txn)
+}
+
+func freeInum(txn *Txn, inum Inum) bool {
+	i, ok := readInode(txn, inum)
+	if !ok {
+		panic("freeInode")
+	}
+	if i.kind == NF3FREE {
+		panic("freeInode")
+	}
+	return i.freeInode(txn)
+}
+
 // Done with ip and remove inode if nlink and ref = 0. Must be run
 // inside of a transaction since it may modify inode.
 func (ip *Inode) put(txn *Txn) {
@@ -154,7 +188,7 @@ func (ip *Inode) put(txn *Txn) {
 		if ip.nlink == 0 {
 			log.Printf("delete inode %d\n", ip.inum)
 			ip.resize(txn, 0)
-			txn.fs.freeInode(txn, ip)
+			ip.freeInode(txn)
 			ip.slot.obj = nil
 		}
 	}
@@ -187,7 +221,7 @@ func (ip *Inode) grow(txn *Txn, sz uint64) bool {
 		b := ip.size / disk.BlockSize
 		ip.size = ip.size + disk.BlockSize
 		ip.blks[b] = bn
-		ok1 := txn.fs.writeInode(txn, ip)
+		ok1 := ip.writeInode(txn)
 		if !ok1 {
 			panic("resize: writeInode failed")
 		}
@@ -241,7 +275,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 		}
 		blkno, alloc := ip.bmap(txn, boff)
 		if alloc { // fill in a hole
-			txn.fs.writeInode(txn, ip)
+			ip.writeInode(txn)
 		}
 		blk := txn.Read(blkno)
 		// log.Printf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, blk[0:32])
@@ -291,7 +325,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		if off+cnt > ip.size {
 			ip.size = off + cnt
 		}
-		ok := txn.fs.writeInode(txn, ip)
+		ok := ip.writeInode(txn)
 		if !ok {
 			panic("write")
 		}
@@ -301,5 +335,5 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 
 func (ip *Inode) decLink(txn *Txn) bool {
 	ip.nlink = ip.nlink - 1
-	return txn.fs.writeInode(txn, ip)
+	return ip.writeInode(txn)
 }

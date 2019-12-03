@@ -113,16 +113,6 @@ func (fs *FsSuper) readInodeBlock(txn *Txn, inum uint64) (disk.Block, bool) {
 	return blk, true
 }
 
-func (fs *FsSuper) readInode(txn *Txn, inum uint64) (*Inode, bool) {
-	if inum >= fs.NInode {
-		return nil, false
-	}
-	blk, ok := fs.readInodeBlock(txn, inum)
-	i := decode(blk, inum)
-	log.Printf("readInode %v %v\n", inum, i)
-	return i, ok
-}
-
 func (fs *FsSuper) writeInodeBlock(txn *Txn, inum uint64, blk disk.Block) bool {
 	if inum >= fs.NInode {
 		return false
@@ -132,16 +122,6 @@ func (fs *FsSuper) writeInodeBlock(txn *Txn, inum uint64, blk disk.Block) bool {
 		panic("writeInodeBlock")
 	}
 	return true
-}
-
-func (fs *FsSuper) writeInode(txn *Txn, inode *Inode) bool {
-	blk, ok := fs.readInodeBlock(txn, inode.inum)
-	if !ok {
-		return false
-	}
-	log.Printf("writeInode %d %v\n", inode.inum, inode)
-	inode.encode(blk)
-	return fs.writeInodeBlock(txn, inode.inum, blk)
 }
 
 func (fs *FsSuper) releaseInodeBlock(txn *Txn, inum uint64) bool {
@@ -155,7 +135,7 @@ func (fs *FsSuper) releaseInodeBlock(txn *Txn, inum uint64) bool {
 func (fs *FsSuper) loadInode(txn *Txn, slot *Cslot, a uint64) *Inode {
 	slot.lock()
 	if slot.obj == nil {
-		i, ok := fs.readInode(txn, a)
+		i, ok := readInode(txn, a)
 		if !ok {
 			return nil
 		}
@@ -170,7 +150,7 @@ func (fs *FsSuper) loadInode(txn *Txn, slot *Cslot, a uint64) *Inode {
 func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) Inum {
 	var inode *Inode
 	for inum := uint64(1); inum < fs.NInode; inum++ {
-		i, ok := fs.readInode(txn, inum)
+		i, ok := readInode(txn, inum)
 		if !ok {
 			break
 		}
@@ -189,25 +169,8 @@ func (fs *FsSuper) allocInode(txn *Txn, kind Ftype3) Inum {
 	if inode == nil {
 		return 0
 	}
-	_ = fs.writeInode(txn, inode)
+	_ = inode.writeInode(txn)
 	return inode.inum
-}
-
-func (fs *FsSuper) freeInode(txn *Txn, i *Inode) bool {
-	i.kind = NF3FREE
-	i.gen = i.gen + 1
-	return fs.writeInode(txn, i)
-}
-
-func (fs *FsSuper) freeInum(txn *Txn, inum Inum) bool {
-	i, ok := fs.readInode(txn, inum)
-	if !ok {
-		panic("freeInode")
-	}
-	if i.kind == NF3FREE {
-		panic("freeInode")
-	}
-	return fs.freeInode(txn, i)
 }
 
 //
