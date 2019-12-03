@@ -134,8 +134,12 @@ func (dip *Inode) ls3(txn *Txn, start Cookie3, dircount Count3) Dirlistplus3 {
 	var last *Entryplus3
 	var eof bool = true
 	var ip *Inode
-	log.Printf("%d: start: %v\n", dip.inum, start)
-	for off := uint64(start); off < dip.size; {
+	begin := uint64(start)
+	if begin != 0 {
+		begin += DIRENTSZ
+	}
+	log.Printf("%d: begin: %v\n", dip.inum, begin)
+	for off := begin; off < dip.size; {
 		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.Inum == NULLINUM {
@@ -174,7 +178,7 @@ func (dip *Inode) ls3(txn *Txn, start Cookie3, dircount Count3) Dirlistplus3 {
 			last = e
 		}
 		off = off + DIRENTSZ
-		if Count3(off-uint64(start)) >= dircount {
+		if Count3(off-begin) >= dircount {
 			eof = false
 			break
 		}
