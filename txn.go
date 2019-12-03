@@ -87,7 +87,8 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 func (txn *Txn) ReleaseBlock(addr uint64) {
 	b, ok := txn.bufs[addr]
 	if !ok {
-		panic("ReleaseBlock")
+		log.Printf("ReleaseBlock: not present")
+		return
 	}
 	if b.dirty {
 		panic("ReleaseBlock")

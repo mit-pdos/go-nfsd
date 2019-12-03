@@ -146,7 +146,14 @@ func (dip *Inode) ls3(txn *Txn, dircount Count3) Dirlistplus3 {
 		fh := &Fh{ino: ip.inum, gen: ip.gen}
 		ph := Post_op_fh3{Handle_follows: true, Handle: fh.makeFh3()}
 		pa := Post_op_attr{Attributes_follow: true, Attributes: fattr}
-		ip.put(txn)
+
+		// XXX hack release inode and inode block
+		if ip != dip {
+			ip.put(txn)
+			ip.unlock()
+			txn.fs.releaseInodeBlock(txn, ip.inum)
+		}
+
 		e := &Entryplus3{Fileid: Fileid3(de.Inum),
 			Name:            Filename3(de.Name),
 			Cookie:          Cookie3(0),

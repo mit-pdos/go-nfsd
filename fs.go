@@ -14,9 +14,10 @@ type FsSuper struct {
 }
 
 func mkFsSuper() *FsSuper {
-	sz := uint64(6 * 1000)
+	sz := uint64(10 * 10000)
+	nbitmap := (sz / disk.BlockSize) + 1
 	disk.Init(disk.NewMemDisk(sz))
-	return &FsSuper{NLog: LOGSIZE, NBitmap: 2, NInode: 100, MaxAddr: sz}
+	return &FsSuper{NLog: LOGSIZE, NBitmap: nbitmap, NInode: 2000, MaxAddr: sz}
 }
 
 func (fs *FsSuper) bitmapStart() uint64 {
