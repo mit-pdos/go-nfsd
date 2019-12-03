@@ -561,13 +561,51 @@ func (nfs *Nfs) Link(args *LINK3args, reply *LINK3res) error {
 
 func (nfs *Nfs) ReadDir(args *READDIR3args, reply *READDIR3res) error {
 	log.Printf("NFS ReadDir %v\n", args)
-	reply.Status = NFS3ERR_NOTSUPP
+	if args.Cookie != Cookie3(0) {
+		reply.Status = NFS3ERR_NOTSUPP
+		return nil
+	}
+
+	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	ip := getInode(txn, args.Dir)
+	if ip == nil {
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
+	}
+	inodes := []*Inode{ip}
+	if ip.kind != NF3DIR {
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
+	}
+	dirlist := ip.ls(txn, args.Count)
+	log.Printf("dirlist %v\n", dirlist)
+	// XXX check that entries fit in Count
+	txn.Commit(inodes)
+	reply.Status = NFS3_OK
+	reply.Resok.Reply = dirlist
 	return nil
 }
 
 func (nfs *Nfs) ReadDirPlus(args *READDIRPLUS3args, reply *READDIRPLUS3res) error {
 	log.Printf("NFS ReadDirPlus %v\n", args)
-	reply.Status = NFS3ERR_NOTSUPP
+	if args.Cookie != Cookie3(0) {
+		reply.Status = NFS3ERR_NOTSUPP
+		return nil
+	}
+
+	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	ip := getInode(txn, args.Dir)
+	if ip == nil {
+		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
+	}
+	inodes := []*Inode{ip}
+	if ip.kind != NF3DIR {
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
+	}
+	dirlist := ip.ls3(txn, args.Dircount)
+	log.Printf("dirlist %v\n", dirlist)
+	// XXX check that entries fit in Count
+	txn.Commit(inodes)
+	reply.Status = NFS3_OK
+	reply.Resok.Reply = dirlist
 	return nil
 }
 

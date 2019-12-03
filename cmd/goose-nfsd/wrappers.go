@@ -193,6 +193,32 @@ func (w *nfsWrapper) rename(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	return &out, err
 }
 
+func (w *nfsWrapper) readdir(args *xdr.XdrState) (res xdr.Xdrable, err error) {
+	var in goose_nfs.READDIR3args
+	in.Xdr(args)
+	err = args.Error()
+	if err != nil {
+		return
+	}
+
+	var out goose_nfs.READDIR3res
+	err = w.nfs.ReadDir(&in, &out)
+	return &out, err
+}
+
+func (w *nfsWrapper) readdirplus(args *xdr.XdrState) (res xdr.Xdrable, err error) {
+	var in goose_nfs.READDIRPLUS3args
+	in.Xdr(args)
+	err = args.Error()
+	if err != nil {
+		return
+	}
+
+	var out goose_nfs.READDIRPLUS3res
+	err = w.nfs.ReadDirPlus(&in, &out)
+	return &out, err
+}
+
 func (w *nfsWrapper) fsinfo(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	var in goose_nfs.FSINFO3args
 	in.Xdr(args)
@@ -272,8 +298,15 @@ func registerNFS(srv *rfc1057.Server, nfs *goose_nfs.Nfs) {
 		goose_nfs.NFSPROC3_RENAME, w.rename)
 
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
+		goose_nfs.NFSPROC3_READDIR, w.readdir)
+
+	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
+		goose_nfs.NFSPROC3_READDIRPLUS, w.readdirplus)
+
+	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_FSINFO, w.fsinfo)
 
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_COMMIT, w.commit)
+
 }

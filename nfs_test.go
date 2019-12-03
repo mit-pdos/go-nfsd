@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/tchajed/goose/machine/disk"
+
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -21,7 +23,7 @@ func (ts *TestState) CreateFh(fh Nfs_fh3, name string) {
 	attr := &CREATE3res{}
 	res := ts.nfs.Create(args, attr)
 	assert.Nil(ts.t, res)
-	assert.Equal(ts.t, attr.Status, NFS3_OK)
+	assert.Equal(ts.t, NFS3_OK, attr.Status)
 }
 
 func (ts *TestState) Create(name string) {
@@ -63,14 +65,14 @@ func (ts *TestState) GetattrOp(fh Nfs_fh3) *GETATTR3res {
 
 func (ts *TestState) Getattr(fh Nfs_fh3, sz uint64) {
 	attr := ts.GetattrOp(fh)
-	assert.Equal(ts.t, attr.Status, NFS3_OK)
+	assert.Equal(ts.t, NFS3_OK, attr.Status)
 	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3REG)
 	assert.Equal(ts.t, attr.Resok.Obj_attributes.Size, Size3(sz))
 }
 
 func (ts *TestState) GetattrDir(fh Nfs_fh3) {
 	attr := ts.GetattrOp(fh)
-	assert.Equal(ts.t, attr.Status, NFS3_OK)
+	assert.Equal(ts.t, NFS3_OK, attr.Status)
 	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3DIR)
 }
 
@@ -138,7 +140,25 @@ func (ts *TestState) MkDir(name string) {
 	attr := &MKDIR3res{}
 	res := ts.nfs.MakeDir(args, attr)
 	assert.Nil(ts.t, res)
-	assert.Equal(ts.t, attr.Status, NFS3_OK)
+	assert.Equal(ts.t, NFS3_OK, attr.Status)
+}
+
+func (ts *TestState) ReadDir() Dirlist3 {
+	args := &READDIR3args{Dir: MkRootFh3(), Count: Count3(NDIRECT * disk.BlockSize)}
+	reply := &READDIR3res{}
+	res := ts.nfs.ReadDir(args, reply)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	return reply.Resok.Reply
+}
+
+func (ts *TestState) ReadDirPlus() Dirlistplus3 {
+	args := &READDIRPLUS3args{Dir: MkRootFh3(), Dircount: Count3(100), Maxcount: Count3(NDIRECT * disk.BlockSize)}
+	reply := &READDIRPLUS3res{}
+	res := ts.nfs.ReadDirPlus(args, reply)
+	assert.Nil(ts.t, res)
+	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	return reply.Resok.Reply
 }
 
 func (ts *TestState) Commit(fh Nfs_fh3, cnt uint64) {
@@ -217,6 +237,28 @@ func TestRoot(t *testing.T) {
 
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestGetRoot done\n")
+}
+
+func TestReadDir(t *testing.T) {
+	fmt.Printf("TestReadDir\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+
+	dl := ts.ReadDir()
+	ne := dl.Entries
+	for ne != nil {
+		assert.Equal(t, ne.Fileid, Fileid3(1))
+		ne = ne.Nextentry
+	}
+
+	dl3 := ts.ReadDirPlus()
+	ne3 := dl3.Entries
+	for ne3 != nil {
+		assert.Equal(t, ne3.Fileid, Fileid3(1))
+		ne3 = ne3.Nextentry
+	}
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestReadDir done\n")
 }
 
 // Grow file with setattr before writing

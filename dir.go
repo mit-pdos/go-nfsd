@@ -102,3 +102,66 @@ func (dip *Inode) mkRootDir(txn *Txn) bool {
 	}
 	return true
 }
+
+func (dip *Inode) ls(txn *Txn, count Count3) Dirlist3 {
+	var lst *Entry3
+	for off := uint64(0); off < dip.size; {
+		data, _ := dip.read(txn, off, DIRENTSZ)
+		de := decodeDirEnt(data)
+		if de.Inum == NULLINUM {
+			off = off + DIRENTSZ
+			continue
+		}
+		e := &Entry3{Fileid: Fileid3(de.Inum),
+			Name:      Filename3(de.Name),
+			Cookie:    Cookie3(0),
+			Nextentry: lst,
+		}
+		lst = e
+		off = off + DIRENTSZ
+	}
+	dl := Dirlist3{Entries: lst, Eof: true}
+	return dl
+}
+
+// XXX inode locking order violated
+func (dip *Inode) ls3(txn *Txn, dircount Count3) Dirlistplus3 {
+	var lst *Entryplus3
+	var c uint64 = 0
+	var eof bool = true
+	var ip *Inode
+	for off := uint64(0); off < dip.size; {
+		data, _ := dip.read(txn, off, DIRENTSZ)
+		de := decodeDirEnt(data)
+		if de.Inum == NULLINUM {
+			off = off + DIRENTSZ
+			continue
+		}
+		if de.Inum != dip.inum {
+			ip = getInodeInum(txn, de.Inum)
+		} else {
+			ip = dip
+		}
+		fattr := ip.mkFattr()
+		fh := &Fh{ino: ip.inum, gen: ip.gen}
+		ph := Post_op_fh3{Handle_follows: true, Handle: fh.makeFh3()}
+		pa := Post_op_attr{Attributes_follow: true, Attributes: fattr}
+		ip.put(txn)
+		e := &Entryplus3{Fileid: Fileid3(de.Inum),
+			Name:            Filename3(de.Name),
+			Cookie:          Cookie3(0),
+			Name_attributes: pa,
+			Name_handle:     ph,
+			Nextentry:       lst,
+		}
+		lst = e
+		off = off + DIRENTSZ
+		c = c + 1
+		if Count3(c) >= dircount {
+			eof = false
+			break
+		}
+	}
+	dl := Dirlistplus3{Entries: lst, Eof: eof}
+	return dl
+}
