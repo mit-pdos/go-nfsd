@@ -122,6 +122,33 @@ func (txn *Txn) WriteData(addr uint64, blk disk.Block) bool {
 	return true
 }
 
+func (txn *Txn) readInodeBlock(inum uint64) (disk.Block, bool) {
+	if inum >= txn.fs.NInode {
+		return nil, false
+	}
+	blk := txn.Read(txn.fs.inodeStart() + inum)
+	return blk, true
+}
+
+func (txn *Txn) writeInodeBlock(inum uint64, blk disk.Block) bool {
+	if inum >= txn.fs.NInode {
+		return false
+	}
+	ok := txn.Write(txn.fs.inodeStart()+inum, blk)
+	if !ok {
+		panic("writeInodeBlock")
+	}
+	return true
+}
+
+func (txn *Txn) releaseInodeBlock(inum uint64) bool {
+	if inum >= txn.fs.NInode {
+		return false
+	}
+	txn.ReleaseBlock(txn.fs.inodeStart() + inum)
+	return true
+}
+
 func (txn *Txn) putInodes(inodes []*Inode) {
 	for _, ip := range inodes {
 		ip.put(txn)

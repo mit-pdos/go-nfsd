@@ -139,7 +139,7 @@ func (dip *Inode) ls3(txn *Txn, start Cookie3, dircount Count3) Dirlistplus3 {
 		if ip != dip {
 			ip.put(txn)
 			ip.unlock()
-			txn.fs.releaseInodeBlock(txn, ip.inum)
+			txn.releaseInodeBlock(ip.inum)
 		}
 
 		e := &Entryplus3{Fileid: Fileid3(de.Inum),

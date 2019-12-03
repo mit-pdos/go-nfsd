@@ -290,7 +290,7 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 	if inum1 != NULLINUM {
 		return errRet(txn, &reply.Status, NFS3ERR_EXIST, []*Inode{dip})
 	}
-	inum := nfs.fs.allocInode(txn, NF3REG)
+	inum := allocInode(txn, NF3REG)
 	if inum == NULLINUM {
 		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{dip})
 	}
@@ -315,7 +315,7 @@ func (nfs *Nfs) MakeDir(args *MKDIR3args, reply *MKDIR3res) error {
 	if inum1 != NULLINUM {
 		return errRet(txn, &reply.Status, NFS3ERR_EXIST, []*Inode{dip})
 	}
-	inum := nfs.fs.allocInode(txn, NF3DIR)
+	inum := allocInode(txn, NF3DIR)
 	if inum == NULLINUM {
 		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{dip})
 	}
