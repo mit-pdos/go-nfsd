@@ -66,7 +66,7 @@ func Begin(log *Log, cache *Cache, fs *FsSuper, ic *Cache) *Txn {
 
 // If Read cannot find a cache slot, wait until logger flushes memlog,
 // which may contain unstable writes.  The installer can then install
-// them and unpin the buffer from the cache.
+// and unpin them from the cache.
 func (txn *Txn) Read(addr uint64) disk.Block {
 	b, ok := txn.bufs[addr]
 	if ok {
