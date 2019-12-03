@@ -143,15 +143,6 @@ func (ts *TestState) MkDir(name string) {
 	assert.Equal(ts.t, NFS3_OK, attr.Status)
 }
 
-func (ts *TestState) ReadDir() Dirlist3 {
-	args := &READDIR3args{Dir: MkRootFh3(), Count: Count3(NDIRECT * disk.BlockSize)}
-	reply := &READDIR3res{}
-	res := ts.nfs.ReadDir(args, reply)
-	assert.Nil(ts.t, res)
-	assert.Equal(ts.t, reply.Status, NFS3_OK)
-	return reply.Resok.Reply
-}
-
 func (ts *TestState) ReadDirPlus() Dirlistplus3 {
 	args := &READDIRPLUS3args{Dir: MkRootFh3(), Dircount: Count3(100), Maxcount: Count3(NDIRECT * disk.BlockSize)}
 	reply := &READDIRPLUS3res{}
@@ -242,13 +233,6 @@ func TestRoot(t *testing.T) {
 func TestReadDir(t *testing.T) {
 	fmt.Printf("TestReadDir\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
-
-	dl := ts.ReadDir()
-	ne := dl.Entries
-	for ne != nil {
-		assert.Equal(t, ne.Fileid, Fileid3(1))
-		ne = ne.Nextentry
-	}
 
 	dl3 := ts.ReadDirPlus()
 	ne3 := dl3.Entries

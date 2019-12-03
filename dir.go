@@ -107,27 +107,6 @@ func (dip *Inode) mkRootDir(txn *Txn) bool {
 	return true
 }
 
-func (dip *Inode) ls(txn *Txn, count Count3) Dirlist3 {
-	var lst *Entry3
-	for off := uint64(0); off < dip.size; {
-		data, _ := dip.read(txn, off, DIRENTSZ)
-		de := decodeDirEnt(data)
-		if de.Inum == NULLINUM {
-			off = off + DIRENTSZ
-			continue
-		}
-		e := &Entry3{Fileid: Fileid3(de.Inum),
-			Name:      Filename3(de.Name),
-			Cookie:    Cookie3(0),
-			Nextentry: lst,
-		}
-		lst = e
-		off = off + DIRENTSZ
-	}
-	dl := Dirlist3{Entries: lst, Eof: true}
-	return dl
-}
-
 // XXX inode locking order violated
 func (dip *Inode) ls3(txn *Txn, start Cookie3, dircount Count3) Dirlistplus3 {
 	var lst *Entryplus3

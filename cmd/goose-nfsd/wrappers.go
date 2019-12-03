@@ -297,8 +297,8 @@ func registerNFS(srv *rfc1057.Server, nfs *goose_nfs.Nfs) {
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_RENAME, w.rename)
 
-	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
-		goose_nfs.NFSPROC3_READDIR, w.readdir)
+	//srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
+	//	goose_nfs.NFSPROC3_READDIR, w.readdir)
 
 	srv.Register(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3,
 		goose_nfs.NFSPROC3_READDIRPLUS, w.readdirplus)
