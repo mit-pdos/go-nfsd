@@ -1,5 +1,9 @@
 package goose_nfs
 
+import (
+	"log"
+)
+
 const DIRENTSZ = 32
 const MAXNAMELEN = DIRENTSZ - 8
 
@@ -125,12 +129,13 @@ func (dip *Inode) ls(txn *Txn, count Count3) Dirlist3 {
 }
 
 // XXX inode locking order violated
-func (dip *Inode) ls3(txn *Txn, dircount Count3) Dirlistplus3 {
+func (dip *Inode) ls3(txn *Txn, start Cookie3, dircount Count3) Dirlistplus3 {
 	var lst *Entryplus3
-	var c uint64 = 0
+	var last *Entryplus3
 	var eof bool = true
 	var ip *Inode
-	for off := uint64(0); off < dip.size; {
+	log.Printf("%d: start: %v\n", dip.inum, start)
+	for off := uint64(start); off < dip.size; {
 		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.Inum == NULLINUM {
@@ -156,15 +161,20 @@ func (dip *Inode) ls3(txn *Txn, dircount Count3) Dirlistplus3 {
 
 		e := &Entryplus3{Fileid: Fileid3(de.Inum),
 			Name:            Filename3(de.Name),
-			Cookie:          Cookie3(0),
+			Cookie:          Cookie3(off),
 			Name_attributes: pa,
 			Name_handle:     ph,
-			Nextentry:       lst,
+			Nextentry:       nil,
 		}
-		lst = e
+		if last == nil {
+			lst = e
+			last = e
+		} else {
+			last.Nextentry = e
+			last = e
+		}
 		off = off + DIRENTSZ
-		c = c + 1
-		if Count3(c) >= dircount {
+		if Count3(off-uint64(start)) >= dircount {
 			eof = false
 			break
 		}

@@ -586,11 +586,6 @@ func (nfs *Nfs) ReadDir(args *READDIR3args, reply *READDIR3res) error {
 
 func (nfs *Nfs) ReadDirPlus(args *READDIRPLUS3args, reply *READDIRPLUS3res) error {
 	log.Printf("NFS ReadDirPlus %v\n", args)
-	if args.Cookie != Cookie3(0) {
-		reply.Status = NFS3ERR_NOTSUPP
-		return nil
-	}
-
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
 	ip := getInode(txn, args.Dir)
 	if ip == nil {
@@ -600,7 +595,7 @@ func (nfs *Nfs) ReadDirPlus(args *READDIRPLUS3args, reply *READDIRPLUS3res) erro
 	if ip.kind != NF3DIR {
 		return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
 	}
-	dirlist := ip.ls3(txn, args.Dircount)
+	dirlist := ip.ls3(txn, args.Cookie, args.Dircount)
 	log.Printf("dirlist %v\n", dirlist)
 	// XXX check that entries fit in Count
 	txn.Commit(inodes)
