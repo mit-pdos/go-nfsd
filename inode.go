@@ -246,9 +246,9 @@ func (ip *Inode) grow(txn *Txn, sz uint64) bool {
 	n := sz / disk.BlockSize
 	// XXX fix loop for goose
 	for i := uint64(0); i < n; i++ {
-		bn, ok := txn.fs.allocBlock(txn)
+		bn := txn.fs.allocBlock(txn)
 		log.Printf("allocblock: %d\n", bn)
-		if !ok {
+		if bn == 0 {
 			return false
 		}
 		b := ip.size / disk.BlockSize
@@ -273,10 +273,10 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 	var alloc bool = false
 	if bn < NDIRECT {
 		if ip.blks[bn] == 0 {
-			blkno, ok := txn.fs.allocBlock(txn)
+			blkno := txn.fs.allocBlock(txn)
 			log.Printf("allocblock: %d\n", blkno)
-			if !ok {
-				panic("bmap")
+			if blkno == 0 {
+				return 0, false
 			}
 			alloc = true
 			ip.blks[bn] = blkno
@@ -297,7 +297,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 	if count >= offset+ip.size {
 		count = ip.size - offset
 	}
-	data := make([]byte, count)
+	data := make([]byte, 0)
 	for boff := offset / disk.BlockSize; n < count; boff++ {
 		byteoff := offset % disk.BlockSize
 		nbytes := disk.BlockSize - byteoff
@@ -305,13 +305,16 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 			nbytes = count - n
 		}
 		blkno, alloc := ip.bmap(txn, boff)
+		if blkno == 0 {
+			return data, false
+		}
 		if alloc { // fill in a hole
 			ip.writeInode(txn)
 		}
 		blk := txn.Read(blkno)
 		// log.Printf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, blk[0:32])
 		for b := uint64(0); b < nbytes; b++ {
-			data[n+b] = blk[byteoff+b]
+			data = append(data, blk[byteoff+b])
 		}
 		n = n + nbytes
 		offset = offset + nbytes
@@ -320,6 +323,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 }
 
 // Returns number of bytes written and eof
+// XXX return error on bmap failure?
 func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
@@ -332,6 +336,9 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	}
 	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
 		blkno, new := ip.bmap(txn, boff)
+		if blkno == 0 {
+			return cnt, false
+		}
 		if new {
 			alloc = true
 		}

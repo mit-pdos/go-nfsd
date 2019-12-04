@@ -69,7 +69,8 @@ func freeBit(blk disk.Block, bn uint64) {
 	blk[byte] = blk[byte] & ^(1 << bit)
 }
 
-func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
+// Zero indicates failure
+func (fs *FsSuper) allocBlock(txn *Txn) uint64 {
 	var found bool = false
 	var bit uint64 = 0
 
@@ -85,7 +86,7 @@ func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
 		bit = i*disk.BlockSize + bit
 		break
 	}
-	return bit, found
+	return bit
 }
 
 func (fs *FsSuper) freeBlock(txn *Txn, bn uint64) {
