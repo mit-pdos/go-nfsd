@@ -109,10 +109,10 @@ func (ts *TestState) Write(fh Nfs_fh3, data []byte, how Stable_how) {
 	ts.WriteOff(fh, uint64(0), data, how)
 }
 
-func (ts *TestState) Read(fh Nfs_fh3, sz uint64) []byte {
+func (ts *TestState) Read(fh Nfs_fh3, off uint64, sz uint64) []byte {
 	args := &READ3args{
 		File:   fh,
-		Offset: Offset3(0),
+		Offset: Offset3(off),
 		Count:  Count3(sz)}
 	reply := &READ3res{}
 	res := ts.nfs.Read(args, reply)
@@ -206,8 +206,8 @@ func mkdataval(b byte, sz uint64) []byte {
 	return data
 }
 
-func (ts *TestState) readcheck(fh Nfs_fh3, data []byte) {
-	d := ts.Read(fh, uint64(len(data)))
+func (ts *TestState) readcheck(fh Nfs_fh3, off uint64, data []byte) {
+	d := ts.Read(fh, off, uint64(len(data)))
 	assert.Equal(ts.t, len(data), len(d))
 	for i := uint64(0); i < uint64(len(data)); i++ {
 		assert.Equal(ts.t, data[i], d[i])
@@ -257,7 +257,7 @@ func TestFile(t *testing.T) {
 	ts.Setattr(fh, sz)
 	ts.Getattr(fh, sz)
 	ts.Write(fh, data, FILE_SYNC)
-	ts.readcheck(fh, data)
+	ts.readcheck(fh, 0, data)
 	ts.Remove("x")
 	_ = ts.Lookup("x", false)
 	ts.GetattrFail(fh)
@@ -275,7 +275,7 @@ func TestFile1(t *testing.T) {
 	fh := ts.Lookup("x", true)
 	data := mkdata(uint64(sz))
 	ts.Write(fh, data, FILE_SYNC)
-	ts.readcheck(fh, data)
+	ts.readcheck(fh, 0, data)
 
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestFile1 done\n")
@@ -398,7 +398,7 @@ func TestUnstable(t *testing.T) {
 	ts.Write(x, data2, UNSTABLE)
 	ts.Commit(x, sz)
 
-	ts.readcheck(x, data2)
+	ts.readcheck(x, 0, data2)
 
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestUnstable done\n")
@@ -428,7 +428,7 @@ func TestConcurWrite(t *testing.T) {
 	wg.Wait()
 	for g, n := range names {
 		fh := ts.Lookup(n, true)
-		buf := ts.Read(fh, N*SZ)
+		buf := ts.Read(fh, 0, N*SZ)
 		assert.Equal(t, N*SZ, uint64(len(buf)))
 		for _, v := range buf {
 			assert.Equal(t, byte(g), v)
@@ -515,7 +515,7 @@ func TestFileHole(t *testing.T) {
 	ts.WriteOff(fh, 4096, data, FILE_SYNC)
 
 	null := mkdataval(0, 4096)
-	ts.readcheck(fh, null)
+	ts.readcheck(fh, 0, null)
 
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestFileHole done\n")
@@ -565,4 +565,27 @@ func TestConcurEvict(t *testing.T) {
 
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestConcurEvict\n")
+}
+
+func TestLarge(t *testing.T) {
+	fmt.Printf("TestLarge\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+	const N = 522
+
+	ts.Create("x")
+	sz := uint64(4096)
+	x := ts.Lookup("x", true)
+	for i := uint64(0); i < N; i++ {
+		data := mkdataval(byte(i), sz)
+		ts.WriteOff(x, i*sz, data, UNSTABLE)
+	}
+	ts.Commit(x, sz*N)
+
+	for i := uint64(0); i < N; i++ {
+		data := mkdataval(byte(i), sz)
+		ts.readcheck(x, i*sz, data)
+	}
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestLarge\n")
 }

@@ -192,6 +192,7 @@ func (txn *Txn) CommitWait(inodes []*Inode, wait bool) bool {
 	if len(bufs) > 0 {
 		n, ok := txn.log.MemAppend(bufs)
 		if !ok {
+			// XXX cleanup trans (release locks etc.)
 			return false
 		}
 		// must pin before waiting, otherwise unpin by installer may happen

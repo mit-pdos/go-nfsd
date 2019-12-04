@@ -1,6 +1,7 @@
 package goose_nfs
 
 import (
+	"github.com/tchajed/goose/machine"
 	"github.com/tchajed/goose/machine/disk"
 
 	"log"
@@ -8,7 +9,14 @@ import (
 
 const NF3FREE Ftype3 = 0
 
-const NDIRECT uint64 = 10
+const (
+	NBLKINO   uint64 = 10 // # blk in an inode's blks array
+	NDIRECT   uint64 = NBLKINO - 2
+	INDIRECT  uint64 = NBLKINO - 2
+	DINDIRECT uint64 = NBLKINO - 1
+	NBLKBLK   uint64 = disk.BlockSize / 8 // # blkno per block
+	NINDLEVEL uint64 = 2                  // # levels of indirection
+)
 
 type Inode struct {
 	// in-memory info:
@@ -35,7 +43,7 @@ func mkNullInode() *Inode {
 		nlink: uint32(1),
 		gen:   uint64(0),
 		size:  uint64(0),
-		blks:  make([]uint64, NDIRECT),
+		blks:  make([]uint64, NBLKINO),
 	}
 }
 
@@ -47,7 +55,7 @@ func mkRootInode() *Inode {
 		nlink: uint32(1),
 		gen:   uint64(0),
 		size:  uint64(0),
-		blks:  make([]uint64, NDIRECT),
+		blks:  make([]uint64, NBLKINO),
 	}
 }
 
@@ -87,8 +95,24 @@ func decode(blk disk.Block, inum uint64) *Inode {
 	ip.nlink = dec.GetInt32()
 	ip.gen = dec.GetInt()
 	ip.size = dec.GetInt()
-	ip.blks = dec.GetInts(NDIRECT)
+	ip.blks = dec.GetInts(NBLKINO)
 	return ip
+}
+
+func pow(level uint64) uint64 {
+	if level == 0 {
+		return 1
+	}
+	var p uint64 = NBLKBLK
+	for i := uint64(1); i < level; i++ {
+		p = p * p
+	}
+	return p
+}
+
+func maxFileSize() uint64 {
+	maxblks := pow(NINDLEVEL)
+	return (NDIRECT + maxblks) * disk.BlockSize
 }
 
 func getInodeInum(txn *Txn, inum Inum) *Inode {
@@ -214,6 +238,7 @@ func freeInum(txn *Txn, inum Inum) {
 
 // Done with ip and remove inode if nlink and ref = 0. Must be run
 // inside of a transaction since it may modify inode.
+// XXX handle nlink = 0, but ref > 0 and crash.
 func (ip *Inode) put(txn *Txn) {
 	log.Printf("put inode %d nlink %d\n", ip.inum, ip.nlink)
 	last := txn.ic.delSlot(ip.inum)
@@ -269,12 +294,38 @@ func (ip *Inode) resize(txn *Txn, sz uint64) bool {
 	return ok
 }
 
+// Returns blkno for bn and newroot if root was allocated. If blkno is 0, failure.
+func (ip *Inode) indirect(txn *Txn, root uint64, level uint64, bn uint64) (uint64, uint64) {
+	var newroot uint64 = 0
+	var blkno uint64 = root
+	if blkno == 0 {
+		newroot = txn.fs.allocBlock(txn)
+		if newroot == 0 {
+			return 0, 0
+		}
+		blkno = newroot
+	}
+	if level == 0 {
+		return blkno, newroot
+	}
+	divisor := pow(level - 1)
+	off := (bn / divisor)
+	boff := off * 8
+	blk := txn.Read(blkno)
+	nxtroot := machine.UInt64Get(blk[boff : boff+8])
+	b, newroot1 := ip.indirect(txn, nxtroot, level-1, bn%divisor)
+	if newroot1 != 0 {
+		machine.UInt64Put(blk[boff:boff+8], newroot1)
+		txn.WriteData(blkno, blk)
+	}
+	return b, newroot
+}
+
 func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 	var alloc bool = false
 	if bn < NDIRECT {
 		if ip.blks[bn] == 0 {
 			blkno := txn.fs.allocBlock(txn)
-			log.Printf("allocblock: %d\n", blkno)
 			if blkno == 0 {
 				return 0, false
 			}
@@ -283,8 +334,26 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 
 		}
 		return ip.blks[bn], alloc
+	} else {
+		bn = bn - NDIRECT
+		if bn < NBLKBLK {
+			blkno, newroot := ip.indirect(txn, ip.blks[INDIRECT],
+				1, bn)
+			if newroot != 0 {
+				ip.blks[INDIRECT] = newroot
+			}
+			return blkno, newroot != 0
+		} else {
+			bn = bn - NBLKBLK
+			blkno, newroot := ip.indirect(txn, ip.blks[DINDIRECT],
+				2, bn)
+			if newroot != 0 {
+				ip.blks[DINDIRECT] = newroot
+			}
+			return blkno, newroot != 0
+		}
 	}
-	return 0, alloc
+	return 0, false
 }
 
 // Returns number of bytes read and eof
@@ -330,7 +399,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	var alloc bool = false
 	n := count
 
-	if offset+count > NDIRECT*disk.BlockSize {
+	if offset+count > maxFileSize() {
 		return 0, false
 	}
 	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
