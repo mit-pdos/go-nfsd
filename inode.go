@@ -336,6 +336,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
 		blkno, new := ip.bmap(txn, boff)
 		if blkno == 0 {
+			ok = false
 			break
 		}
 		if new {
