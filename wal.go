@@ -132,6 +132,7 @@ func (l *Log) memWrite(bufs []*Buf) {
 }
 
 // Returns false if memlog should be flushed, because bufs don't fit.
+// XXX absorp
 func (l *Log) doMemAppend(bufs []*Buf) (TxnNum, bool) {
 	l.memLock.Lock()
 	if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {

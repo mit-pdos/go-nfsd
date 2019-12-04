@@ -323,7 +323,6 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 }
 
 // Returns number of bytes written and eof
-// XXX return error on bmap failure?
 func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
