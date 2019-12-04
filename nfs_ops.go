@@ -594,7 +594,9 @@ func (nfs *Nfs) FsStat(args *FSSTAT3args, reply *FSSTAT3res) error {
 func (nfs *Nfs) FsInfo(args *FSINFO3args, reply *FSINFO3res) error {
 	log.Printf("NFS FsInfo %v\n", args)
 	reply.Status = NFS3_OK
+	reply.Resok.Wtmax = Uint32(NDIRECT * disk.BlockSize) // XXX Logsize once big files
 	reply.Resok.Maxfilesize = Size3(NDIRECT * disk.BlockSize)
+	// XXX maybe set wtpref, wtmult, and rdmult
 	return nil
 }
 
