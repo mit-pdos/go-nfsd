@@ -81,10 +81,7 @@ func (fs *FsSuper) allocBlock(txn *Txn) (uint64, bool) {
 			txn.ReleaseBlock(blkno)
 			continue
 		}
-		ok := txn.Write(blkno, blk)
-		if !ok {
-			panic("allocBlock")
-		}
+		txn.Write(blkno, blk)
 		bit = i*disk.BlockSize + bit
 		break
 	}
@@ -99,10 +96,7 @@ func (fs *FsSuper) freeBlock(txn *Txn, bn uint64) {
 	blkno := fs.bitmapStart() + i
 	blk := txn.Read(blkno)
 	freeBit(blk, bn%disk.BlockSize)
-	ok1 := txn.Write(blkno, blk)
-	if !ok1 {
-		panic("freeBlock")
-	}
+	txn.Write(blkno, blk)
 }
 
 //

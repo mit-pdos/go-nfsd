@@ -106,14 +106,13 @@ func (txn *Txn) ReleaseBlock(addr uint64) {
 }
 
 // Unqualified write is always written to log. Assumes transaction has the buf locked.
-func (txn *Txn) Write(addr uint64, blk disk.Block) bool {
+func (txn *Txn) Write(addr uint64, blk disk.Block) {
 	_, ok := txn.bufs[addr]
 	if !ok {
 		panic("Write: blind write")
 	}
 	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
-	return true
 }
 
 // Write of a data block.  Assumes transaction has the buf locked.
@@ -141,10 +140,7 @@ func (txn *Txn) writeInodeBlock(inum uint64, blk disk.Block) bool {
 	if inum >= txn.fs.NInode {
 		return false
 	}
-	ok := txn.Write(txn.fs.inodeStart()+inum, blk)
-	if !ok {
-		panic("writeInodeBlock")
-	}
+	txn.Write(txn.fs.inodeStart()+inum, blk)
 	return true
 }
 
@@ -188,7 +184,8 @@ func (txn *Txn) Pin(bufs []*Buf, n TxnNum) {
 
 // Commit blocks of the transaction into the log. Pin the blocks in
 // the cache until installer has installed all the blocks in the log
-// of this transaction.
+// of this transaction.  Returns falls if trying to commit more
+// buffers than fit in the log.
 func (txn *Txn) CommitWait(inodes []*Inode, wait bool) bool {
 	// may free an inode so must be done before Append
 	txn.putInodes(inodes)
