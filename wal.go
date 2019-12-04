@@ -13,16 +13,22 @@ const LOGHDR = uint64(0)
 const LOGSTART = uint64(1)
 
 type Log struct {
-	logLock   *sync.RWMutex // protects on disk log
-	memLock   *sync.RWMutex // protects in-memory state
+	// Protects in-memory-related log state
+	memLock   *sync.RWMutex
 	logSz     uint64
 	memLog    []*Buf // in-memory log [memTail,memHead)
 	memHead   uint64 // head of in-memory log
 	memTail   uint64 // tail of in-memory log
 	txnNxt    TxnNum // next transaction number
-	logTxnNxt TxnNum // next transaction number to log
 	dskTxnNxt TxnNum // next transaction number to install
-	shutdown  bool
+
+	// Protects disk-related log state, incl. header, logTxnNxt,
+	// shutdown
+	logLock     *sync.RWMutex
+	condLogger  *sync.Cond
+	condInstall *sync.Cond
+	logTxnNxt   TxnNum // next transaction number to log
+	shutdown    bool
 }
 
 const HDRMETA = uint64(2 * 8)        // space for head and tail
@@ -30,17 +36,20 @@ const HDRADDRS = (512 - HDRMETA) / 8 // XXX disk.BlockSize != 512
 const LOGSIZE = HDRADDRS + 1         // 1 for log header
 
 func mkLog() *Log {
+	ll := new(sync.RWMutex)
 	l := &Log{
-		logLock:   new(sync.RWMutex),
-		memLock:   new(sync.RWMutex),
-		logSz:     HDRADDRS,
-		memLog:    make([]*Buf, 0),
-		memHead:   0,
-		memTail:   0,
-		txnNxt:    0,
-		logTxnNxt: 0,
-		dskTxnNxt: 0,
-		shutdown:  false,
+		memLock:     new(sync.RWMutex),
+		logLock:     ll,
+		condLogger:  sync.NewCond(ll),
+		condInstall: sync.NewCond(ll),
+		logSz:       HDRADDRS,
+		memLog:      make([]*Buf, 0),
+		memHead:     0,
+		memTail:     0,
+		txnNxt:      0,
+		logTxnNxt:   0,
+		dskTxnNxt:   0,
+		shutdown:    false,
 	}
 	log.Printf("mkLog: size %d\n", l.logSz)
 	l.writeHdr(0, 0, 0, l.memLog)
@@ -122,23 +131,24 @@ func (l *Log) memWrite(bufs []*Buf) {
 	l.memHead = l.memHead + n
 }
 
-func (l *Log) doMemAppend(bufs []*Buf) (bool, TxnNum) {
+// Returns false if memlog should be flushed, because bufs don't fit.
+func (l *Log) doMemAppend(bufs []*Buf) (TxnNum, bool) {
 	l.memLock.Lock()
 	if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {
 		l.memLock.Unlock()
-		return false, uint64(0)
+		return uint64(0), false
 	}
 	l.memWrite(bufs)
 	txn := l.txnNxt
 	l.txnNxt = l.txnNxt + 1
 	l.memLock.Unlock()
-	return true, txn
+	return txn, true
 }
 
 func (l *Log) readLogTxnNxt() TxnNum {
-	l.memLock.Lock()
+	l.logLock.Lock()
 	n := l.logTxnNxt
-	l.memLock.Unlock()
+	l.logLock.Unlock()
 	return n
 }
 
@@ -156,44 +166,57 @@ func (l *Log) readTxnNxt() TxnNum {
 	return n
 }
 
-// Wait until last started transaction has been appended to log.  If
-// it is logged, then all preceeding transactions are also logged.
-func (l *Log) WaitFlushMemLog() {
-	n := l.readTxnNxt() - 1
-	l.logAppendWait(n)
+//
+//  For clients of WAL
+//
+
+// Append to in-memory log. Returns false if bufs don't fit in log.
+func (l *Log) MemAppend(bufs []*Buf) (TxnNum, bool) {
+	var txn uint64 = 0
+	var done bool = false
+
+	if uint64(len(bufs)) >= l.logSz {
+		return 0, false
+	}
+	for !done {
+		txn, done = l.doMemAppend(bufs)
+		if !done {
+			log.Printf("MemAppend: log is full; wait")
+			l.condLogger.Signal()
+			l.condInstall.Signal()
+		}
+		continue
+	}
+	return txn, true
 }
 
-func (l *Log) logAppendWait(txn TxnNum) {
+// Wait until logger has appended in-memory log through txn to on-disk
+// log
+func (l *Log) LogAppendWait(txn TxnNum) {
 	for {
 		logtxn := l.readLogTxnNxt()
 		if txn < logtxn {
 			break
 		}
+		l.condLogger.Signal()
 		continue
 	}
 }
 
-func (l *Log) MemAppend(bufs []*Buf) TxnNum {
-	var txn uint64 = 0
-	var done bool = false
-	for !done {
-		done, txn = l.doMemAppend(bufs)
-		if !done {
-			log.Printf("MemAppend: out of space; wait")
-		}
-		continue
-	}
-	return txn
+// Wait until last started transaction has been appended to log.  If
+// it is logged, then all preceeding transactions are also logged.
+func (l *Log) WaitFlushMemLog() {
+	n := l.readTxnNxt() - 1
+	l.LogAppendWait(n)
 }
 
-// Wait until in-memory log has been written to on-disk log
-// through transaction txn
-func (l *Log) Append(bufs []*Buf) TxnNum {
-	txn := l.MemAppend(bufs)
-	l.logAppendWait(txn)
-	log.Printf("Append: txn %d logged\n", txn)
-	return txn
+func (l *Log) SignalInstaller() {
+	l.condInstall.Signal()
 }
+
+//
+// Logger
+//
 
 func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []*Buf) {
 	for i := diskhead; i < memhead; i++ {
@@ -205,10 +228,9 @@ func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []*Buf) {
 	}
 }
 
+// Logger holds logLock
 func (l *Log) logAppend() {
-	l.logLock.Lock()
 	hdr := l.readHdr()
-
 	l.memLock.Lock()
 	memhead := l.memHead
 	memtail := l.memTail
@@ -224,17 +246,21 @@ func (l *Log) logAppend() {
 	l.logBlocks(memhead, hdr.Head, newbufs)
 	l.writeHdr(memhead, memtail, txnnxt, memlog)
 
-	l.logTxnNxt = txnnxt // XXX updating wo holding lock, atomic write?
+	l.logTxnNxt = txnnxt
+}
 
+func (l *Log) Logger() {
+	l.logLock.Lock()
+	for !l.shutdown {
+		l.logAppend()
+		l.condLogger.Wait()
+	}
 	l.logLock.Unlock()
 }
 
-// XXX flushes too eager
-func (l *Log) Logger() {
-	for !l.shutdown {
-		l.logAppend()
-	}
-}
+//
+// For installer
+//
 
 func (l *Log) installBlocks(addrs []uint64, blks []disk.Block) {
 	n := uint64(len(blks))
@@ -246,9 +272,9 @@ func (l *Log) installBlocks(addrs []uint64, blks []disk.Block) {
 	}
 }
 
+// Installer holds logLock
 // XXX absorp
-func (l *Log) logInstall() ([]uint64, TxnNum) {
-	l.logLock.Lock()
+func (l *Log) LogInstall() ([]uint64, TxnNum) {
 	hdr := l.readHdr()
 	blks := l.readLogBlocks(hdr.Head - hdr.Tail)
 	//log.Printf("logInstall diskhead %d disktail %d\n", hdr.Head, hdr.Tail)
@@ -264,11 +290,12 @@ func (l *Log) logInstall() ([]uint64, TxnNum) {
 	l.memTail = hdr.Tail
 	l.dskTxnNxt = hdr.LogTxnNxt
 	l.memLock.Unlock()
-	l.logLock.Unlock()
 	return hdr.Addrs, hdr.LogTxnNxt
 }
 
+// Shutdown logger and installer
 func (l *Log) Shutdown() {
-	// XXX protect shutdown
+	l.logLock.Lock()
 	l.shutdown = true
+	l.logLock.Unlock()
 }

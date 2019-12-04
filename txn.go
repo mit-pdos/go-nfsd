@@ -52,7 +52,6 @@ func (txn *Txn) release() {
 	}
 }
 
-// XXX wait if cannot reserve space in log
 func Begin(log *Log, cache *Cache, fs *FsSuper, ic *Cache) *Txn {
 	txn := &Txn{
 		log:  log,
@@ -64,9 +63,9 @@ func Begin(log *Log, cache *Cache, fs *FsSuper, ic *Cache) *Txn {
 	return txn
 }
 
-// If Read cannot find a cache slot, wait until logger flushes memlog,
-// which may contain unstable writes.  The installer can then install
-// and unpin them from the cache.
+// If Read cannot find a cache slot, wait until installer unpins
+// blocks from cache: flush memlog, which may contain unstable writes,
+// and signal installer.
 func (txn *Txn) Read(addr uint64) disk.Block {
 	b, ok := txn.bufs[addr]
 	if ok {
@@ -76,8 +75,9 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 		var slot *Cslot
 		slot = txn.bc.lookupSlot(addr)
 		for slot == nil {
-			log.Printf("Read: WaitFlushMemLog\n")
+			log.Printf("Read: WaitFlushMemLog and signal installer\n")
 			txn.log.WaitFlushMemLog()
+			txn.log.SignalInstaller()
 			// Try again; a slot should free up eventually.
 			slot = txn.bc.lookupSlot(addr)
 		}
@@ -196,12 +196,15 @@ func (txn *Txn) CommitWait(inodes []*Inode, wait bool) bool {
 	// commit all buffers written by this transaction
 	bufs := txn.dirtyBufs()
 	if len(bufs) > 0 {
-		n := txn.log.MemAppend(bufs)
+		n, ok := txn.log.MemAppend(bufs)
+		if !ok {
+			return false
+		}
 		// must pin before waiting, otherwise unpin by installer may happen
 		// before pin.  XXX logger and installer run before Pin
-		txn.Pin(bufs, n)
+		txn.Pin(bufs, n+1)
 		if wait {
-			txn.log.logAppendWait(n)
+			txn.log.LogAppendWait(n)
 		}
 		txn.clearDirty(bufs)
 	}
@@ -217,6 +220,7 @@ func (txn *Txn) CommitWait(inodes []*Inode, wait bool) bool {
 
 // Append to in-memory log and wait until logger has logged this
 // transaction.
+// XXX commit failing
 func (txn *Txn) Commit(inodes []*Inode) bool {
 	return txn.CommitWait(inodes, true)
 }
@@ -253,18 +257,23 @@ func (txn *Txn) Abort(inodes []*Inode) bool {
 	return txn.Commit(inodes)
 }
 
+// Install blocks in on-disk log to their home location, and then
+// unpin those blocks from cache.
 // XXX would be nice to install from buffer cache, but blocks in
 // buffer cache may already have been updated since previous
 // transactions committed.  Maybe keep several versions
 // XXX installs too eager
 func Installer(bc *Cache, l *Log) {
+	l.logLock.Lock()
 	for !l.shutdown {
-		blknos, txn := l.logInstall()
+		blknos, txn := l.LogInstall()
 		// Make space in cache by unpinning buffers that have
 		// been installed
 		if len(blknos) > 0 {
-			log.Printf("Installed through txn %d\n", txn-1)
-			bc.UnPin(blknos, txn-1)
+			log.Printf("Installed till txn %d\n", txn)
+			bc.UnPin(blknos, txn)
 		}
+		l.condInstall.Wait()
 	}
+	l.logLock.Unlock()
 }

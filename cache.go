@@ -66,7 +66,7 @@ func (c *Cache) evict() uint64 {
 		continue
 	}
 	if addr != 0 {
-		log.Printf("findVictim: evict %d\n", addr)
+		log.Printf("evict: %d\n", addr)
 		delete(c.entries, addr)
 		c.cnt = c.cnt - 1
 	}
@@ -130,28 +130,28 @@ func (c *Cache) delSlot(id uint64) bool {
 	panic("delSlot")
 }
 
-// Pin ids belonging to txn
-func (c *Cache) Pin(ids []uint64, txn TxnNum) {
+// Pin ids until txn < nexttxn have committed
+func (c *Cache) Pin(ids []uint64, nxttxn TxnNum) {
 	c.mu.Lock()
-	log.Printf("Pin %d %v\n", txn, ids)
+	log.Printf("Pin till nxttxn %d %v\n", nxttxn, ids)
 	for _, id := range ids {
 		e := c.entries[id]
-		e.pin = txn
+		e.pin = nxttxn
 	}
 	c.mu.Unlock()
 }
 
-// Unpin ids through txn
-func (c *Cache) UnPin(ids []uint64, txn TxnNum) {
+// Unpin ids through nxttxn
+func (c *Cache) UnPin(ids []uint64, nxttxn TxnNum) {
 	c.mu.Lock()
-	log.Printf("Unpin through %d %v\n", txn, ids)
+	log.Printf("Unpin through %d %v\n", nxttxn, ids)
 	for _, id := range ids {
 		entry := c.entries[id]
 		if entry == nil {
 			log.Printf("Unpin %d isn't present\n", id)
 			panic("Unpin")
 		}
-		if txn >= entry.pin {
+		if nxttxn >= entry.pin {
 			entry.pin = 0
 		} else {
 			log.Printf("Unpin: keep %d pinned at %d\n", id, entry.pin)

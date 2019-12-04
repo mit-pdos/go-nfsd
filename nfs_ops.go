@@ -17,6 +17,7 @@ type Nfs struct {
 	bc  *Cache
 }
 
+// XXX call recovery, once nfs uses persistent storage
 func MkNfs() *Nfs {
 	fs := mkFsSuper() // run first so that disk is initialized before mkLog
 	l := mkLog()
@@ -59,6 +60,7 @@ func (nfs *Nfs) NullNFS(args *xdr.Void, reply *xdr.Void) error {
 	return nil
 }
 
+// XXX factor out lookup ip, test, and maybe fail pattern
 func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 	log.Printf("NFS GetAttr %v\n", args)
 	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
