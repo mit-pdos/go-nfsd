@@ -16,7 +16,7 @@ type Log struct {
 	// Protects in-memory-related log state
 	memLock   *sync.RWMutex
 	logSz     uint64
-	memLog    []*Buf // in-memory log [memTail,memHead)
+	memLog    []Buf  // in-memory log [memTail,memHead)
 	memHead   uint64 // head of in-memory log
 	memTail   uint64 // tail of in-memory log
 	txnNxt    TxnNum // next transaction number
@@ -43,7 +43,7 @@ func mkLog() *Log {
 		condLogger:  sync.NewCond(ll),
 		condInstall: sync.NewCond(ll),
 		logSz:       HDRADDRS,
-		memLog:      make([]*Buf, 0),
+		memLog:      make([]Buf, 0),
 		memHead:     0,
 		memTail:     0,
 		txnNxt:      0,
@@ -85,7 +85,7 @@ func (l *Log) index(index uint64) uint64 {
 	return index - l.memTail
 }
 
-func (l *Log) writeHdr(head uint64, tail uint64, dsktxnnxt TxnNum, bufs []*Buf) {
+func (l *Log) writeHdr(head uint64, tail uint64, dsktxnnxt TxnNum, bufs []Buf) {
 	n := uint64(len(bufs))
 	addrs := make([]uint64, n)
 	if n != head-tail {
@@ -126,7 +126,7 @@ func (l *Log) Read() (Hdr, []disk.Block) {
 func (l *Log) memWrite(bufs []*Buf) {
 	n := uint64(len(bufs))
 	for i := uint64(0); i < n; i++ {
-		l.memLog = append(l.memLog, bufs[i])
+		l.memLog = append(l.memLog, *(bufs[i]))
 	}
 	l.memHead = l.memHead + n
 }
@@ -218,7 +218,7 @@ func (l *Log) SignalInstaller() {
 // Logger
 //
 
-func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []*Buf) {
+func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []Buf) {
 	for i := diskhead; i < memhead; i++ {
 		bindex := i - diskhead
 		blk := bufs[bindex].blk
@@ -280,7 +280,7 @@ func (l *Log) LogInstall() ([]uint64, TxnNum) {
 	//log.Printf("logInstall diskhead %d disktail %d\n", hdr.Head, hdr.Tail)
 	l.installBlocks(hdr.Addrs, blks)
 	hdr.Tail = hdr.Head
-	l.writeHdr(hdr.Head, hdr.Tail, hdr.LogTxnNxt, []*Buf{})
+	l.writeHdr(hdr.Head, hdr.Tail, hdr.LogTxnNxt, []Buf{})
 	l.memLock.Lock()
 
 	if hdr.Tail < l.memTail {
