@@ -72,11 +72,8 @@ func PutBytes(d []byte, b []byte) {
 	}
 }
 
+// Caller must ensure de.Name fits
 func encodeDirEnt(de *DirEnt) []byte {
-	l := uint64(len(de.Name)) + 2*uint64(8)
-	if l >= DIRENTSZ {
-		panic("directory entry name doesn't fit")
-	}
 	d := make([]byte, DIRENTSZ)
 	machine.UInt64Put(d[:8], de.Inum)
 	machine.UInt64Put(d[8:16], uint64(len(de.Name)))

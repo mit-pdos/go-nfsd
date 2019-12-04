@@ -42,7 +42,10 @@ func (nfs *Nfs) makeRootDir() {
 		panic("makeRootDir")
 	}
 	ip.mkRootDir(txn)
-	txn.Commit([]*Inode{ip})
+	ok := txn.Commit([]*Inode{ip})
+	if !ok {
+		panic("makeRootDir")
+	}
 }
 
 func (nfs *Nfs) ShutdownNfs() {

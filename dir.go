@@ -43,7 +43,7 @@ func (dip *Inode) addName(txn *Txn, inum uint64, name Filename3) bool {
 	var fail bool = false
 	var off uint64 = 0
 
-	if dip.kind != NF3DIR {
+	if dip.kind != NF3DIR || len(name) >= MAXNAMELEN {
 		return false
 	}
 	for off = uint64(0); off < dip.size; {
