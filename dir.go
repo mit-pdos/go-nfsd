@@ -23,6 +23,9 @@ func (dip *Inode) lookupName(txn *Txn, name Filename3) (Inum, uint64) {
 	}
 	for off := uint64(0); off < dip.size; {
 		data, _ := dip.read(txn, off, DIRENTSZ)
+		if len(data) != DIRENTSZ {
+			return NULLINUM, 0
+		}
 		de := decodeDirEnt(data)
 		if de.Inum == NULLINUM {
 			off = off + DIRENTSZ
@@ -57,8 +60,8 @@ func (dip *Inode) addName(txn *Txn, inum uint64, name Filename3) bool {
 	}
 	de := &DirEnt{Inum: inum, Name: string(name)}
 	ent := encodeDirEnt(de)
-	_, ok := dip.write(txn, off, DIRENTSZ, ent)
-	return ok
+	n, _ := dip.write(txn, off, DIRENTSZ, ent)
+	return n == DIRENTSZ
 }
 
 func (dip *Inode) remName(txn *Txn, name Filename3) bool {
@@ -68,8 +71,8 @@ func (dip *Inode) remName(txn *Txn, name Filename3) bool {
 	}
 	de := &DirEnt{Inum: NULLINUM, Name: ""}
 	ent := encodeDirEnt(de)
-	_, ok := dip.write(txn, off, DIRENTSZ, ent)
-	return ok
+	n, _ := dip.write(txn, off, DIRENTSZ, ent)
+	return n == DIRENTSZ
 }
 
 func (dip *Inode) isDirEmpty(txn *Txn) bool {
@@ -93,20 +96,14 @@ func (dip *Inode) mkdir(txn *Txn, parent Inum) bool {
 	if !dip.addName(txn, dip.inum, ".") {
 		return false
 	}
-	if !dip.addName(txn, parent, "..") {
-		return false
-	}
-	return true
+	return dip.addName(txn, parent, "..")
 }
 
 func (dip *Inode) mkRootDir(txn *Txn) bool {
 	if !dip.addName(txn, dip.inum, ".") {
 		return false
 	}
-	if !dip.addName(txn, dip.inum, "..") {
-		return false
-	}
-	return true
+	return dip.addName(txn, dip.inum, "..")
 }
 
 // XXX inode locking order violated

@@ -287,6 +287,7 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 	return 0, alloc
 }
 
+// Returns number of bytes read and eof
 func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 	var n uint64 = uint64(0)
 
@@ -318,6 +319,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 	return data, false
 }
 
+// Returns number of bytes written and eof
 func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
