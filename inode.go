@@ -322,7 +322,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 	return data, false
 }
 
-// Returns number of bytes written and eof
+// Returns number of bytes written and error
 func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
@@ -336,7 +336,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
 		blkno, new := ip.bmap(txn, boff)
 		if blkno == 0 {
-			return cnt, false
+			break
 		}
 		if new {
 			alloc = true
