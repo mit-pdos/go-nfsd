@@ -91,7 +91,20 @@ func decode(blk disk.Block, inum uint64) *Inode {
 	return ip
 }
 
+func getInodeInum(txn *Txn, inum Inum) *Inode {
+	ip := loadInode(txn, inum)
+	if ip == nil {
+		log.Printf("loadInode failed\n")
+		return nil
+	}
+	ip.lock()
+	return ip
+}
+
 func loadInode(txn *Txn, inum Inum) *Inode {
+	if inum >= txn.fs.NInode {
+		return nil
+	}
 	slot := txn.ic.lookupSlot(inum)
 	if slot == nil {
 		panic("loadInode")
@@ -101,29 +114,16 @@ func loadInode(txn *Txn, inum Inum) *Inode {
 	return ip
 }
 
-func loadInodeSlot(txn *Txn, slot *Cslot, a uint64) *Inode {
+func loadInodeSlot(txn *Txn, slot *Cslot, inum Inum) *Inode {
 	slot.lock()
 	if slot.obj == nil {
-		i, ok := readInode(txn, a)
-		if !ok {
-			return nil
-		}
+		i := readInode(txn, inum)
 		i.slot = slot
 		slot.obj = i
 	}
 	i := slot.obj.(*Inode)
 	slot.unlock()
 	return i
-}
-
-func getInodeInum(txn *Txn, inum Inum) *Inode {
-	ip := loadInode(txn, inum)
-	if ip == nil {
-		log.Printf("loadInode failed\n")
-		return nil
-	}
-	ip.lock()
-	return ip
 }
 
 // Returns locked inode on success. This implicitly locks the inode
@@ -160,30 +160,24 @@ func unlockInodes(inodes []*Inode) {
 	}
 }
 
-func readInode(txn *Txn, inum uint64) (*Inode, bool) {
-	blk, ok := txn.readInodeBlock(inum)
+func readInode(txn *Txn, inum uint64) *Inode {
+	blk := txn.readInodeBlock(inum)
 	i := decode(blk, inum)
 	log.Printf("readInode %v %v\n", inum, i)
-	return i, ok
+	return i
 }
 
-func (ip *Inode) writeInode(txn *Txn) bool {
-	blk, ok := txn.readInodeBlock(ip.inum)
-	if !ok {
-		return false
-	}
+func (ip *Inode) writeInode(txn *Txn) {
+	blk := txn.readInodeBlock(ip.inum)
 	log.Printf("writeInode %d %v\n", ip.inum, ip)
 	ip.encode(blk)
-	return txn.writeInodeBlock(ip.inum, blk)
+	txn.writeInodeBlock(ip.inum, blk)
 }
 
 func allocInode(txn *Txn, kind Ftype3) Inum {
 	var inode *Inode
 	for inum := uint64(1); inum < txn.fs.NInode; inum++ {
-		i, ok := readInode(txn, inum)
-		if !ok {
-			break
-		}
+		i := readInode(txn, inum)
 		if i.kind == NF3FREE {
 			log.Printf("allocInode: allocate inode %d\n", inum)
 			inode = i
@@ -200,25 +194,22 @@ func allocInode(txn *Txn, kind Ftype3) Inum {
 	if inode == nil {
 		return 0
 	}
-	_ = inode.writeInode(txn)
+	inode.writeInode(txn)
 	return inode.inum
 }
 
-func (ip *Inode) freeInode(txn *Txn) bool {
+func (ip *Inode) freeInode(txn *Txn) {
 	ip.kind = NF3FREE
 	ip.gen = ip.gen + 1
-	return ip.writeInode(txn)
+	ip.writeInode(txn)
 }
 
-func freeInum(txn *Txn, inum Inum) bool {
-	i, ok := readInode(txn, inum)
-	if !ok {
-		panic("freeInode")
-	}
+func freeInum(txn *Txn, inum Inum) {
+	i := readInode(txn, inum)
 	if i.kind == NF3FREE {
 		panic("freeInode")
 	}
-	return i.freeInode(txn)
+	i.freeInode(txn)
 }
 
 // Done with ip and remove inode if nlink and ref = 0. Must be run
@@ -263,10 +254,7 @@ func (ip *Inode) grow(txn *Txn, sz uint64) bool {
 		b := ip.size / disk.BlockSize
 		ip.size = ip.size + disk.BlockSize
 		ip.blks[b] = bn
-		ok1 := ip.writeInode(txn)
-		if !ok1 {
-			panic("resize: writeInode failed")
-		}
+		ip.writeInode(txn)
 	}
 	return true
 }
@@ -354,10 +342,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		for b := uint64(0); b < nbytes; b++ {
 			blk[byteoff+b] = data[b]
 		}
-		ok := txn.WriteData(blkno, blk)
-		if !ok {
-			break
-		}
+		txn.WriteData(blkno, blk)
 		n = n - nbytes
 		data = data[nbytes:]
 		offset = offset + nbytes
@@ -367,15 +352,12 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		if off+cnt > ip.size {
 			ip.size = off + cnt
 		}
-		ok := ip.writeInode(txn)
-		if !ok {
-			panic("write")
-		}
+		ip.writeInode(txn)
 	}
 	return cnt, ok
 }
 
-func (ip *Inode) decLink(txn *Txn) bool {
+func (ip *Inode) decLink(txn *Txn) {
 	ip.nlink = ip.nlink - 1
-	return ip.writeInode(txn)
+	ip.writeInode(txn)
 }

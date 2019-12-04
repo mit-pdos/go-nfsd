@@ -118,38 +118,35 @@ func (txn *Txn) Write(addr uint64, blk disk.Block) {
 // Write of a data block.  Assumes transaction has the buf locked.
 // Separate from Write() in order to support log-by-pass writes in the
 // future.
-func (txn *Txn) WriteData(addr uint64, blk disk.Block) bool {
+func (txn *Txn) WriteData(addr uint64, blk disk.Block) {
 	_, ok := txn.bufs[addr]
 	if !ok {
 		panic("Write: blind write")
 	}
 	txn.bufs[addr].dirty = true
 	txn.bufs[addr].blk = blk
-	return true
 }
 
-func (txn *Txn) readInodeBlock(inum uint64) (disk.Block, bool) {
+func (txn *Txn) readInodeBlock(inum uint64) disk.Block {
 	if inum >= txn.fs.NInode {
-		return nil, false
+		panic("readInodeBlock")
 	}
 	blk := txn.Read(txn.fs.inodeStart() + inum)
-	return blk, true
+	return blk
 }
 
-func (txn *Txn) writeInodeBlock(inum uint64, blk disk.Block) bool {
+func (txn *Txn) writeInodeBlock(inum uint64, blk disk.Block) {
 	if inum >= txn.fs.NInode {
-		return false
+		panic("writeInodeBlock")
 	}
 	txn.Write(txn.fs.inodeStart()+inum, blk)
-	return true
 }
 
-func (txn *Txn) releaseInodeBlock(inum uint64) bool {
+func (txn *Txn) releaseInodeBlock(inum uint64) {
 	if inum >= txn.fs.NInode {
-		return false
+		panic("releaseInodeBlock")
 	}
 	txn.ReleaseBlock(txn.fs.inodeStart() + inum)
-	return true
 }
 
 func (txn *Txn) putInodes(inodes []*Inode) {

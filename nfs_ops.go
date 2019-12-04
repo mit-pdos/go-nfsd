@@ -337,10 +337,7 @@ func (nfs *Nfs) MakeDir(args *MKDIR3args, reply *MKDIR3res) error {
 		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip, ip})
 	}
 	dip.nlink = dip.nlink + 1 // for ..
-	ok = dip.writeInode(txn)
-	if !ok {
-		panic("mkdir")
-	}
+	dip.writeInode(txn)
 	txn.Commit([]*Inode{dip, ip})
 	reply.Status = NFS3_OK
 	return nil
