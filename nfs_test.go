@@ -552,7 +552,7 @@ func (ts *TestState) evict(names []string) {
 			x := ts.Lookup(n, true)
 			for i := uint64(0); i < N; i++ {
 				data1 := mkdataval(1, sz)
-				ts.Write(x, data1, UNSTABLE)
+				ts.WriteOff(x, i*sz, data1, UNSTABLE)
 			}
 			ts.Commit(x, sz*N)
 			wg.Done()
@@ -568,7 +568,7 @@ func TestSerialEvict(t *testing.T) {
 	ts.evict([]string{"f0"})
 
 	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestSerialEvict\n")
+	fmt.Printf("TestSerialEvict done\n")
 }
 
 func TestConcurEvict(t *testing.T) {
@@ -584,7 +584,7 @@ func TestConcurEvict(t *testing.T) {
 	ts.evict(names)
 
 	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestConcurEvict\n")
+	fmt.Printf("TestConcurEvict done\n")
 }
 
 func TestLarge(t *testing.T) {
@@ -607,7 +607,7 @@ func TestLarge(t *testing.T) {
 	}
 
 	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestLarge\n")
+	fmt.Printf("TestLarge done\n")
 }
 
 func TestBigWrite(t *testing.T) {
@@ -630,5 +630,5 @@ func TestBigWrite(t *testing.T) {
 	ts.CommitErr(y, sz, NFS3ERR_INVAL)
 
 	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestBigWrite\n")
+	fmt.Printf("TestBigWrite done\n")
 }
