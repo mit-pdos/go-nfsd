@@ -184,6 +184,7 @@ func (txn *Txn) Pin(bufs []*Buf, n TxnNum) {
 // of this transaction.  Returns falls if trying to commit more
 // buffers than fit in the log.
 func (txn *Txn) CommitWait(inodes []*Inode, wait bool) bool {
+	var success bool = true
 	// may free an inode so must be done before Append
 	txn.putInodes(inodes)
 
@@ -192,16 +193,18 @@ func (txn *Txn) CommitWait(inodes []*Inode, wait bool) bool {
 	if len(bufs) > 0 {
 		n, ok := txn.log.MemAppend(bufs)
 		if !ok {
-			// XXX cleanup trans (release locks etc.)
-			return false
+			log.Printf("memappend failed\n")
+			success = false
+		} else {
+			// must pin before waiting, otherwise unpin by
+			// installer may happen before pin.  XXX
+			// logger and installer run before Pin
+			txn.Pin(bufs, n+1)
+			if wait {
+				txn.log.LogAppendWait(n)
+			}
+			txn.clearDirty(bufs)
 		}
-		// must pin before waiting, otherwise unpin by installer may happen
-		// before pin.  XXX logger and installer run before Pin
-		txn.Pin(bufs, n+1)
-		if wait {
-			txn.log.LogAppendWait(n)
-		}
-		txn.clearDirty(bufs)
 	}
 
 	// release the buffers used in this transaction
@@ -210,7 +213,7 @@ func (txn *Txn) CommitWait(inodes []*Inode, wait bool) bool {
 	// unlock all inodes used in this transaction
 	unlockInodes(inodes)
 
-	return true
+	return success
 }
 
 // Append to in-memory log and wait until logger has logged this
@@ -257,7 +260,6 @@ func (txn *Txn) Abort(inodes []*Inode) bool {
 // XXX would be nice to install from buffer cache, but blocks in
 // buffer cache may already have been updated since previous
 // transactions committed.  Maybe keep several versions
-// XXX installs too eager
 func Installer(bc *Cache, l *Log) {
 	l.logLock.Lock()
 	for !l.shutdown {

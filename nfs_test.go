@@ -91,7 +91,7 @@ func (ts *TestState) Setattr(fh Nfs_fh3, sz uint64) {
 	assert.Equal(ts.t, reply.Status, NFS3_OK)
 }
 
-func (ts *TestState) WriteOff(fh Nfs_fh3, off uint64, data []byte, how Stable_how) {
+func (ts *TestState) WriteOp(fh Nfs_fh3, off uint64, data []byte, how Stable_how) *WRITE3res {
 	args := &WRITE3args{
 		File:   fh,
 		Offset: Offset3(off),
@@ -101,8 +101,18 @@ func (ts *TestState) WriteOff(fh Nfs_fh3, off uint64, data []byte, how Stable_ho
 	reply := &WRITE3res{}
 	res := ts.nfs.Write(args, reply)
 	assert.Nil(ts.t, res)
+	return reply
+}
+
+func (ts *TestState) WriteOff(fh Nfs_fh3, off uint64, data []byte, how Stable_how) {
+	reply := ts.WriteOp(fh, off, data, how)
 	assert.Equal(ts.t, reply.Status, NFS3_OK)
 	assert.Equal(ts.t, reply.Resok.Count, Count3(len(data)))
+}
+
+func (ts *TestState) WriteErr(fh Nfs_fh3, data []byte, how Stable_how, err Nfsstat3) {
+	reply := ts.WriteOp(fh, 0, data, how)
+	assert.Equal(ts.t, reply.Status, err)
 }
 
 func (ts *TestState) Write(fh Nfs_fh3, data []byte, how Stable_how) {
@@ -152,7 +162,7 @@ func (ts *TestState) ReadDirPlus() Dirlistplus3 {
 	return reply.Resok.Reply
 }
 
-func (ts *TestState) Commit(fh Nfs_fh3, cnt uint64) {
+func (ts *TestState) CommitOp(fh Nfs_fh3, cnt uint64) *COMMIT3res {
 	args := &COMMIT3args{
 		File:   fh,
 		Offset: Offset3(0),
@@ -160,7 +170,17 @@ func (ts *TestState) Commit(fh Nfs_fh3, cnt uint64) {
 	reply := &COMMIT3res{}
 	res := ts.nfs.Commit(args, reply)
 	assert.Nil(ts.t, res)
+	return reply
+}
+
+func (ts *TestState) Commit(fh Nfs_fh3, cnt uint64) {
+	reply := ts.CommitOp(fh, cnt)
 	assert.Equal(ts.t, reply.Status, NFS3_OK)
+}
+
+func (ts *TestState) CommitErr(fh Nfs_fh3, cnt uint64, err Nfsstat3) {
+	reply := ts.CommitOp(fh, cnt)
+	assert.Equal(ts.t, reply.Status, err)
 }
 
 func (ts *TestState) RenameOp(fhfrom Nfs_fh3, from string,
@@ -588,4 +608,27 @@ func TestLarge(t *testing.T) {
 
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestLarge\n")
+}
+
+func TestBigWrite(t *testing.T) {
+	fmt.Printf("TestBigWrite\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+
+	ts.Create("x")
+	sz := uint64(4096 * (HDRADDRS / 2))
+	x := ts.Lookup("x", true)
+	data := mkdataval(byte(0), sz)
+	ts.Write(x, data, UNSTABLE)
+	ts.Commit(x, sz)
+
+	// Too big
+	ts.Create("y")
+	sz = uint64(4096 * (HDRADDRS + 10))
+	y := ts.Lookup("y", true)
+	data = mkdataval(byte(0), sz)
+	ts.WriteErr(y, data, UNSTABLE, NFS3ERR_INVAL)
+	ts.CommitErr(y, sz, NFS3ERR_INVAL)
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestBigWrite\n")
 }

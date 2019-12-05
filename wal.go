@@ -81,6 +81,10 @@ func encodeHdr(hdr Hdr, blk disk.Block) {
 	enc.PutInts(hdr.Addrs)
 }
 
+func MaxLogSize() uint64 {
+	return HDRADDRS * disk.BlockSize
+}
+
 func (l *Log) index(index uint64) uint64 {
 	return index - l.memTail
 }

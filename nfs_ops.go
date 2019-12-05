@@ -1,14 +1,13 @@
 package goose_nfs
 
 import (
-	"github.com/tchajed/goose/machine/disk"
 	"github.com/zeldovich/go-rpcgen/xdr"
 	"log"
 	"sort"
 )
 
 const ICACHESZ uint64 = 20
-const BCACHESZ uint64 = 20
+const BCACHESZ uint64 = HDRADDRS + 10 // At least as big as log
 
 type Nfs struct {
 	log *Log
@@ -246,23 +245,25 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 	if ip.kind != NF3REG {
 		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
 	}
+	if uint64(args.Count) >= MaxLogSize() {
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
+	}
 	count, ok := ip.write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
 	if !ok {
 		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{ip})
 	} else {
-		reply.Status = NFS3_OK
-		reply.Resok.Count = Count3(count)
+		var ok bool = true
 		if args.Stable == FILE_SYNC {
 			// RFC: "FILE_SYNC, the server must commit the
 			// data written plus all file system metadata
 			// to stable storage before returning results."
-			txn.Commit([]*Inode{ip})
+			ok = txn.Commit([]*Inode{ip})
 		} else if args.Stable == DATA_SYNC {
 			// RFC: "DATA_SYNC, then the server must commit
 			// all of the data to stable storage and
 			// enough of the metadata to retrieve the data
 			// before returning."
-			txn.CommitData([]*Inode{ip}, fh)
+			ok = txn.CommitData([]*Inode{ip}, fh)
 		} else {
 			// RFC:	"UNSTABLE, the server is free to commit
 			// any part of the data and the metadata to
@@ -276,9 +277,15 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 			// the value of verf and that it will not
 			// commit the data and metadata at a level
 			// less than that requested by the client."
-			txn.CommitUnstable([]*Inode{ip}, fh)
+			ok = txn.CommitUnstable([]*Inode{ip}, fh)
 		}
-		reply.Resok.Committed = args.Stable
+		if ok {
+			reply.Status = NFS3_OK
+			reply.Resok.Count = Count3(count)
+			reply.Resok.Committed = args.Stable
+		} else {
+			reply.Status = NFS3ERR_SERVERFAULT
+		}
 	}
 	return nil
 }
@@ -594,8 +601,8 @@ func (nfs *Nfs) FsStat(args *FSSTAT3args, reply *FSSTAT3res) error {
 func (nfs *Nfs) FsInfo(args *FSINFO3args, reply *FSINFO3res) error {
 	log.Printf("NFS FsInfo %v\n", args)
 	reply.Status = NFS3_OK
-	reply.Resok.Wtmax = Uint32(NDIRECT * disk.BlockSize) // XXX Logsize once big files
-	reply.Resok.Maxfilesize = Size3(NDIRECT * disk.BlockSize)
+	reply.Resok.Wtmax = Uint32(MaxLogSize())
+	reply.Resok.Maxfilesize = Size3(MaxFileSize())
 	// XXX maybe set wtpref, wtmult, and rdmult
 	return nil
 }
@@ -618,6 +625,9 @@ func (nfs *Nfs) Commit(args *COMMIT3args, reply *COMMIT3res) error {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	}
 	if ip.kind != NF3REG {
+		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
+	}
+	if uint64(args.Offset)+uint64(args.Count) > ip.size {
 		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
 	}
 	ok := txn.CommitFh(fh, []*Inode{ip})

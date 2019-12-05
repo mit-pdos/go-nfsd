@@ -110,7 +110,7 @@ func pow(level uint64) uint64 {
 	return p
 }
 
-func maxFileSize() uint64 {
+func MaxFileSize() uint64 {
 	maxblks := pow(NINDLEVEL)
 	return (NDIRECT + maxblks) * disk.BlockSize
 }
@@ -399,7 +399,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	var alloc bool = false
 	n := count
 
-	if offset+count > maxFileSize() {
+	if offset+count > MaxFileSize() {
 		return 0, false
 	}
 	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
