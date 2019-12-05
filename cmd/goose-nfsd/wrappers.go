@@ -3,6 +3,8 @@ package main
 import (
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
+
+	goose_nfs "github.com/mit-pdos/goose-nfsd"
 )
 
 type nfsWrapper struct {
