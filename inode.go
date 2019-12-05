@@ -265,50 +265,9 @@ func (ip *Inode) put(txn *Txn) {
 	txn.ic.delSlot(ip.inum)
 }
 
-func (ip *Inode) shrink(txn *Txn, sz uint64) bool {
-	blocks := ip.size / disk.BlockSize
-	if sz%disk.BlockSize != 0 {
-		panic("shrink")
-	}
-	newsz := sz / disk.BlockSize
-	for b := newsz; b < blocks; b++ {
-		log.Printf("freeblock: %d\n", ip.blks[b])
-		txn.fs.freeBlock(txn, ip.blks[b])
-		ip.blks[b] = 0
-	}
-	ip.size = sz
-	return true
-}
-
-func (ip *Inode) grow(txn *Txn, sz uint64) bool {
-	n := sz / disk.BlockSize
-	// XXX fix loop for goose
-	for i := uint64(0); i < n; i++ {
-		bn := txn.fs.allocBlock(txn)
-		log.Printf("allocblock: %d\n", bn)
-		if bn == 0 {
-			return false
-		}
-		b := ip.size / disk.BlockSize
-		ip.size = ip.size + disk.BlockSize
-		ip.blks[b] = bn
-		ip.writeInode(txn)
-	}
-	return true
-}
-
-func (ip *Inode) resize(txn *Txn, sz uint64) bool {
-	var ok bool
-	if sz < ip.size {
-		ok = ip.shrink(txn, sz)
-	} else {
-		ok = ip.grow(txn, sz)
-	}
-	return ok
-}
-
-// Returns blkno for bn and newroot if root was allocated. If blkno is 0, failure.
-func (ip *Inode) indirect(txn *Txn, root uint64, level uint64, bn uint64) (uint64, uint64) {
+// Returns blkno for indirect bn and newroot if root was allocated. If
+// blkno is 0, failure.
+func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, bn uint64) (uint64, uint64) {
 	var newroot uint64 = 0
 	var blkno uint64 = root
 	if blkno == 0 {
@@ -322,16 +281,106 @@ func (ip *Inode) indirect(txn *Txn, root uint64, level uint64, bn uint64) (uint6
 		return blkno, newroot
 	}
 	divisor := pow(level - 1)
-	off := (bn / divisor)
+	off := bn / divisor
+	ind := bn % divisor
 	boff := off * 8
 	blk := txn.Read(blkno)
 	nxtroot := machine.UInt64Get(blk[boff : boff+8])
-	b, newroot1 := ip.indirect(txn, nxtroot, level-1, bn%divisor)
+	b, newroot1 := ip.indbmap(txn, nxtroot, level-1, ind)
 	if newroot1 != 0 {
 		machine.UInt64Put(blk[boff:boff+8], newroot1)
 		txn.WriteData(blkno, blk)
 	}
+	if b >= txn.fs.Size {
+		panic("indbmap")
+	}
 	return b, newroot
+}
+
+// Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn
+// have been cleared
+func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint64 {
+	if level == 0 {
+		return root
+	}
+	divisor := pow(level - 1)
+	off := (bn / divisor)
+	ind := bn % divisor
+	boff := off * 8
+	blk := txn.Read(root)
+	nxtroot := machine.UInt64Get(blk[boff : boff+8])
+	if nxtroot != 0 {
+		freeroot := ip.indshrink(txn, nxtroot, level-1, ind)
+		if freeroot != 0 {
+			machine.UInt64Put(blk[boff:boff+8], 0)
+			txn.WriteData(root, blk)
+			txn.fs.freeBlock(txn, freeroot)
+		}
+	}
+	if off == 0 && ind == 0 {
+		return root
+	} else {
+		return 0
+	}
+}
+
+func (ip *Inode) shrink(txn *Txn, sz uint64) bool {
+	var bn uint64
+	oldsz := ip.size / disk.BlockSize
+	if sz%disk.BlockSize != 0 {
+		panic("shrink")
+	}
+	newsz := sz / disk.BlockSize
+	bn = oldsz - 1
+	for {
+		log.Printf("freeblock: %d\n", bn)
+		if bn < NDIRECT {
+			txn.fs.freeBlock(txn, ip.blks[bn])
+			ip.blks[bn] = 0
+		} else {
+			off := bn - NDIRECT
+			if off < NBLKBLK {
+				freeroot := ip.indshrink(txn, ip.blks[INDIRECT], 1, off)
+				if freeroot != 0 {
+					txn.fs.freeBlock(txn, ip.blks[INDIRECT])
+					ip.blks[INDIRECT] = 0
+				}
+			} else {
+				off = off - NBLKBLK
+				freeroot := ip.indshrink(txn, ip.blks[DINDIRECT], 2, off)
+				if freeroot != 0 {
+					txn.fs.freeBlock(txn, ip.blks[DINDIRECT])
+					ip.blks[DINDIRECT] = 0
+				}
+			}
+		}
+		if bn == newsz {
+			break
+		}
+		bn = bn - 1
+		continue
+	}
+	ip.size = sz
+	return true
+}
+
+// Lazily grow file. Bmap allocates blocks on demand
+func (ip *Inode) grow(txn *Txn, sz uint64) bool {
+	if sz%disk.BlockSize != 0 {
+		panic("grow")
+	}
+	ip.size = sz
+	return true
+}
+
+func (ip *Inode) resize(txn *Txn, sz uint64) bool {
+	var ok bool
+	if sz < ip.size {
+		ok = ip.shrink(txn, sz)
+	} else {
+		ok = ip.grow(txn, sz)
+	}
+	return ok
 }
 
 func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
@@ -350,7 +399,7 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 	} else {
 		bn = bn - NDIRECT
 		if bn < NBLKBLK {
-			blkno, newroot := ip.indirect(txn, ip.blks[INDIRECT],
+			blkno, newroot := ip.indbmap(txn, ip.blks[INDIRECT],
 				1, bn)
 			if newroot != 0 {
 				ip.blks[INDIRECT] = newroot
@@ -358,7 +407,7 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 			return blkno, newroot != 0
 		} else {
 			bn = bn - NBLKBLK
-			blkno, newroot := ip.indirect(txn, ip.blks[DINDIRECT],
+			blkno, newroot := ip.indbmap(txn, ip.blks[DINDIRECT],
 				2, bn)
 			if newroot != 0 {
 				ip.blks[DINDIRECT] = newroot

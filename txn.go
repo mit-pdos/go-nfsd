@@ -67,6 +67,9 @@ func Begin(log *Log, cache *Cache, fs *FsSuper, ic *Cache) *Txn {
 // blocks from cache: flush memlog, which may contain unstable writes,
 // and signal installer.
 func (txn *Txn) Read(addr uint64) disk.Block {
+	if addr >= txn.fs.Size {
+		panic("Read")
+	}
 	b, ok := txn.bufs[addr]
 	if ok {
 		// this transaction already has the buf locked
@@ -107,6 +110,9 @@ func (txn *Txn) ReleaseBlock(addr uint64) {
 
 // Unqualified write is always written to log. Assumes transaction has the buf locked.
 func (txn *Txn) Write(addr uint64, blk disk.Block) {
+	if addr >= txn.fs.Size {
+		panic("Write")
+	}
 	_, ok := txn.bufs[addr]
 	if !ok {
 		panic("Write: blind write")

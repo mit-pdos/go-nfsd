@@ -139,6 +139,7 @@ func (l *Log) memWrite(bufs []*Buf) {
 // XXX absorp
 func (l *Log) doMemAppend(bufs []*Buf) (TxnNum, bool) {
 	l.memLock.Lock()
+	log.Printf("doMemAppend: %d %d %d\n", l.index(l.memHead), l.logSz, len(l.memLog))
 	if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {
 		l.memLock.Unlock()
 		return uint64(0), false

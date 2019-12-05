@@ -587,8 +587,8 @@ func TestConcurEvict(t *testing.T) {
 	fmt.Printf("TestConcurEvict done\n")
 }
 
-func TestLarge(t *testing.T) {
-	fmt.Printf("TestLarge\n")
+func TestLargeFile(t *testing.T) {
+	fmt.Printf("TestLargeFile\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
 	const N = 522
 
@@ -605,9 +605,10 @@ func TestLarge(t *testing.T) {
 		data := mkdataval(byte(i), sz)
 		ts.readcheck(x, i*sz, data)
 	}
+	ts.Remove("x")
 
 	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestLarge done\n")
+	fmt.Printf("TestLargeFile done\n")
 }
 
 func TestBigWrite(t *testing.T) {
@@ -631,4 +632,24 @@ func TestBigWrite(t *testing.T) {
 
 	ts.nfs.ShutdownNfs()
 	fmt.Printf("TestBigWrite done\n")
+}
+
+func TestBigUnlink(t *testing.T) {
+	fmt.Printf("TestBigUnlink\n")
+	ts := &TestState{t: t, nfs: MkNfs()}
+	const N = 100 * 512
+
+	ts.Create("x")
+	sz := uint64(4096)
+	x := ts.Lookup("x", true)
+	for i := uint64(0); i < N; i++ {
+		data := mkdataval(byte(i), sz)
+		ts.WriteOff(x, i*sz, data, UNSTABLE)
+	}
+	ts.Commit(x, sz*N)
+
+	ts.Remove("x")
+
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("TestBigUnlink done\n")
 }

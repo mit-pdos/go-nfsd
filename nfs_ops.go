@@ -19,6 +19,7 @@ type Nfs struct {
 // XXX call recovery, once nfs uses persistent storage
 func MkNfs() *Nfs {
 	fs := mkFsSuper() // run first so that disk is initialized before mkLog
+	log.Printf("Super: %v\n", fs)
 	l := mkLog()
 	if l == nil {
 		panic("mkLog failed")

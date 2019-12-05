@@ -6,7 +6,10 @@ import (
 	"log"
 )
 
+const NBITS uint64 = disk.BlockSize * 8
+
 type FsSuper struct {
+	Size    uint64
 	NLog    uint64 // including commit block
 	NBitmap uint64
 	NInode  uint64
@@ -15,9 +18,13 @@ type FsSuper struct {
 
 func mkFsSuper() *FsSuper {
 	sz := uint64(10 * 10000)
-	nbitmap := (sz / disk.BlockSize) + 1
+	nbitmap := (sz / NBITS) + 1
 	disk.Init(disk.NewMemDisk(sz))
-	return &FsSuper{NLog: LOGSIZE, NBitmap: nbitmap, NInode: 2000, MaxAddr: sz}
+	return &FsSuper{Size: sz,
+		NLog:    LOGSIZE,
+		NBitmap: nbitmap,
+		NInode:  2000,
+		MaxAddr: sz}
 }
 
 func (fs *FsSuper) bitmapStart() uint64 {
@@ -71,32 +78,31 @@ func freeBit(blk disk.Block, bn uint64) {
 
 // Zero indicates failure
 func (fs *FsSuper) allocBlock(txn *Txn) uint64 {
-	var found bool = false
 	var bit uint64 = 0
 
 	for i := uint64(0); i < fs.NBitmap; i++ {
 		blkno := fs.bitmapStart() + i
 		blk := txn.Read(blkno)
-		bit, found = findAndMark(blk)
+		b, found := findAndMark(blk)
 		if !found {
 			txn.ReleaseBlock(blkno)
 			continue
 		}
 		txn.Write(blkno, blk)
-		bit = i*disk.BlockSize + bit
+		bit = i*NBITS + b
 		break
 	}
 	return bit
 }
 
 func (fs *FsSuper) freeBlock(txn *Txn, bn uint64) {
-	i := bn / disk.BlockSize
+	i := bn / NBITS
 	if i >= fs.NBitmap {
 		panic("freeBlock")
 	}
 	blkno := fs.bitmapStart() + i
 	blk := txn.Read(blkno)
-	freeBit(blk, bn%disk.BlockSize)
+	freeBit(blk, bn%NBITS)
 	txn.Write(blkno, blk)
 }
 
@@ -105,8 +111,8 @@ func (fs *FsSuper) freeBlock(txn *Txn, bn uint64) {
 //
 
 func (fs *FsSuper) markAlloc(n uint64, m uint64) {
-	log.Printf("markAlloc: [0, %d) and [%d,%d)\n", n, m, fs.NBitmap*disk.BlockSize)
-	if n >= disk.BlockSize || m >= disk.BlockSize*fs.NBitmap || m < disk.BlockSize {
+	log.Printf("markAlloc: [0, %d) and [%d,%d)\n", n, m, fs.NBitmap*NBITS)
+	if n >= NBITS || m >= NBITS*fs.NBitmap || m < NBITS {
 		panic("markAlloc")
 	}
 	blk := make(disk.Block, disk.BlockSize)
@@ -118,7 +124,7 @@ func (fs *FsSuper) markAlloc(n uint64, m uint64) {
 	disk.Write(fs.bitmapStart(), blk)
 
 	blk1 := make(disk.Block, disk.BlockSize)
-	blkno := m/disk.BlockSize + fs.bitmapStart()
+	blkno := m/NBITS + fs.bitmapStart()
 	for bn := m % disk.BlockSize; bn < disk.BlockSize; bn++ {
 		byte := bn / 8
 		bit := bn % 8
