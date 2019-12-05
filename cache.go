@@ -114,17 +114,15 @@ func (c *Cache) freeSlot(id uint64) {
 	panic("putObj")
 }
 
-// Decrease ref count of the cache slot for id and return slot if
-// last, so that caller can delete cached object. The caller should
-// hold the locked obj in the slot.
-func (c *Cache) delSlot(id uint64) bool {
+// Decrease ref count of the cache slot for id. The caller should hold
+// the locked obj in the slot.
+func (c *Cache) delSlot(id uint64) {
 	c.mu.Lock()
 	entry := c.entries[id]
 	if entry != nil {
 		entry.ref = entry.ref - 1
-		last := entry.ref == 0
 		c.mu.Unlock()
-		return last
+		return
 	}
 	c.mu.Unlock()
 	panic("delSlot")

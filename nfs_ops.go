@@ -108,6 +108,7 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 }
 
 // Lock inodes in sorted order, but return the pointers in the same order as in inums
+// Caller must revalidate inodes.
 func lockInodes(txn *Txn, inums []Inum) []*Inode {
 	log.Printf("lock inodes %v\n", inums)
 	sorted := make([]Inum, len(inums))
@@ -510,7 +511,7 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 
 		// does to exist?
 		if toinum != NULLINUM {
-			// need lock 4 inodes in order
+			// must lock 4 inodes in order
 			var to *Inode
 			var from *Inode
 			txn.Abort(inodes)

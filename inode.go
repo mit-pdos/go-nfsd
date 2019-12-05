@@ -122,6 +122,15 @@ func getInodeInum(txn *Txn, inum Inum) *Inode {
 		return nil
 	}
 	ip.lock()
+	if ip.kind == NF3FREE {
+		log.Printf("inode is free\n")
+		ip.put(txn)
+		ip.unlock()
+		return nil
+	}
+	if ip.nlink == 0 {
+		panic("getInodeInum")
+	}
 	return ip
 }
 
@@ -158,8 +167,11 @@ func loadInodeSlot(txn *Txn, slot *Cslot, inum Inum) *Inode {
 func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
 	ip := getInodeInum(txn, fh.ino)
+	if ip == nil {
+		return nil
+	}
 	if ip.gen != fh.gen {
-		log.Printf("wrong gen\n")
+		log.Printf("non existent ip or wrong gen\n")
 		ip.put(txn)
 		ip.unlock()
 		return nil
@@ -236,20 +248,21 @@ func freeInum(txn *Txn, inum Inum) {
 	i.freeInode(txn)
 }
 
-// Done with ip and remove inode if nlink and ref = 0. Must be run
-// inside of a transaction since it may modify inode.
-// XXX handle nlink = 0, but ref > 0 and crash.
+// Done with ip and remove inode if nlink = 0. Must be run inside of a
+// transaction since it may modify inode, and assumes caller has lock
+// on inode.
 func (ip *Inode) put(txn *Txn) {
 	log.Printf("put inode %d nlink %d\n", ip.inum, ip.nlink)
-	last := txn.ic.delSlot(ip.inum)
-	if last {
-		if ip.nlink == 0 {
-			log.Printf("delete inode %d\n", ip.inum)
-			ip.resize(txn, 0)
-			ip.freeInode(txn)
-			ip.slot.obj = nil
-		}
+	if ip.nlink == 0 && ip.kind != NF3FREE {
+		log.Printf("delete inode %d\n", ip.inum)
+		ip.resize(txn, 0)
+		ip.freeInode(txn)
+		// if inode is allocated later a for new file (which
+		// doesn't update the cache), this causes the inode to
+		// be reloaded.
+		ip.slot.obj = nil
 	}
+	txn.ic.delSlot(ip.inum)
 }
 
 func (ip *Inode) shrink(txn *Txn, sz uint64) bool {
