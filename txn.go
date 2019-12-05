@@ -81,6 +81,9 @@ func (txn *Txn) Read(addr uint64) disk.Block {
 			log.Printf("Read: WaitFlushMemLog and signal installer\n")
 			txn.log.WaitFlushMemLog()
 			txn.log.SignalInstaller()
+			if uint64(len(txn.bufs)) >= txn.log.logSz {
+				panic("read")
+			}
 			// Try again; a slot should free up eventually.
 			slot = txn.bc.lookupSlot(addr)
 		}

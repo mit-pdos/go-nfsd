@@ -332,7 +332,7 @@ func (ip *Inode) shrink(txn *Txn, sz uint64) bool {
 	}
 	newsz := sz / disk.BlockSize
 	bn = oldsz - 1
-	for {
+	for oldsz != 0 {
 		log.Printf("freeblock: %d\n", bn)
 		if bn < NDIRECT {
 			txn.fs.freeBlock(txn, ip.blks[bn])
