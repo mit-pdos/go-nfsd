@@ -57,6 +57,15 @@ func errRet(txn *Txn, status *Nfsstat3, err Nfsstat3, inodes []*Inode) error {
 	return nil
 }
 
+func CommitReply(txn *Txn, status *Nfsstat3, inodes []*Inode) {
+	ok := txn.Commit(inodes)
+	if ok {
+		*status = NFS3_OK
+	} else {
+		*status = NFS3ERR_SERVERFAULT
+	}
+}
+
 func (nfs *Nfs) NullNFS(args *xdr.Void, reply *xdr.Void) error {
 	log.Printf("NFS Null\n")
 	return nil
@@ -70,9 +79,8 @@ func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 	if ip == nil {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	} else {
-		reply.Status = NFS3_OK
 		reply.Resok.Obj_attributes = ip.mkFattr()
-		txn.Commit([]*Inode{ip})
+		CommitReply(txn, &reply.Status, []*Inode{ip})
 	}
 	return nil
 }
@@ -85,13 +93,12 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	} else {
 		if args.New_attributes.Size.Set_it {
-			ok := ip.resize(txn,
-				uint64(args.New_attributes.Size.Size))
+			ok := ip.resize(txn, uint64(args.New_attributes.Size.Size))
 			if !ok {
-				return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{ip})
+				return errRet(txn, &reply.Status, NFS3ERR_NOSPC,
+					[]*Inode{ip})
 			} else {
-				reply.Status = NFS3_OK
-				txn.Commit([]*Inode{ip})
+				CommitReply(txn, &reply.Status, []*Inode{ip})
 			}
 		} else {
 			return errRet(txn, &reply.Status, NFS3ERR_NOTSUPP, []*Inode{ip})
@@ -194,9 +201,8 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 		}
 	}
 	fh := Fh{ino: ip.inum, gen: ip.gen}
-	reply.Status = NFS3_OK
 	reply.Resok.Object = fh.makeFh3()
-	txn.Commit(inodes)
+	CommitReply(txn, &reply.Status, inodes)
 	return nil
 }
 
@@ -224,11 +230,10 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 		return errRet(txn, &reply.Status, NFS3ERR_INVAL, []*Inode{ip})
 	}
 	data, eof := ip.read(txn, uint64(args.Offset), uint64(args.Count))
-	reply.Status = NFS3_OK
 	reply.Resok.Count = Count3(len(data))
 	reply.Resok.Data = data
 	reply.Resok.Eof = eof
-	txn.Commit([]*Inode{ip})
+	CommitReply(txn, &reply.Status, []*Inode{ip})
 	return nil
 }
 
@@ -311,8 +316,7 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 		freeInum(txn, inum)
 		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
 	}
-	txn.Commit([]*Inode{dip})
-	reply.Status = NFS3_OK
+	CommitReply(txn, &reply.Status, []*Inode{dip})
 	return nil
 }
 
@@ -348,8 +352,7 @@ func (nfs *Nfs) MakeDir(args *MKDIR3args, reply *MKDIR3res) error {
 	}
 	dip.nlink = dip.nlink + 1 // for ..
 	dip.writeInode(txn)
-	txn.Commit([]*Inode{dip, ip})
-	reply.Status = NFS3_OK
+	CommitReply(txn, &reply.Status, []*Inode{dip, ip})
 	return nil
 }
 
@@ -410,8 +413,7 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 		return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
 	}
 	ip.decLink(txn)
-	txn.Commit([]*Inode{ip, dip})
-	reply.Status = NFS3_OK
+	CommitReply(txn, &reply.Status, inodes)
 	return nil
 }
 
@@ -557,8 +559,7 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 	if !ok1 {
 		return errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
 	}
-	txn.Commit(inodes)
-	reply.Status = NFS3_OK
+	CommitReply(txn, &reply.Status, inodes)
 	return nil
 }
 
@@ -586,9 +587,8 @@ func (nfs *Nfs) ReadDirPlus(args *READDIRPLUS3args, reply *READDIRPLUS3res) erro
 		return errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
 	}
 	dirlist := ip.ls3(txn, args.Cookie, args.Dircount)
-	txn.Commit(inodes)
-	reply.Status = NFS3_OK
 	reply.Resok.Reply = dirlist
+	CommitReply(txn, &reply.Status, inodes)
 	return nil
 }
 
