@@ -1,9 +1,10 @@
 package goose_nfs
 
 import (
-	"github.com/zeldovich/go-rpcgen/xdr"
 	"log"
 	"sort"
+
+	"github.com/zeldovich/go-rpcgen/xdr"
 )
 
 const ICACHESZ uint64 = 20

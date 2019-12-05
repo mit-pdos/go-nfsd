@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/mit-pdos/goose-nfsd"
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
 )

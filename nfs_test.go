@@ -7,8 +7,9 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type TestState struct {
