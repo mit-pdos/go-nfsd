@@ -12,7 +12,7 @@ env:
 install:
   - go get ./...
 script:
-  - diff -u <(echo -n) <(gofmt -d -s .)
+  - diff -u <(echo -n) <(gofmt -d .)
   - go test -v ./...
 
 notifications:
