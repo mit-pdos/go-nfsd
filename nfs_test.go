@@ -1,7 +1,10 @@
 package goose_nfs
 
 import (
+	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"strconv"
 	"sync"
 
@@ -11,6 +14,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+var quiet = flag.Bool("quiet", false, "disable logging")
+
+func init() {
+	testing.Init()
+	flag.Parse()
+	if *quiet {
+		log.SetFlags(0)
+		log.SetOutput(ioutil.Discard)
+	}
+}
 
 type TestState struct {
 	t   *testing.T

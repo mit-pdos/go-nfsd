@@ -13,7 +13,7 @@ install:
   - go get ./...
 script:
   - diff -u <(echo -n) <(gofmt -d .)
-  - go test -v ./...
+  - go test -v ./... -quiet
 
 notifications:
   email: false
