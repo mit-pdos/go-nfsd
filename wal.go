@@ -31,9 +31,9 @@ type Log struct {
 	shutdown    bool
 }
 
-const HDRMETA = uint64(2 * 8)        // space for head and tail
-const HDRADDRS = (512 - HDRMETA) / 8 // XXX disk.BlockSize != 512
-const LOGSIZE = HDRADDRS + 1         // 1 for log header
+const HDRMETA = uint64(2 * 8) // space for head and tail
+const HDRADDRS = (disk.BlockSize - HDRMETA) / 8
+const LOGSIZE = HDRADDRS + 1 // 1 for log header
 
 func mkLog() *Log {
 	ll := new(sync.RWMutex)

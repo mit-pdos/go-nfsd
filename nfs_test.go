@@ -445,7 +445,7 @@ func TestConcurWrite(t *testing.T) {
 
 	names := []string{"f0", "f1", "f3", "f4"}
 	const N uint64 = 32
-	const SZ uint64 = 512
+	const SZ = disk.BlockSize
 	var wg sync.WaitGroup
 	for g, n := range names {
 		ts.Create(n)
@@ -652,10 +652,10 @@ func TestBigWrite(t *testing.T) {
 func TestBigUnlink(t *testing.T) {
 	fmt.Printf("TestBigUnlink\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
-	const N = 100 * 512
+	const N = 100 * disk.BlockSize
 
 	ts.Create("x")
-	sz := uint64(4096)
+	sz := disk.BlockSize
 	x := ts.Lookup("x", true)
 	for i := uint64(0); i < N; i++ {
 		data := mkdataval(byte(i), sz)
