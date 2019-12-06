@@ -4,6 +4,7 @@ import (
 	"github.com/tchajed/goose/machine"
 	"github.com/tchajed/goose/machine/disk"
 
+	"fmt"
 	"log"
 )
 
@@ -57,6 +58,10 @@ func mkRootInode() *Inode {
 		size:  uint64(0),
 		blks:  make([]uint64, NBLKINO),
 	}
+}
+
+func (ip *Inode) String() string {
+	return fmt.Sprintf("# %d k %d n %d g %d sz %d %v", ip.inum, ip.kind, ip.nlink, ip.gen, ip.size, ip.blks)
 }
 
 func (ip *Inode) mkFattr() Fattr3 {
@@ -199,13 +204,13 @@ func unlockInodes(inodes []*Inode) {
 func readInode(txn *Txn, inum uint64) *Inode {
 	blk := txn.readInodeBlock(inum)
 	i := decode(blk, inum)
-	log.Printf("readInode %v %v\n", inum, i)
+	log.Printf("readInode %v\n", i)
 	return i
 }
 
 func (ip *Inode) writeInode(txn *Txn) {
 	blk := txn.readInodeBlock(ip.inum)
-	log.Printf("writeInode %d %v\n", ip.inum, ip)
+	log.Printf("writeInode %v\n", ip)
 	ip.encode(blk)
 	txn.writeInodeBlock(ip.inum, blk)
 }
@@ -271,7 +276,7 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, bn uint64) (uint64
 	var newroot uint64 = 0
 	var blkno uint64 = root
 	if blkno == 0 {
-		newroot = txn.fs.allocBlock(txn)
+		newroot = txn.AllocBlock()
 		if newroot == 0 {
 			return 0, 0
 		}
@@ -314,7 +319,7 @@ func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint6
 		if freeroot != 0 {
 			machine.UInt64Put(blk[boff:boff+8], 0)
 			txn.WriteData(root, blk)
-			txn.fs.freeBlock(txn, freeroot)
+			txn.FreeBlock(freeroot)
 		}
 	}
 	if off == 0 && ind == 0 {
@@ -335,21 +340,21 @@ func (ip *Inode) shrink(txn *Txn, sz uint64) bool {
 	for oldsz != 0 {
 		log.Printf("freeblock: %d\n", bn)
 		if bn < NDIRECT {
-			txn.fs.freeBlock(txn, ip.blks[bn])
+			txn.FreeBlock(ip.blks[bn])
 			ip.blks[bn] = 0
 		} else {
 			off := bn - NDIRECT
 			if off < NBLKBLK {
 				freeroot := ip.indshrink(txn, ip.blks[INDIRECT], 1, off)
 				if freeroot != 0 {
-					txn.fs.freeBlock(txn, ip.blks[INDIRECT])
+					txn.FreeBlock(ip.blks[INDIRECT])
 					ip.blks[INDIRECT] = 0
 				}
 			} else {
 				off = off - NBLKBLK
 				freeroot := ip.indshrink(txn, ip.blks[DINDIRECT], 2, off)
 				if freeroot != 0 {
-					txn.fs.freeBlock(txn, ip.blks[DINDIRECT])
+					txn.FreeBlock(ip.blks[DINDIRECT])
 					ip.blks[DINDIRECT] = 0
 				}
 			}
@@ -387,7 +392,7 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 	var alloc bool = false
 	if bn < NDIRECT {
 		if ip.blks[bn] == 0 {
-			blkno := txn.fs.allocBlock(txn)
+			blkno := txn.AllocBlock()
 			if blkno == 0 {
 				return 0, false
 			}

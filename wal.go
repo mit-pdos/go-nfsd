@@ -135,20 +135,13 @@ func (l *Log) memWrite(bufs []*Buf) {
 	l.memHead = l.memHead + n
 }
 
-// Returns false if memlog should be flushed, because bufs don't fit.
+// Assumes caller holds memLock
 // XXX absorp
-func (l *Log) doMemAppend(bufs []*Buf) (TxnNum, bool) {
-	l.memLock.Lock()
-	log.Printf("doMemAppend: %d %d %d\n", l.index(l.memHead), l.logSz, len(l.memLog))
-	if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {
-		l.memLock.Unlock()
-		return uint64(0), false
-	}
+func (l *Log) doMemAppend(bufs []*Buf) TxnNum {
 	l.memWrite(bufs)
 	txn := l.txnNxt
 	l.txnNxt = l.txnNxt + 1
-	l.memLock.Unlock()
-	return txn, true
+	return txn
 }
 
 func (l *Log) readLogTxnNxt() TxnNum {
@@ -176,23 +169,16 @@ func (l *Log) readTxnNxt() TxnNum {
 //  For clients of WAL
 //
 
-// Append to in-memory log. Returns false if bufs don't fit in log.
+// Append to in-memory log. Returns false, if bufs don't fit
 func (l *Log) MemAppend(bufs []*Buf) (TxnNum, bool) {
 	var txn uint64 = 0
-	var done bool = false
-
-	if uint64(len(bufs)) >= l.logSz {
-		return 0, false
+	l.memLock.Lock()
+	if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {
+		l.memLock.Unlock()
+		return txn, false
 	}
-	for !done {
-		txn, done = l.doMemAppend(bufs)
-		if !done {
-			log.Printf("MemAppend: log is full; wait")
-			l.condLogger.Signal()
-			l.condInstall.Signal()
-		}
-		continue
-	}
+	txn = l.doMemAppend(bufs)
+	l.memLock.Unlock()
 	return txn, true
 }
 

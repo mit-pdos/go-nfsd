@@ -11,10 +11,12 @@ const ICACHESZ uint64 = 20
 const BCACHESZ uint64 = HDRADDRS + 10 // At least as big as log
 
 type Nfs struct {
-	log *Log
-	ic  *Cache
-	fs  *FsSuper
-	bc  *Cache
+	log    *Log
+	ic     *Cache
+	fs     *FsSuper
+	bc     *Cache
+	alloc  *Alloc
+	commit *Commit
 }
 
 // XXX call recovery, once nfs uses persistent storage
@@ -28,16 +30,18 @@ func MkNfs() *Nfs {
 	fs.initFs()
 	ic := mkCache(ICACHESZ)
 	bc := mkCache(BCACHESZ)
+	alloc := mkAlloc(fs)
+	commit := mkCommit()
 	go l.Logger()
-	go Installer(bc, l)
+	go Installer(fs, bc, l)
 
-	nfs := &Nfs{log: l, ic: ic, bc: bc, fs: fs}
+	nfs := &Nfs{log: l, ic: ic, bc: bc, fs: fs, alloc: alloc, commit: commit}
 	nfs.makeRootDir()
 	return nfs
 }
 
 func (nfs *Nfs) makeRootDir() {
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	txn := Begin(nfs)
 	ip := getInodeInum(txn, ROOTINUM)
 	if ip == nil {
 		panic("makeRootDir")
@@ -76,7 +80,7 @@ func (nfs *Nfs) NullNFS(args *xdr.Void, reply *xdr.Void) error {
 // XXX factor out lookup ip, test, and maybe fail pattern
 func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 	log.Printf("NFS GetAttr %v\n", args)
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	txn := Begin(nfs)
 	ip := getInode(txn, args.Object)
 	if ip == nil {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
@@ -89,7 +93,7 @@ func (nfs *Nfs) GetAttr(args *GETATTR3args, reply *GETATTR3res) error {
 
 func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 	log.Printf("NFS SetAttr %v\n", args)
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	txn := Begin(nfs)
 	ip := getInode(txn, args.Object)
 	if ip == nil {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
@@ -166,7 +170,7 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 	var inodes []*Inode
 	var txn *Txn
 	for ip == nil {
-		txn = Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+		txn = Begin(nfs)
 		log.Printf("NFS Lookup %v\n", args)
 		dip := getInode(txn, args.What.Dir)
 		if dip == nil {
@@ -184,7 +188,7 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 				// Abort. Try to lock inodes in order
 				txn.Abort([]*Inode{dip})
 				parent := args.What.Dir.makeFh()
-				txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+				txn := Begin(nfs)
 				inodes = nfs.LookupOrdered(txn, args.What.Name,
 					parent, inum)
 				if inodes == nil {
@@ -223,7 +227,7 @@ func (nfs *Nfs) ReadLink(args *READLINK3args, reply *READLINK3res) error {
 }
 
 func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	txn := Begin(nfs)
 	log.Printf("NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
 	ip := getInode(txn, args.File)
 	if ip == nil {
@@ -242,7 +246,7 @@ func (nfs *Nfs) Read(args *READ3args, reply *READ3res) error {
 
 // XXX Mtime
 func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	txn := Begin(nfs)
 	log.Printf("NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
 	ip := getInode(txn, args.File)
@@ -300,7 +304,7 @@ func (nfs *Nfs) Write(args *WRITE3args, reply *WRITE3res) error {
 
 // XXX deal with how
 func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	txn := Begin(nfs)
 	log.Printf("NFS Create %v\n", args)
 	dip := getInode(txn, args.Where.Dir)
 	if dip == nil {
@@ -324,7 +328,7 @@ func (nfs *Nfs) Create(args *CREATE3args, reply *CREATE3res) error {
 }
 
 func (nfs *Nfs) MakeDir(args *MKDIR3args, reply *MKDIR3res) error {
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	txn := Begin(nfs)
 	log.Printf("NFS MakeDir %v\n", args)
 	dip := getInode(txn, args.Where.Dir)
 	if dip == nil {
@@ -377,7 +381,7 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 	var inodes []*Inode
 	var txn *Txn
 	for ip == nil {
-		txn = Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+		txn = Begin(nfs)
 		log.Printf("NFS Remove %v\n", args)
 		dip = getInode(txn, args.Object.Dir)
 		if dip == nil {
@@ -393,7 +397,7 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 		if inum < dip.inum {
 			// Abort. Try to lock inodes in order
 			txn.Abort([]*Inode{dip})
-			txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+			txn := Begin(nfs)
 			parent := args.Object.Dir.makeFh()
 			inodes = nfs.LookupOrdered(txn, args.Object.Name, parent, inum)
 			ip = inodes[0]
@@ -467,7 +471,7 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 	var success bool = false
 
 	for !success {
-		txn = Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+		txn = Begin(nfs)
 		log.Printf("NFS Rename %v\n", args)
 
 		toh := args.To.Dir.makeFh()
@@ -517,7 +521,7 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 			var to *Inode
 			var from *Inode
 			txn.Abort(inodes)
-			txn = Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+			txn = Begin(nfs)
 			if dipto != dipfrom {
 				inodes = lockInodes(txn, []Inum{dipfrom.inum, dipto.inum,
 					frominum, toinum})
@@ -580,7 +584,7 @@ func (nfs *Nfs) ReadDir(args *READDIR3args, reply *READDIR3res) error {
 
 func (nfs *Nfs) ReadDirPlus(args *READDIRPLUS3args, reply *READDIRPLUS3res) error {
 	log.Printf("NFS ReadDirPlus %v\n", args)
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	txn := Begin(nfs)
 	ip := getInode(txn, args.Dir)
 	if ip == nil {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
@@ -621,7 +625,7 @@ func (nfs *Nfs) PathConf(args *PATHCONF3args, reply *PATHCONF3res) error {
 // UNSTABLE.
 func (nfs *Nfs) Commit(args *COMMIT3args, reply *COMMIT3res) error {
 	log.Printf("NFS Commit %v\n", args)
-	txn := Begin(nfs.log, nfs.bc, nfs.fs, nfs.ic)
+	txn := Begin(nfs)
 	ip := getInode(txn, args.File)
 	fh := args.File.makeFh()
 	if ip == nil {

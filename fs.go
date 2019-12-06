@@ -6,8 +6,6 @@ import (
 	"log"
 )
 
-const NBITS uint64 = disk.BlockSize * 8
-
 type FsSuper struct {
 	Size    uint64
 	NLog    uint64 // including commit block
@@ -39,6 +37,10 @@ func (fs *FsSuper) dataStart() uint64 {
 	return fs.NLog + fs.NBitmap + fs.NInode
 }
 
+//
+// mkfs
+//
+
 func (fs *FsSuper) initFs() {
 	nulli := mkNullInode() // inum = 0 is reserved
 	nullblk := make(disk.Block, disk.BlockSize)
@@ -50,65 +52,6 @@ func (fs *FsSuper) initFs() {
 	fs.putBlkDirect(ROOTINUM, rootblk)
 	fs.markAlloc(fs.inodeStart()+fs.NInode, fs.MaxAddr)
 }
-
-// Find a free bit in blk and toggle it
-func findAndMark(blk disk.Block) (uint64, bool) {
-	for byte := uint64(0); byte < disk.BlockSize; byte++ {
-		byteVal := blk[byte]
-		if byteVal == 0xff {
-			continue
-		}
-		for bit := uint64(0); bit < 8; bit++ {
-			if byteVal&(1<<bit) == 0 {
-				blk[byte] |= 1 << bit
-				off := bit + 8*byte
-				return off, true
-			}
-		}
-	}
-	return 0, false
-}
-
-// Toggle bit bn in blk
-func freeBit(blk disk.Block, bn uint64) {
-	byte := bn / 8
-	bit := bn % 8
-	blk[byte] = blk[byte] & ^(1 << bit)
-}
-
-// Zero indicates failure
-func (fs *FsSuper) allocBlock(txn *Txn) uint64 {
-	var bit uint64 = 0
-
-	for i := uint64(0); i < fs.NBitmap; i++ {
-		blkno := fs.bitmapStart() + i
-		blk := txn.Read(blkno)
-		b, found := findAndMark(blk)
-		if !found {
-			txn.ReleaseBlock(blkno)
-			continue
-		}
-		txn.Write(blkno, blk)
-		bit = i*NBITS + b
-		break
-	}
-	return bit
-}
-
-func (fs *FsSuper) freeBlock(txn *Txn, bn uint64) {
-	i := bn / NBITS
-	if i >= fs.NBitmap {
-		panic("freeBlock")
-	}
-	blkno := fs.bitmapStart() + i
-	blk := txn.Read(blkno)
-	freeBit(blk, bn%NBITS)
-	txn.Write(blkno, blk)
-}
-
-//
-// for mkfs
-//
 
 func (fs *FsSuper) markAlloc(n uint64, m uint64) {
 	log.Printf("markAlloc: [0, %d) and [%d,%d)\n", n, m, fs.NBitmap*NBITS)

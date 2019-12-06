@@ -1,9 +1,5 @@
 package goose_nfs
 
-import (
-	"log"
-)
-
 const DIRENTSZ = 32
 const MAXNAMELEN = DIRENTSZ - 8
 
@@ -116,7 +112,6 @@ func (dip *Inode) ls3(txn *Txn, start Cookie3, dircount Count3) Dirlistplus3 {
 	if begin != 0 {
 		begin += DIRENTSZ
 	}
-	log.Printf("%d: begin: %v\n", dip.inum, begin)
 	for off := begin; off < dip.size; {
 		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
