@@ -652,7 +652,7 @@ func TestBigWrite(t *testing.T) {
 func TestBigUnlink(t *testing.T) {
 	fmt.Printf("TestBigUnlink\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
-	const N = 100 * disk.BlockSize
+	const N = 100 * (disk.BlockSize / 8)
 
 	ts.Create("x")
 	sz := disk.BlockSize
