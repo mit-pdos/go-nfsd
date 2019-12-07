@@ -500,6 +500,7 @@ func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint6
 
 func shrink(nfs *Nfs, inum Inum, oldsz uint64) {
 	bn := roundupblk(oldsz)
+	log.Printf("Shrinker: shrink %d from bn %d\n", inum, bn)
 	for {
 		txn := Begin(nfs)
 		ip := getInodeInumFree(txn, inum)
@@ -548,6 +549,7 @@ func shrink(nfs *Nfs, inum Inum, oldsz uint64) {
 			break
 		}
 	}
+	log.Printf("Shrinker: done shrinking %d to bn %d\n", inum, bn)
 	nfs.mu.Lock()
 	nfs.nthread = nfs.nthread - 1
 	nfs.mu.Unlock()
