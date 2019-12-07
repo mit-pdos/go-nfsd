@@ -3,6 +3,7 @@ package goose_nfs
 import (
 	"log"
 	"sort"
+	"sync"
 
 	"github.com/zeldovich/go-rpcgen/xdr"
 )
@@ -11,12 +12,15 @@ const ICACHESZ uint64 = 20
 const BCACHESZ uint64 = HDRADDRS + 10 // At least as big as log
 
 type Nfs struct {
-	log    *Log
-	ic     *Cache
-	fs     *FsSuper
-	bc     *Cache
-	alloc  *Alloc
-	commit *Commit
+	mu       *sync.RWMutex
+	condShut *sync.Cond
+	log      *Log
+	ic       *Cache
+	fs       *FsSuper
+	bc       *Cache
+	alloc    *Alloc
+	commit   *Commit
+	nthread  int
 }
 
 // XXX call recovery, once nfs uses persistent storage
@@ -35,7 +39,11 @@ func MkNfs() *Nfs {
 	go l.Logger()
 	go Installer(fs, bc, l)
 
-	nfs := &Nfs{log: l, ic: ic, bc: bc, fs: fs, alloc: alloc, commit: commit}
+	mu := new(sync.RWMutex)
+	cond := sync.NewCond(mu)
+
+	nfs := &Nfs{mu: mu, condShut: cond, log: l, ic: ic, bc: bc, fs: fs, alloc: alloc,
+		commit: commit}
 	nfs.makeRootDir()
 	return nfs
 }
@@ -54,6 +62,12 @@ func (nfs *Nfs) makeRootDir() {
 }
 
 func (nfs *Nfs) ShutdownNfs() {
+	nfs.mu.Lock()
+	for nfs.nthread > 0 {
+		log.Printf("ShutdownNfs: wait %d\n", nfs.nthread)
+		nfs.condShut.Wait()
+	}
+	nfs.mu.Unlock()
 	nfs.log.Shutdown()
 }
 
@@ -99,13 +113,8 @@ func (nfs *Nfs) SetAttr(args *SETATTR3args, reply *SETATTR3res) error {
 		return errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 	} else {
 		if args.New_attributes.Size.Set_it {
-			ok := ip.resize(txn, uint64(args.New_attributes.Size.Size))
-			if !ok {
-				return errRet(txn, &reply.Status, NFS3ERR_NOSPC,
-					[]*Inode{ip})
-			} else {
-				CommitReply(txn, &reply.Status, []*Inode{ip})
-			}
+			ip.resize(txn, uint64(args.New_attributes.Size.Size))
+			CommitReply(txn, &reply.Status, []*Inode{ip})
 		} else {
 			return errRet(txn, &reply.Status, NFS3ERR_NOTSUPP, []*Inode{ip})
 		}
@@ -347,8 +356,9 @@ func (nfs *Nfs) MakeDir(args *MKDIR3args, reply *MKDIR3res) error {
 		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
 	}
 	ip.lock()
-	ok := ip.mkdir(txn, dip.inum)
+	ok := ip.initDir(txn, dip.inum)
 	if !ok {
+		log.Printf("mkdir failed\n")
 		ip.decLink(txn)
 		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{dip, ip})
 	}

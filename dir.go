@@ -36,7 +36,6 @@ func (dip *Inode) lookupName(txn *Txn, name Filename3) (Inum, uint64) {
 }
 
 func (dip *Inode) addName(txn *Txn, inum uint64, name Filename3) bool {
-	var fail bool = false
 	var off uint64 = 0
 
 	if dip.kind != NF3DIR || len(name) >= MAXNAMELEN {
@@ -50,9 +49,6 @@ func (dip *Inode) addName(txn *Txn, inum uint64, name Filename3) bool {
 		}
 		off = off + DIRENTSZ
 		continue
-	}
-	if fail {
-		return false
 	}
 	de := &DirEnt{Inum: inum, Name: string(name)}
 	ent := encodeDirEnt(de)
@@ -88,7 +84,7 @@ func (dip *Inode) isDirEmpty(txn *Txn) bool {
 	return empty
 }
 
-func (dip *Inode) mkdir(txn *Txn, parent Inum) bool {
+func (dip *Inode) initDir(txn *Txn, parent Inum) bool {
 	if !dip.addName(txn, dip.inum, ".") {
 		return false
 	}

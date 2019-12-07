@@ -281,8 +281,8 @@ func TestReadDir(t *testing.T) {
 }
 
 // Grow file with setattr before writing
-func TestFile(t *testing.T) {
-	fmt.Printf("TestFile\n")
+func TestOneFile(t *testing.T) {
+	fmt.Printf("TestOneFile\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
 	sz := uint64(8192)
 	ts.Create("x")
@@ -297,7 +297,7 @@ func TestFile(t *testing.T) {
 	_ = ts.Lookup("x", false)
 	ts.GetattrFail(fh)
 	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestFile done\n")
+	fmt.Printf("TestOneFile done\n")
 }
 
 // Grow file by writing
@@ -316,8 +316,8 @@ func TestFile1(t *testing.T) {
 	fmt.Printf("TestFile1 done\n")
 }
 
-func TestDir(t *testing.T) {
-	fmt.Printf("TestDir\n")
+func TestOneDir(t *testing.T) {
+	fmt.Printf("TestOneDir\n")
 	ts := &TestState{t: t, nfs: MkNfs()}
 
 	ts.MkDir("d")
@@ -353,7 +353,7 @@ func TestDir(t *testing.T) {
 
 	// Rmdir("d")
 	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestDir done\n")
+	fmt.Printf("TestOneDir done\n")
 }
 
 // Many filesgg

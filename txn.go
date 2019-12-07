@@ -52,6 +52,7 @@ func mkBuf(blkno uint64, blk disk.Block) *Buf {
 }
 
 type Txn struct {
+	nfs      *Nfs
 	log      *Log
 	bc       *Cache          // a cache of Buf's shared between transactions
 	bufs     map[uint64]*Buf // locked bufs in use by this transaction
@@ -88,6 +89,7 @@ func (txn *Txn) release() {
 
 func Begin(nfs *Nfs) *Txn {
 	txn := &Txn{
+		nfs:      nfs,
 		log:      nfs.log,
 		bc:       nfs.bc,
 		bufs:     make(map[uint64]*Buf),
@@ -193,6 +195,14 @@ func (txn *Txn) FreeBlock(blkno uint64) {
 	txn.freeblks = append(txn.freeblks, blkno)
 }
 
+func zeroBlock(txn *Txn, blkno uint64) {
+	log.Printf("zero block %d\n", blkno)
+	blk := txn.Read(blkno)
+	for i, _ := range blk {
+		blk[i] = 0
+	}
+}
+
 func (txn *Txn) readInodeBlock(inum uint64) disk.Block {
 	if inum >= txn.fs.NInode {
 		panic("readInodeBlock")
@@ -219,6 +229,16 @@ func (txn *Txn) putInodes(inodes []*Inode) {
 	for _, ip := range inodes {
 		ip.put(txn)
 	}
+}
+
+func (txn *Txn) numberDirty() uint64 {
+	var n uint64 = 0
+	for _, buf := range txn.bufs {
+		if buf.dirty {
+			n += 1
+		}
+	}
+	return n
 }
 
 func (txn *Txn) dirtyBufs() []*Buf {
@@ -255,6 +275,8 @@ func (txn *Txn) doCommit(bufs []*Buf, abort bool) (uint64, bool) {
 		// the following steps must be committed atomically,
 		// so we hold the commit lock
 		txn.commit.lock()
+
+		log.Printf("doCommit: freeblks: %d\n", len(txn.freeblks))
 
 		// Compute changes to the bitmap blocks
 		var bs []*Buf = bufs
