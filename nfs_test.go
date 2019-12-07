@@ -17,9 +17,7 @@ import (
 
 var quiet = flag.Bool("quiet", false, "disable logging")
 
-func init() {
-	testing.Init()
-	flag.Parse()
+func checkFlags() {
 	if *quiet {
 		log.SetFlags(0)
 		log.SetOutput(ioutil.Discard)
@@ -249,9 +247,21 @@ func (ts *TestState) readcheck(fh Nfs_fh3, off uint64, data []byte) {
 	}
 }
 
+func newTest(t *testing.T) *TestState {
+	checkFlags()
+	fmt.Printf("%s\n", t.Name())
+	return &TestState{t: t, nfs: MkNfs()}
+}
+
+func (ts *TestState) Close() {
+	ts.nfs.ShutdownNfs()
+	fmt.Printf("%s\n", ts.t.Name())
+}
+
 func TestRoot(t *testing.T) {
 	fmt.Printf("TestGetRoot\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	fh := MkRootFh3()
 	ts.GetattrDir(fh)
@@ -260,14 +270,11 @@ func TestRoot(t *testing.T) {
 	fhdotdot := ts.LookupFh(fh, "..")
 	ts.GetattrDir(fhdotdot)
 	// assert.Equal(ts.t, fhdot.ino, fhdotdot.ino)
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestGetRoot done\n")
 }
 
 func TestReadDir(t *testing.T) {
-	fmt.Printf("TestReadDir\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	checkFlags()
+	ts := newTest(t)
 
 	dl3 := ts.ReadDirPlus()
 	ne3 := dl3.Entries
@@ -275,15 +282,11 @@ func TestReadDir(t *testing.T) {
 		assert.Equal(t, ne3.Fileid, Fileid3(1))
 		ne3 = ne3.Nextentry
 	}
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestReadDir done\n")
 }
 
 // Grow file with setattr before writing
 func TestOneFile(t *testing.T) {
-	fmt.Printf("TestOneFile\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
 	sz := uint64(8192)
 	ts.Create("x")
 	fh := ts.Lookup("x", true)
@@ -296,14 +299,12 @@ func TestOneFile(t *testing.T) {
 	ts.Remove("x")
 	_ = ts.Lookup("x", false)
 	ts.GetattrFail(fh)
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestOneFile done\n")
 }
 
 // Grow file by writing
 func TestFile1(t *testing.T) {
-	fmt.Printf("TestFile1\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	sz := uint64(122)
 	ts.Create("x")
@@ -311,14 +312,11 @@ func TestFile1(t *testing.T) {
 	data := mkdata(uint64(sz))
 	ts.Write(fh, data, FILE_SYNC)
 	ts.readcheck(fh, 0, data)
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestFile1 done\n")
 }
 
 func TestOneDir(t *testing.T) {
-	fmt.Printf("TestOneDir\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	ts.MkDir("d")
 	fh := ts.Lookup("d", true)
@@ -352,29 +350,24 @@ func TestOneDir(t *testing.T) {
 	ts.RenameFail("d2", "d3")
 
 	// Rmdir("d")
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestOneDir done\n")
 }
 
 // Many filesgg
 func TestManyFiles(t *testing.T) {
-	fmt.Printf("TestManyFiles\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	for i := 0; i < 100; i++ {
 		ts.Create("x")
 		ts.Remove("x")
 	}
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestManyFiles done\n")
 }
 
 // Create many files and then delete
 func TestManyFiles1(t *testing.T) {
 	const N = 50
-	fmt.Printf("TestManyFiles1\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	for i := 0; i < N; i++ {
 		s := strconv.Itoa(i)
@@ -384,14 +377,11 @@ func TestManyFiles1(t *testing.T) {
 		s := strconv.Itoa(i)
 		ts.Remove("x" + s)
 	}
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestManyFiles1 done\n")
 }
 
 func TestRename(t *testing.T) {
-	fmt.Printf("TestRename\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 	ts.Create("x")
 	ts.Rename("x", "y")
 	_ = ts.Lookup("x", false)
@@ -409,14 +399,11 @@ func TestRename(t *testing.T) {
 	ts.GetattrDir(d2)
 
 	ts.RenameFhs(d1, "f1", d2, "f1")
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestRename done\n")
 }
 
 func TestUnstable(t *testing.T) {
-	fmt.Printf("TestUnstable\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 	ts.Create("x")
 	ts.Create("y")
 	sz := uint64(4096)
@@ -434,14 +421,11 @@ func TestUnstable(t *testing.T) {
 	ts.Commit(x, sz)
 
 	ts.readcheck(x, 0, data2)
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestUnstable done\n")
 }
 
 func TestConcurWrite(t *testing.T) {
-	fmt.Printf("TestConcurWrite\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	names := []string{"f0", "f1", "f3", "f4"}
 	const N uint64 = 32
@@ -469,14 +453,11 @@ func TestConcurWrite(t *testing.T) {
 			assert.Equal(t, byte(g), v)
 		}
 	}
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestConcurWrite done\n")
 }
 
 func TestConcurCreateDelete(t *testing.T) {
-	fmt.Printf("TestConcurCreateDelete\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	names := []string{"f0", "f1", "f3", "f4"}
 	const N = 10
@@ -506,14 +487,11 @@ func TestConcurCreateDelete(t *testing.T) {
 			}
 		}
 	}
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestConcurCreateDelete done\n")
 }
 
 func TestConcurRename(t *testing.T) {
-	fmt.Printf("Rename\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	const NGO = 4
 	const N = 20
@@ -533,14 +511,11 @@ func TestConcurRename(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestConcurRename done\n")
 }
 
 func TestFileHole(t *testing.T) {
-	fmt.Printf("TestFileHole\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	sz := uint64(122)
 	ts.Create("x")
@@ -551,9 +526,6 @@ func TestFileHole(t *testing.T) {
 
 	null := mkdataval(0, 4096)
 	ts.readcheck(fh, 0, null)
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestFileHole done\n")
 }
 
 func (ts *TestState) evict(names []string) {
@@ -577,18 +549,15 @@ func (ts *TestState) evict(names []string) {
 }
 
 func TestSerialEvict(t *testing.T) {
-	fmt.Printf("TestSerialEvict\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	ts.evict([]string{"f0"})
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestSerialEvict done\n")
 }
 
 func TestConcurEvict(t *testing.T) {
-	fmt.Printf("TestConcurEvict\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 	const N = 10
 
 	names := make([]string, N)
@@ -597,14 +566,11 @@ func TestConcurEvict(t *testing.T) {
 	}
 
 	ts.evict(names)
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestConcurEvict done\n")
 }
 
 func TestLargeFile(t *testing.T) {
-	fmt.Printf("TestLargeFile\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 	const N = 522
 
 	ts.Create("x")
@@ -621,14 +587,11 @@ func TestLargeFile(t *testing.T) {
 		ts.readcheck(x, i*sz, data)
 	}
 	ts.Remove("x")
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestLargeFile done\n")
 }
 
 func TestBigWrite(t *testing.T) {
-	fmt.Printf("TestBigWrite\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 
 	ts.Create("x")
 	sz := uint64(4096 * (HDRADDRS / 2))
@@ -644,14 +607,11 @@ func TestBigWrite(t *testing.T) {
 	data = mkdataval(byte(0), sz)
 	ts.WriteErr(y, data, UNSTABLE, NFS3ERR_INVAL)
 	ts.CommitErr(y, sz, NFS3ERR_INVAL)
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestBigWrite done\n")
 }
 
 func TestBigUnlink(t *testing.T) {
-	fmt.Printf("TestBigUnlink\n")
-	ts := &TestState{t: t, nfs: MkNfs()}
+	ts := newTest(t)
+	defer ts.Close()
 	const N = 100 * (disk.BlockSize / 8)
 
 	ts.Create("x")
@@ -664,7 +624,4 @@ func TestBigUnlink(t *testing.T) {
 	ts.Commit(x, sz*N)
 
 	ts.Remove("x")
-
-	ts.nfs.ShutdownNfs()
-	fmt.Printf("TestBigUnlink done\n")
 }
