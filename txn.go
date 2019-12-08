@@ -27,11 +27,39 @@ func (c *Commit) unlock() {
 	c.mu.Unlock()
 }
 
+type Addr struct {
+	blkno uint64
+	off   uint64
+	sz    uint64
+}
+
+func (a Addr) match(b Addr) bool {
+	return a.blkno == b.blkno && a.off == b.off && a.sz == b.sz
+}
+
+func mkAddr(blkno uint64, off uint64, sz uint64) Addr {
+	return Addr{blkno: blkno, off: off, sz: sz}
+}
+
 type Buf struct {
 	slot  *Cslot
+	addr  Addr
 	blk   disk.Block
 	blkno uint64
 	dirty bool // has this block been written to?
+	txn   *Txn
+}
+
+func mkBuf(addr Addr, blk disk.Block, txn *Txn) *Buf {
+	b := &Buf{
+		slot:  nil,
+		addr:  addr,
+		blk:   blk,
+		blkno: addr.blkno,
+		dirty: false,
+		txn:   txn,
+	}
+	return b
 }
 
 func (buf *Buf) lock() {
@@ -43,144 +71,169 @@ func (buf *Buf) unlock() {
 }
 
 func (buf *Buf) String() string {
-	return fmt.Sprintf("%v %v", buf.blkno, buf.dirty)
+	return fmt.Sprintf("%v %v", buf.addr, buf.dirty)
 }
 
-func mkBuf(blkno uint64, blk disk.Block) *Buf {
-	b := &Buf{slot: nil, blk: blk, blkno: blkno, dirty: false}
-	return b
+func (buf *Buf) install(blk disk.Block) bool {
+	if buf.dirty {
+		for i := buf.addr.off; i < buf.addr.off+buf.addr.sz; i++ {
+			blk[i] = buf.blk[i-buf.addr.off]
+		}
+	}
+	return buf.dirty
+}
+
+func (buf *Buf) WriteDirect() {
+	buf.Dirty()
+	if buf.addr.sz == disk.BlockSize {
+		disk.Write(buf.addr.blkno, buf.blk)
+	} else {
+		blk := disk.Read(buf.addr.blkno)
+		buf.install(blk)
+		disk.Write(buf.addr.blkno, blk)
+	}
+}
+
+func (buf *Buf) Dirty() {
+	buf.dirty = true
 }
 
 type Txn struct {
-	nfs      *Nfs
-	log      *Log
-	bc       *Cache          // a cache of Buf's shared between transactions
-	bufs     map[uint64]*Buf // locked bufs in use by this transaction
-	fs       *FsSuper
-	ic       *Cache
-	alloc    *Alloc
-	commit   *Commit
-	newblks  []uint64
-	freeblks []uint64
+	nfs        *Nfs
+	log        *Log
+	bc         *Cache            // a cache of Buf's shared between transactions
+	bufs       map[uint64][]*Buf // locked bufs in use by this transaction
+	fs         *FsSuper
+	ic         *Cache
+	balloc     *Alloc
+	ialloc     *Alloc
+	commit     *Commit
+	newblks    []uint64
+	freeblks   []uint64
+	newinodes  []Inum
+	freeinodes []Inum
 }
 
-// Returns a locked buf
-func (txn *Txn) load(slot *Cslot, a uint64) *Buf {
+// Returns a block
+func loadBlock(slot *Cslot, a uint64) disk.Block {
 	slot.lock()
 	if slot.obj == nil {
 		// blk hasn't been read yet from disk; read it and put
 		// the buf with the read blk in the cache slot.
 		blk := disk.Read(a)
-		buf := &Buf{slot: slot, blk: blk, blkno: a}
-		slot.obj = buf
+		slot.obj = blk
 	}
-	buf := slot.obj.(*Buf)
-	return buf
-}
-
-// Release locks and cache slots
-func (txn *Txn) release() {
-	log.Printf("release bufs")
-	for _, buf := range txn.bufs {
-		buf.unlock()
-		txn.bc.freeSlot(buf.blkno)
-	}
-}
-
-func Begin(nfs *Nfs) *Txn {
-	txn := &Txn{
-		nfs:      nfs,
-		log:      nfs.log,
-		bc:       nfs.bc,
-		bufs:     make(map[uint64]*Buf),
-		fs:       nfs.fs,
-		ic:       nfs.ic,
-		alloc:    nfs.alloc,
-		commit:   nfs.commit,
-		newblks:  make([]uint64, 0),
-		freeblks: make([]uint64, 0),
-	}
-	return txn
+	blk := slot.obj.(disk.Block)
+	slot.unlock()
+	return blk
 }
 
 // If Read cannot find a cache slot, wait until installer unpins
 // blocks from cache: flush memlog, which may contain unstable writes,
 // and signal installer.
-func (txn *Txn) Read(addr uint64) disk.Block {
+func (txn *Txn) readBlock(addr uint64) disk.Block {
 	if addr >= txn.fs.Size {
 		panic("Read")
 	}
-	b, ok := txn.bufs[addr]
-	if ok {
-		// this transaction already has the buf locked
-		return b.blk
-	} else {
-		var slot *Cslot
-		slot = txn.bc.lookupSlot(addr)
-		for slot == nil {
-			log.Printf("Read: WaitFlushMemLog and signal installer\n")
-			txn.log.WaitFlushMemLog()
-			txn.log.SignalInstaller()
-			if uint64(len(txn.bufs)) >= txn.log.logSz {
-				for _, b := range txn.bufs {
-					log.Printf("b %d %v\n", b.blkno, b.dirty)
-				}
-				panic("read")
-			}
-			// Try again; a slot should free up eventually.
-			slot = txn.bc.lookupSlot(addr)
+	var slot *Cslot
+	slot = txn.bc.lookupSlot(addr)
+	for slot == nil {
+		log.Printf("ReadBlock: miss on %d WaitFlushMemLog and signal installer\n",
+			addr)
+		txn.log.WaitFlushMemLog()
+		txn.log.SignalInstaller()
+		if uint64(len(txn.bufs)) >= txn.log.logSz {
+			log.Printf("bufs %v\n", txn.bufs)
+			panic("readBlock")
 		}
-		// load the slot and lock it
-		buf := txn.load(slot, addr)
-		txn.bufs[addr] = buf
-		return buf.blk
+		// Try again; a slot should free up eventually.
+		slot = txn.bc.lookupSlot(addr)
 	}
+	// load the block into the cache slot
+	blk := loadBlock(slot, addr)
+	return blk
+}
+
+func (txn *Txn) releaseBlock(blkno uint64) {
+	txn.bc.freeSlot(blkno)
+}
+
+func (txn *Txn) installCache(buf *Buf, n uint64) {
+	blk := buf.txn.readBlock(buf.addr.blkno)
+	buf.install(blk)
+	txn.bc.Pin([]uint64{buf.addr.blkno}, n)
+	buf.txn.releaseBlock(buf.addr.blkno)
+}
+
+func Begin(nfs *Nfs) *Txn {
+	txn := &Txn{
+		nfs:        nfs,
+		log:        nfs.log,
+		bc:         nfs.bc,
+		bufs:       make(map[uint64][]*Buf),
+		fs:         nfs.fs,
+		ic:         nfs.ic,
+		balloc:     nfs.balloc,
+		ialloc:     nfs.ialloc,
+		commit:     nfs.commit,
+		newblks:    make([]uint64, 0),
+		freeblks:   make([]uint64, 0),
+		newinodes:  make([]Inum, 0),
+		freeinodes: make([]Inum, 0),
+	}
+	return txn
+}
+
+func (txn *Txn) ReadBuf(addr Addr) *Buf {
+	var buf *Buf
+	log.Printf("ReadBuf %v\n", addr)
+	bs, ok := txn.bufs[addr.blkno]
+	if ok {
+		for _, b := range bs {
+			if addr.match(b.addr) {
+				buf = b
+				break
+			}
+		}
+	}
+	if buf != nil {
+		return buf
+	}
+	blk := txn.readBlock(addr.blkno)
+	// make a private copy of the data in the cache
+	data := make([]byte, addr.sz)
+	copy(data, blk[addr.off:addr.off+addr.sz])
+	buf = mkBuf(addr, data, txn)
+	txn.bufs[addr.blkno] = append(txn.bufs[addr.blkno], buf)
+
+	txn.releaseBlock(addr.blkno)
+
+	return buf
 }
 
 // Release a not-used buffer during the transaction (e.g., during
 // scanning inode or bitmap blocks that don't have free inodes or
 // bits).
 func (txn *Txn) ReleaseBlock(addr uint64) {
-	b, ok := txn.bufs[addr]
+	bs, ok := txn.bufs[addr]
 	if !ok {
 		log.Printf("ReleaseBlock: not present")
 		return
 	}
-	if b.dirty {
+	if len(bs) > 0 {
 		panic("ReleaseBlock")
 	}
-	b.unlock()
-	txn.bc.freeSlot(b.blkno)
+	for _, b := range bs {
+		if b.dirty {
+			panic("ReleaseBlock")
+		}
+	}
+	txn.bc.freeSlot(addr)
 	delete(txn.bufs, addr)
 }
 
-// Unqualified write is always written to log. Assumes transaction has the buf locked.
-func (txn *Txn) Write(addr uint64, blk disk.Block) {
-	if addr >= txn.fs.Size {
-		panic("Write")
-	}
-	_, ok := txn.bufs[addr]
-	if !ok {
-		panic("Write: blind write")
-	}
-	txn.bufs[addr].dirty = true
-	txn.bufs[addr].blk = blk
-}
-
-// Write of a data block.  Assumes transaction has the buf locked.
-// Separate from Write() in order to support log-by-pass writes in the
-// future.
-func (txn *Txn) WriteData(addr uint64, blk disk.Block) {
-	_, ok := txn.bufs[addr]
-	if !ok {
-		panic("Write: blind write")
-	}
-	txn.bufs[addr].dirty = true
-	txn.bufs[addr].blk = blk
-}
-
 func (txn *Txn) AllocBlock() uint64 {
-	blkno := txn.alloc.AllocBlock()
+	blkno := txn.balloc.Alloc()
 	if blkno != 0 {
 		txn.newblks = append(txn.newblks, blkno)
 	}
@@ -195,34 +248,30 @@ func (txn *Txn) FreeBlock(blkno uint64) {
 	txn.freeblks = append(txn.freeblks, blkno)
 }
 
+func (txn *Txn) AllocInum() Inum {
+	inum := txn.ialloc.Alloc()
+	if inum != 0 {
+		txn.newinodes = append(txn.newinodes, inum)
+	}
+	log.Printf("alloc inode %v\n", inum)
+	return inum
+}
+
+func (txn *Txn) FreeInum(inum Inum) {
+	if inum == 0 {
+		panic("FreeInum")
+	}
+	txn.freeinodes = append(txn.freeinodes, inum)
+}
+
 func zeroBlock(txn *Txn, blkno uint64) {
 	log.Printf("zero block %d\n", blkno)
-	blk := txn.Read(blkno)
-	for i, _ := range blk {
-		blk[i] = 0
+	addr := txn.fs.Block2Addr(blkno)
+	buf := txn.ReadBuf(addr)
+	for i, _ := range buf.blk {
+		buf.blk[i] = 0
 	}
-}
-
-func (txn *Txn) readInodeBlock(inum uint64) disk.Block {
-	if inum >= txn.fs.NInode {
-		panic("readInodeBlock")
-	}
-	blk := txn.Read(txn.fs.inodeStart() + inum)
-	return blk
-}
-
-func (txn *Txn) writeInodeBlock(inum uint64, blk disk.Block) {
-	if inum >= txn.fs.NInode {
-		panic("writeInodeBlock")
-	}
-	txn.Write(txn.fs.inodeStart()+inum, blk)
-}
-
-func (txn *Txn) releaseInodeBlock(inum uint64) {
-	if inum >= txn.fs.NInode {
-		panic("releaseInodeBlock")
-	}
-	txn.ReleaseBlock(txn.fs.inodeStart() + inum)
+	buf.dirty = true
 }
 
 func (txn *Txn) putInodes(inodes []*Inode) {
@@ -233,66 +282,75 @@ func (txn *Txn) putInodes(inodes []*Inode) {
 
 func (txn *Txn) numberDirty() uint64 {
 	var n uint64 = 0
-	for _, buf := range txn.bufs {
-		if buf.dirty {
-			n += 1
+	for _, bs := range txn.bufs {
+		for _, b := range bs {
+			if b.dirty {
+				n += 1
+			}
 		}
 	}
 	return n
 }
 
-func (txn *Txn) dirtyBufs() []*Buf {
-	bufs := new([]*Buf)
-	for _, buf := range txn.bufs {
-		if buf.dirty {
-			*bufs = append(*bufs, buf)
+// Assume caller holds cache lock
+func (txn *Txn) computeBlks() []*Buf {
+	bufs := make([]*Buf, 0)
+	for _, bs := range txn.bufs {
+		var dirty bool = false
+		blkno := bs[0].blkno
+		blk := txn.readBlock(blkno)
+		data := make([]byte, disk.BlockSize)
+		copy(data, blk)
+		txn.releaseBlock(blkno)
+		for _, b := range bs {
+			if b.install(data) {
+				dirty = true
+			}
+		}
+		if dirty {
+			// construct a buf that has all changes to blkno
+			buf := mkBuf(txn.fs.Block2Addr(blkno), data, txn)
+			bufs = append(bufs, buf)
+			buf.Dirty()
+			log.Printf("computeBlks: blk %v\n", buf)
 		}
 	}
-	return *bufs
+	return bufs
 }
 
-func (txn *Txn) clearDirty(bufs []*Buf) {
-	for _, b := range bufs {
-		b.dirty = false
-	}
-}
-
-func (txn *Txn) Pin(bufs []*Buf, n TxnNum) {
-	ids := make([]uint64, len(bufs))
-	for i, b := range bufs {
-		ids[i] = b.blkno
-	}
-	txn.bc.Pin(ids, n)
-}
-
-func (txn *Txn) doCommit(bufs []*Buf, abort bool) (uint64, bool) {
+func (txn *Txn) doCommit(abort bool) (uint64, bool) {
 	var n uint64 = 0
 	var ok bool = false
-	if uint64(len(bufs)) >= txn.log.logSz {
-		return 0, false
-	}
 	for !ok {
 		// the following steps must be committed atomically,
 		// so we hold the commit lock
 		txn.commit.lock()
 
-		log.Printf("doCommit: freeblks: %d\n", len(txn.freeblks))
+		bufs := txn.computeBlks()
+
+		log.Printf("doCommit: bufs %v\n", bufs)
 
 		// Compute changes to the bitmap blocks
 		var bs []*Buf = bufs
 		if abort {
-			txn.alloc.AbortBlks(txn.newblks)
+			txn.balloc.AbortNums(txn.newblks)
+			txn.ialloc.AbortNums(txn.newinodes)
 		} else {
-			bitbufs := txn.alloc.CommitBmap(txn.newblks, txn.freeblks)
-			log.Printf("bitbufs: %v\n", bitbufs)
-			bs = append(bs, bitbufs...)
+			bbitbufs := txn.balloc.CommitBmap(txn.newblks, txn.freeblks)
+			log.Printf("bitbufs bmap: %v\n", bbitbufs)
+			bs = append(bs, bbitbufs...)
+			ibitbufs := txn.ialloc.CommitBmap(txn.newinodes, txn.freeinodes)
+			log.Printf("bitbufs imap: %v\n", ibitbufs)
+			bs = append(bs, ibitbufs...)
 		}
 
-		// Append to the in-memory log and pin bufs (except
-		// bitmap) into cache
+		// Append to the in-memory log and install+pin bufs (except
+		// bitmaps) into cache
 		n, ok = txn.log.MemAppend(bs)
 		if ok {
-			txn.Pin(bufs, n+1)
+			for _, b := range bufs {
+				txn.installCache(b, n+1)
+			}
 		}
 
 		txn.commit.unlock()
@@ -315,23 +373,15 @@ func (txn *Txn) CommitWait(inodes []*Inode, wait bool, abort bool) bool {
 	// may free an inode so must be done before Append
 	txn.putInodes(inodes)
 
-	// commit all buffers written by this transaction
-	bufs := txn.dirtyBufs()
-	if len(bufs) > 0 || len(txn.newblks) > 0 {
-		n, ok := txn.doCommit(bufs, abort)
-		if !ok {
-			log.Printf("memappend failed\n")
-			success = false
-		} else {
-			if wait {
-				txn.log.LogAppendWait(n)
-			}
-			txn.clearDirty(bufs)
+	n, ok := txn.doCommit(abort)
+	if !ok {
+		log.Printf("memappend failed\n")
+		success = false
+	} else {
+		if wait {
+			txn.log.LogAppendWait(n)
 		}
 	}
-
-	// release the buffers used in this transaction
-	txn.release()
 
 	// unlock all inodes used in this transaction
 	unlockInodes(inodes)
@@ -364,7 +414,6 @@ func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 // do log-by-pass writes.
 func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
 	txn.log.WaitFlushMemLog()
-	txn.release()
 	unlockInodes(inodes)
 	return true
 }

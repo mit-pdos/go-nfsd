@@ -15,15 +15,16 @@ import (
 type Alloc struct {
 	lock       *sync.RWMutex
 	bmap       []disk.Block
-	fs         *FsSuper
 	bmapCommit []disk.Block
+	start      uint64
+	len        uint64
 }
 
-func mkAlloc(fs *FsSuper) *Alloc {
-	bmap := make([]disk.Block, fs.NBitmap)
-	bmapCommit := make([]disk.Block, fs.NBitmap)
-	for i := uint64(0); i < fs.NBitmap; i++ {
-		blkno := fs.bitmapStart() + i
+func mkAlloc(start uint64, len uint64) *Alloc {
+	bmap := make([]disk.Block, len)
+	bmapCommit := make([]disk.Block, len)
+	for i := uint64(0); i < len; i++ {
+		blkno := start + i
 		bmap[i] = disk.Read(blkno)
 		bmapCommit[i] = disk.Read(blkno)
 	}
@@ -31,12 +32,11 @@ func mkAlloc(fs *FsSuper) *Alloc {
 		lock:       new(sync.RWMutex),
 		bmap:       bmap,
 		bmapCommit: bmapCommit,
-		fs:         fs,
+		start:      start,
+		len:        len,
 	}
 	return a
 }
-
-const NBITS uint64 = disk.BlockSize * 8
 
 // Find a free bit in blk and toggle it
 func findAndMark(blk disk.Block) (uint64, bool) {
@@ -71,58 +71,59 @@ func markBit(blk disk.Block, bn uint64) {
 }
 
 func (a *Alloc) markBlock(bn uint64) {
-	i := bn / NBITS
-	if i >= a.fs.NBitmap {
+	i := bn / NBITBLOCK
+	if i >= a.len {
 		panic("freeBlock")
 	}
 
 }
 
 // Zero indicates failure
-func (a *Alloc) AllocBlock() uint64 {
+func (a *Alloc) Alloc() uint64 {
 	var bit uint64 = 0
 
 	a.lock.Lock()
-	for i := uint64(0); i < a.fs.NBitmap; i++ {
+	for i := uint64(0); i < a.len; i++ {
 		b, found := findAndMark(a.bmap[i])
 		if !found {
 			continue
 		}
-		bit = i*NBITS + b
+		bit = i*NBITBLOCK + b
 		break
 	}
 	a.lock.Unlock()
 	return bit
 }
 
-func (a *Alloc) FreeBlock(bn uint64) {
+func (a *Alloc) Free(n uint64) {
 	a.lock.Lock()
-	i := bn / NBITS
-	if i >= a.fs.NBitmap {
+	i := n / NBITBLOCK
+	if i >= a.len {
 		panic("freeBlock")
 	}
-	freeBit(a.bmap[i], bn%NBITS)
+	freeBit(a.bmap[i], n%NBITBLOCK)
 	a.lock.Unlock()
 }
 
 func (a *Alloc) CommitBmap(alloc []uint64, free []uint64) []*Buf {
 	bufs := make([]*Buf, 0)
-	dirty := make([]bool, a.fs.NBitmap)
+	dirty := make([]bool, a.len)
 	a.lock.Lock()
 	for _, bn := range alloc {
-		i := bn / NBITS
+		i := bn / NBITBLOCK
 		dirty[i] = true
-		markBit(a.bmapCommit[i], bn%NBITS)
+		markBit(a.bmapCommit[i], bn%NBITBLOCK)
 	}
 	for _, bn := range free {
-		i := bn / NBITS
+		i := bn / NBITBLOCK
 		dirty[i] = true
-		freeBit(a.bmap[i], bn%NBITS)
-		freeBit(a.bmapCommit[i], bn%NBITS)
+		freeBit(a.bmap[i], bn%NBITBLOCK)
+		freeBit(a.bmapCommit[i], bn%NBITBLOCK)
 	}
 	for i, v := range dirty {
 		if v {
-			buf := mkBuf(a.fs.bitmapStart()+uint64(i), a.bmapCommit[i])
+			addr := mkAddr(a.start+uint64(i), 0, disk.BlockSize)
+			buf := mkBuf(addr, a.bmapCommit[i], nil)
 			bufs = append(bufs, buf)
 		}
 	}
@@ -131,9 +132,9 @@ func (a *Alloc) CommitBmap(alloc []uint64, free []uint64) []*Buf {
 }
 
 // Undo allocation
-func (a *Alloc) AbortBlks(blknos []uint64) {
-	log.Printf("AbortBlks %v\n", blknos)
-	for _, bn := range blknos {
-		a.FreeBlock(bn)
+func (a *Alloc) AbortNums(nums []uint64) {
+	log.Printf("AbortBlks %v\n", nums)
+	for _, n := range nums {
+		a.Free(n)
 	}
 }

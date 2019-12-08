@@ -11,12 +11,13 @@ import (
 const NF3FREE Ftype3 = 0
 
 const (
-	NBLKINO   uint64 = 10 // # blk in an inode's blks array
+	NBLKINO   uint64 = 5 // # blk in an inode's blks array
 	NDIRECT   uint64 = NBLKINO - 2
 	INDIRECT  uint64 = NBLKINO - 2
 	DINDIRECT uint64 = NBLKINO - 1
 	NBLKBLK   uint64 = disk.BlockSize / 8 // # blkno per block
 	NINDLEVEL uint64 = 2                  // # levels of indirection
+	INODESZ   uint64 = 64                 // on-disk size
 )
 
 type Inode struct {
@@ -82,8 +83,8 @@ func (ip *Inode) mkFattr() Fattr3 {
 	}
 }
 
-func (ip *Inode) encode(blk disk.Block) {
-	enc := NewEnc(blk)
+func (ip *Inode) encode(buf *Buf) {
+	enc := NewEnc(buf.blk)
 	enc.PutInt32(uint32(ip.kind))
 	enc.PutInt32(ip.nlink)
 	enc.PutInt(ip.gen)
@@ -91,10 +92,10 @@ func (ip *Inode) encode(blk disk.Block) {
 	enc.PutInts(ip.blks)
 }
 
-func decode(blk disk.Block, inum uint64) *Inode {
+func decode(buf *Buf, inum uint64) *Inode {
 	ip := &Inode{}
 	ip.slot = nil
-	dec := NewDec(blk)
+	dec := NewDec(buf.blk)
 	ip.inum = inum
 	ip.kind = Ftype3(dec.GetInt32())
 	ip.nlink = dec.GetInt32()
@@ -152,7 +153,7 @@ func getInodeInum(txn *Txn, inum Inum) *Inode {
 }
 
 func loadInode(txn *Txn, inum Inum) *Inode {
-	if inum >= txn.fs.NInode {
+	if inum >= txn.fs.NInode() {
 		return nil
 	}
 	slot := txn.ic.lookupSlot(inum)
@@ -214,47 +215,50 @@ func unlockInodes(inodes []*Inode) {
 }
 
 func readInode(txn *Txn, inum uint64) *Inode {
-	blk := txn.readInodeBlock(inum)
-	i := decode(blk, inum)
+	if inum >= txn.fs.NInode() {
+		panic("readInode")
+	}
+	buf := txn.ReadBuf(txn.fs.Inum2Addr(inum))
+	log.Printf("buf %v\n", buf)
+	i := decode(buf, inum)
 	log.Printf("readInode %v\n", i)
 	return i
 }
 
 func (ip *Inode) writeInode(txn *Txn) {
-	blk := txn.readInodeBlock(ip.inum)
+	if ip.inum >= txn.fs.NInode() {
+		panic("writeInode")
+	}
+	buf := txn.ReadBuf(txn.fs.Inum2Addr(ip.inum))
 	log.Printf("writeInode %v\n", ip)
-	ip.encode(blk)
-	txn.writeInodeBlock(ip.inum, blk)
+	ip.encode(buf)
+	buf.Dirty()
 }
 
 func allocInode(txn *Txn, kind Ftype3) Inum {
-	var inode *Inode
-	for inum := uint64(1); inum < txn.fs.NInode; inum++ {
-		i := readInode(txn, inum)
-		if i.kind == NF3FREE {
+	inum := txn.AllocInum()
+	if inum != 0 {
+		ip := readInode(txn, inum)
+		if ip.kind == NF3FREE {
 			log.Printf("allocInode: allocate inode %d\n", inum)
-			inode = i
-			inode.inum = inum
-			inode.kind = kind
-			inode.nlink = 1
-			inode.gen = inode.gen + 1
-			break
+			ip.inum = inum
+			ip.kind = kind
+			ip.nlink = 1
+			ip.gen = ip.gen + 1
+		} else {
+			panic("allocInode")
 		}
-		// Remove this unused block from txn
-		txn.releaseInodeBlock(inum)
-		continue
+		ip.writeInode(txn)
+
 	}
-	if inode == nil {
-		return 0
-	}
-	inode.writeInode(txn)
-	return inode.inum
+	return inum
 }
 
 func (ip *Inode) freeInode(txn *Txn) {
 	ip.kind = NF3FREE
 	ip.gen = ip.gen + 1
 	ip.writeInode(txn)
+	txn.FreeInum(ip.inum)
 }
 
 func freeInum(txn *Txn, inum Inum) {
@@ -320,12 +324,12 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 		zeroBlock(txn, blkno)
 	}
 
-	blk := txn.Read(blkno)
-	nxtroot := machine.UInt64Get(blk[bo : bo+8])
+	buf := txn.ReadBuf(txn.fs.Block2Addr(blkno))
+	nxtroot := machine.UInt64Get(buf.blk[bo : bo+8])
 	b, newroot1 := ip.indbmap(txn, nxtroot, level-1, ind, grow)
 	if newroot1 != 0 {
-		machine.UInt64Put(blk[bo:bo+8], newroot1)
-		txn.WriteData(blkno, blk)
+		machine.UInt64Put(buf.blk[bo:bo+8], newroot1)
+		buf.Dirty()
 	}
 	if b >= txn.fs.Size {
 		panic("indbmap")
@@ -389,6 +393,7 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 	var n uint64 = uint64(0)
 
+	// log.Printf("read %d %d ipsz %d\n", offset, count, ip.size)
 	if offset >= ip.size {
 		return nil, true
 	}
@@ -409,10 +414,10 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 		if alloc { // fill in a hole
 			ip.writeInode(txn)
 		}
-		blk := txn.Read(blkno)
-		// log.Printf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, blk[0:32])
+		buf := txn.ReadBuf(txn.fs.Block2Addr(blkno))
+		// log.Printf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, buf.blk[0:32])
 		for b := uint64(0); b < nbytes; b++ {
-			data = append(data, blk[byteoff+b])
+			data = append(data, buf.blk[byteoff+b])
 		}
 		n = n + nbytes
 		offset = offset + nbytes
@@ -442,16 +447,16 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		if new {
 			alloc = true
 		}
-		blk := txn.Read(blkno)
+		buf := txn.ReadBuf(txn.fs.Block2Addr(blkno))
 		byteoff := offset % disk.BlockSize
 		nbytes := disk.BlockSize - byteoff
 		if n < nbytes {
 			nbytes = n
 		}
 		for b := uint64(0); b < nbytes; b++ {
-			blk[byteoff+b] = data[b]
+			buf.blk[byteoff+b] = data[b]
 		}
-		txn.WriteData(blkno, blk)
+		buf.Dirty()
 		n = n - nbytes
 		data = data[nbytes:]
 		offset = offset + nbytes
@@ -481,13 +486,13 @@ func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint6
 	off := (bn / divisor)
 	ind := bn % divisor
 	boff := off * 8
-	blk := txn.Read(root)
-	nxtroot := machine.UInt64Get(blk[boff : boff+8])
+	buf := txn.ReadBuf(txn.fs.Block2Addr(root))
+	nxtroot := machine.UInt64Get(buf.blk[boff : boff+8])
 	if nxtroot != 0 {
 		freeroot := ip.indshrink(txn, nxtroot, level-1, ind)
 		if freeroot != 0 {
-			machine.UInt64Put(blk[boff:boff+8], 0)
-			txn.WriteData(root, blk)
+			machine.UInt64Put(buf.blk[boff:boff+8], 0)
+			buf.Dirty()
 			txn.FreeBlock(freeroot)
 		}
 	}

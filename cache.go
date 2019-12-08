@@ -134,6 +134,10 @@ func (c *Cache) Pin(ids []uint64, nxttxn TxnNum) {
 	log.Printf("Pin till nxttxn %d %v\n", nxttxn, ids)
 	for _, id := range ids {
 		e := c.entries[id]
+		if e == nil {
+			log.Printf("Pin: not present %d\n", id)
+			panic("Pin")
+		}
 		e.pin = nxttxn
 	}
 	c.mu.Unlock()

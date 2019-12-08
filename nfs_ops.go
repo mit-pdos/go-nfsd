@@ -18,9 +18,11 @@ type Nfs struct {
 	ic       *Cache
 	fs       *FsSuper
 	bc       *Cache
-	alloc    *Alloc
-	commit   *Commit
-	nthread  int
+	balloc   *Alloc
+	ialloc   *Alloc
+
+	commit  *Commit
+	nthread int
 }
 
 // XXX call recovery, once nfs uses persistent storage
@@ -34,7 +36,8 @@ func MkNfs() *Nfs {
 	fs.initFs()
 	ic := mkCache(ICACHESZ)
 	bc := mkCache(BCACHESZ)
-	alloc := mkAlloc(fs)
+	balloc := mkAlloc(fs.bitmapBlockStart(), fs.NBlockBitmap)
+	ialloc := mkAlloc(fs.bitmapInodeStart(), fs.NInodeBitmap)
 	commit := mkCommit()
 	go l.Logger()
 	go Installer(fs, bc, l)
@@ -42,14 +45,15 @@ func MkNfs() *Nfs {
 	mu := new(sync.RWMutex)
 	cond := sync.NewCond(mu)
 
-	nfs := &Nfs{mu: mu, condShut: cond, log: l, ic: ic, bc: bc, fs: fs, alloc: alloc,
-		commit: commit}
+	nfs := &Nfs{mu: mu, condShut: cond, log: l, ic: ic, bc: bc, fs: fs,
+		balloc: balloc, ialloc: ialloc, commit: commit}
 	nfs.makeRootDir()
 	return nfs
 }
 
 func (nfs *Nfs) makeRootDir() {
 	txn := Begin(nfs)
+	log.Printf("make rootdir\n")
 	ip := getInodeInum(txn, ROOTINUM)
 	if ip == nil {
 		panic("makeRootDir")
