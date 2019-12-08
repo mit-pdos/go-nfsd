@@ -38,22 +38,40 @@ func mkAlloc(start uint64, len uint64) *Alloc {
 	return a
 }
 
+func findFreeBit(byteVal byte) (uint64, bool) {
+	var off uint64
+	var ok bool
+	for bit := byte(0); bit < 8; bit++ {
+		if byteVal&(byte(1)<<bit) == 0 {
+			off = uint64(bit)
+			ok = true
+			break
+		}
+		continue
+	}
+	return off, ok
+}
+
 // Find a free bit in blk and toggle it
 func findAndMark(blk disk.Block) (uint64, bool) {
+	var off uint64
+	var ok bool
 	for byte := uint64(0); byte < disk.BlockSize; byte++ {
 		byteVal := blk[byte]
 		if byteVal == 0xff {
 			continue
 		}
-		for bit := uint64(0); bit < 8; bit++ {
-			if byteVal&(1<<bit) == 0 {
-				off := 8*byte + bit
-				markBit(blk, off)
-				return off, true
-			}
+		bit, bitOk := findFreeBit(byteVal)
+		if bitOk {
+			off = 8*byte + bit
+			ok = true
+			markBit(blk, off)
+			break
 		}
+		// unreachable (since byte is not 0xff)
+		continue
 	}
-	return 0, false
+	return off, ok
 }
 
 // Free bit bn in blk
@@ -67,7 +85,7 @@ func freeBit(blk disk.Block, bn uint64) {
 func markBit(blk disk.Block, bn uint64) {
 	byte := bn / 8
 	bit := bn % 8
-	blk[byte] |= (1 << bit)
+	blk[byte] = blk[byte] | (1 << bit)
 }
 
 func (a *Alloc) markBlock(bn uint64) {
