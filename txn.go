@@ -211,27 +211,6 @@ func (txn *Txn) ReadBuf(addr Addr) *Buf {
 	return buf
 }
 
-// Release a not-used buffer during the transaction (e.g., during
-// scanning inode or bitmap blocks that don't have free inodes or
-// bits).
-func (txn *Txn) ReleaseBlock(addr uint64) {
-	bs, ok := txn.bufs[addr]
-	if !ok {
-		log.Printf("ReleaseBlock: not present")
-		return
-	}
-	if len(bs) > 0 {
-		panic("ReleaseBlock")
-	}
-	for _, b := range bs {
-		if b.dirty {
-			panic("ReleaseBlock")
-		}
-	}
-	txn.bc.freeSlot(addr)
-	delete(txn.bufs, addr)
-}
-
 func (txn *Txn) AllocBlock() uint64 {
 	blkno := txn.balloc.Alloc()
 	if blkno != 0 {

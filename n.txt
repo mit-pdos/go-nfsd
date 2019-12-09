@@ -3,8 +3,7 @@ can also simplify inode cache.
 
 Clean up tnx layer by enumerating the 3 logical operations that can
 happen: update a bit, update inode size object, update block.  Maybe a
-buf has offset, sz. Goal: factor out allocator and support several
-inodes per block.  Cache will be below logging layer.
+buf has offset, sz. Goal: factor out allocator.  Cache will be below logging layer.
 
 Change allocator to start threads in different parts of the allocator,
 so that they cannot set the same bit.  If cannot find one, start in a
