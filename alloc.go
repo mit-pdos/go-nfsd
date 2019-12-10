@@ -18,6 +18,8 @@ type Alloc struct {
 	bmapCommit []disk.Block
 	start      uint64
 	len        uint64
+	head       Addr
+	locked     *AddrMap
 }
 
 func mkAlloc(start uint64, len uint64) *Alloc {
@@ -28,12 +30,15 @@ func mkAlloc(start uint64, len uint64) *Alloc {
 		bmap[i] = disk.Read(blkno)
 		bmapCommit[i] = disk.Read(blkno)
 	}
+	head := mkAddr(start, 0, 1) // 1 byte
 	a := &Alloc{
 		lock:       new(sync.RWMutex),
 		bmap:       bmap,
 		bmapCommit: bmapCommit,
 		start:      start,
 		len:        len,
+		head:       head,
+		locked:     mkAddrMap(),
 	}
 	return a
 }
@@ -56,7 +61,8 @@ func findFreeBit(byteVal byte) (uint64, bool) {
 func findAndMark(blk disk.Block) (uint64, bool) {
 	var off uint64
 	var ok bool
-	for byte := uint64(0); byte < disk.BlockSize; byte++ {
+	l := uint64(len(blk))
+	for byte := uint64(0); byte < l; byte++ {
 		byteVal := blk[byte]
 		if byteVal == 0xff {
 			continue
@@ -81,6 +87,15 @@ func freeBit(blk disk.Block, bn uint64) {
 	blk[byte] = blk[byte] & ^(1 << bit)
 }
 
+// Free bit bn in buf
+func freeBit1(buf *Buf, bn uint64) {
+	if bn != buf.addr.off {
+		panic("freeBit1")
+	}
+	bit := bn % 8
+	buf.blk[0] = buf.blk[0] & ^(1 << bit)
+}
+
 // Alloc bit bn in blk
 func markBit(blk disk.Block, bn uint64) {
 	byte := bn / 8
@@ -93,7 +108,75 @@ func (a *Alloc) markBlock(bn uint64) {
 	if i >= a.len {
 		panic("freeBlock")
 	}
+}
 
+// Assume caller holds allocator lock
+func (a *Alloc) FindRegion(txn *Txn) *Buf {
+	var buf *Buf
+	var addr Addr
+	addr = a.head
+	head := a.head
+	for {
+		buf = txn.ReadBuf(addr)
+		a.head.Inc(a.start, a.len)
+		if buf.blk[0] != byte(0xFF) {
+			break
+		}
+		txn.RemBuf(buf)
+		buf = nil
+		addr = a.head
+		if addr == head {
+			break
+		}
+		continue
+	}
+	return buf
+}
+
+func (a *Alloc) LockFreeRegion(txn *Txn) *Buf {
+	var buf *Buf
+	a.lock.Lock()
+	for {
+		buf = a.FindRegion(txn)
+		if buf == nil {
+			break
+		}
+		b := a.locked.Lookup(buf.addr)
+		if b == nil { // not locked?
+			break
+		}
+		txn.RemBuf(buf) // XXX panics
+		continue
+	}
+	if buf != nil {
+		a.locked.Add(buf)
+	}
+	a.lock.Unlock()
+	log.Printf("LockFreeRegion: %v\n", buf)
+	return buf
+}
+
+func (a *Alloc) LockRegion(txn *Txn, n uint64) *Buf {
+	a.lock.Lock()
+	i := n / NBITBLOCK
+	byte := (n % NBITBLOCK) / 8
+	addr := mkAddr(a.start+i, byte, 1)
+	b := a.locked.Lookup(addr)
+	if b != nil {
+		panic("AllocRegion")
+	}
+	buf := txn.ReadBuf(addr)
+	log.Printf("LockRegion: %v\n", buf)
+	a.locked.Add(buf)
+	a.lock.Unlock()
+	return buf
+}
+
+func (a *Alloc) UnlockRegion(buf *Buf) {
+	a.lock.Lock()
+	log.Printf("UnlockRegion: %v\n", buf)
+	a.locked.Del(buf)
+	a.lock.Unlock()
 }
 
 // Zero indicates failure
@@ -113,6 +196,17 @@ func (a *Alloc) Alloc() uint64 {
 	return bit
 }
 
+func (a *Alloc) Alloc1(buf *Buf) uint64 {
+	var n uint64 = 0
+
+	b, found := findAndMark(buf.blk)
+	if !found {
+		return n
+	}
+	n = (buf.addr.blkno-a.start)*NBITBLOCK + buf.addr.off*8 + b
+	return n
+}
+
 func (a *Alloc) Free(n uint64) {
 	a.lock.Lock()
 	i := n / NBITBLOCK
@@ -121,6 +215,25 @@ func (a *Alloc) Free(n uint64) {
 	}
 	freeBit(a.bmap[i], n%NBITBLOCK)
 	a.lock.Unlock()
+}
+
+func (a *Alloc) Free1(buf *Buf, n uint64) {
+	i := n / NBITBLOCK
+	log.Printf("Free1 buf %v %d %d\n", buf, n, i)
+	if i >= a.len {
+		panic("freeBlock")
+	}
+	if buf.addr.blkno != a.start+i {
+		panic("freeBlock")
+	}
+	freeBit1(buf, (n%NBITBLOCK)/8)
+}
+
+func (a *Alloc) RegionAddr(n uint64) Addr {
+	i := n / NBITBLOCK
+	byte := (n % NBITBLOCK) / 8
+	addr := mkAddr(a.start+i, byte, 1)
+	return addr
 }
 
 func (a *Alloc) CommitBmap(alloc []uint64, free []uint64) []*Buf {

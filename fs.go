@@ -101,10 +101,10 @@ func (fs *FsSuper) markAlloc(n uint64, m uint64) {
 
 	blk1 := make(disk.Block, disk.BlockSize)
 	blkno := m/NBITBLOCK + fs.bitmapBlockStart()
-	for bn := m % disk.BlockSize; bn < disk.BlockSize; bn++ {
+	for bn := m % disk.BlockSize; bn < NBITBLOCK; bn++ {
 		byte := bn / 8
 		bit := bn % 8
-		blk[byte] |= 1 << bit
+		blk1[byte] |= 1 << bit
 	}
 	disk.Write(blkno, blk1)
 
