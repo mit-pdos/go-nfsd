@@ -326,7 +326,7 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 
 	if level == 0 { // leaf?
 		if root != 0 && grow { // old leaf?
-			zeroBlock(txn, blkno)
+			ZeroBlock(txn, blkno)
 		}
 		return blkno, newroot
 	}
@@ -339,10 +339,10 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 	// log.Printf("indbmap: root %d off %d o %d\n", root, off, o)
 	if root != 0 && off == 0 && grow { // old root from previous file?
 		log.Printf("zero: blkno %d\n", blkno)
-		zeroBlock(txn, blkno)
+		ZeroBlock(txn, blkno)
 	}
 
-	buf := txn.ReadBuf(txn.fs.Block2Addr(blkno))
+	buf := ReadBlock(txn, blkno)
 	nxtroot := machine.UInt64Get(buf.blk[bo : bo+8])
 	b, newroot1 := ip.indbmap(txn, nxtroot, level-1, ind, grow)
 	if newroot1 != 0 {
@@ -376,7 +376,7 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 	grow := bn > sz
 	if bn < NDIRECT {
 		if ip.blks[bn] != 0 && grow {
-			zeroBlock(txn, ip.blks[bn])
+			ZeroBlock(txn, ip.blks[bn])
 		}
 		if ip.blks[bn] == 0 {
 			blkno := txn.AllocBlock()
@@ -432,7 +432,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 		if alloc { // fill in a hole
 			ip.writeInode(txn)
 		}
-		buf := txn.ReadBuf(txn.fs.Block2Addr(blkno))
+		buf := ReadBlock(txn, blkno)
 		// log.Printf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, buf.blk[0:32])
 		for b := uint64(0); b < nbytes; b++ {
 			data = append(data, buf.blk[byteoff+b])
@@ -465,7 +465,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		if new {
 			alloc = true
 		}
-		buf := txn.ReadBuf(txn.fs.Block2Addr(blkno))
+		buf := ReadBlock(txn, blkno)
 		byteoff := offset % disk.BlockSize
 		nbytes := disk.BlockSize - byteoff
 		if n < nbytes {
@@ -504,7 +504,7 @@ func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint6
 	off := (bn / divisor)
 	ind := bn % divisor
 	boff := off * 8
-	buf := txn.ReadBuf(txn.fs.Block2Addr(root))
+	buf := ReadBlock(txn, root)
 	nxtroot := machine.UInt64Get(buf.blk[boff : boff+8])
 	if nxtroot != 0 {
 		freeroot := ip.indshrink(txn, nxtroot, level-1, ind)

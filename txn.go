@@ -40,7 +40,7 @@ type Txn struct {
 }
 
 func (txn *Txn) installCache(buf *Buf, n uint64) {
-	blk := buf.txn.readBlock(buf.addr.blkno)
+	blk := buf.txn.ReadBlockCache(buf.addr.blkno)
 	buf.install(blk)
 	txn.bc.Pin([]uint64{buf.addr.blkno}, n)
 	buf.txn.releaseBlock(buf.addr.blkno)
@@ -63,12 +63,13 @@ func Begin(nfs *Nfs) *Txn {
 }
 
 func (txn *Txn) readBufCore(addr Addr) *Buf {
-	blk := txn.readBlock(addr.blkno)
+	blk := txn.ReadBlockCache(addr.blkno)
 
 	// make a private copy of the data in the cache
 	data := make([]byte, addr.sz)
 	copy(data, blk[addr.off:addr.off+addr.sz])
 	buf := mkBuf(addr, data, txn)
+	log.Printf("readBufCore add %v\n", buf)
 	txn.amap.Add(buf)
 
 	txn.releaseBlock(addr.blkno)
@@ -130,7 +131,7 @@ func (txn *Txn) computeBlks() []*Buf {
 	for blkno, bs := range txn.amap.bufs {
 		var dirty bool = false
 		log.Printf("computeBlks %d %v\n", blkno, bs)
-		blk := txn.readBlock(blkno)
+		blk := txn.ReadBlockCache(blkno)
 		data := make([]byte, disk.BlockSize)
 		copy(data, blk)
 		txn.releaseBlock(blkno)
@@ -158,11 +159,12 @@ func (txn *Txn) releaseBufs() {
 				b.addr.blkno < txn.balloc.start+txn.balloc.len &&
 				b.addr.sz == 1 {
 				txn.balloc.UnlockRegion(txn, b)
-			}
-			if b.addr.blkno >= txn.ialloc.start &&
+			} else if b.addr.blkno >= txn.ialloc.start &&
 				b.addr.blkno < txn.ialloc.start+txn.ialloc.len &&
 				b.addr.sz == 1 {
 				txn.ialloc.UnlockRegion(txn, b)
+			} else if b.addr.sz == 4096 {
+				txn.locked.Del(b)
 			}
 		}
 	}

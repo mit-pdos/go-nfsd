@@ -7,9 +7,10 @@ import (
 	"sync"
 )
 
-// Allocator keeps bitmap block in memory.
+// Allocator uses a bit map to allocate and free numbers. Bit 0
+// corresponds to number 1, bit 1 to 1, and so on.
 type Alloc struct {
-	lock  *sync.RWMutex // protects head
+	lock  *sync.RWMutex // protects next
 	start uint64
 	len   uint64
 	next  uint64 // first number to try
