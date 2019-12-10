@@ -27,6 +27,12 @@ func mkBuf(addr Addr, blk disk.Block, txn *Txn) *Buf {
 	return b
 }
 
+func mkBufData(addr Addr, txn *Txn) *Buf {
+	data := make([]byte, addr.sz)
+	buf := mkBuf(addr, data, txn)
+	return buf
+}
+
 func (buf *Buf) lock() {
 	buf.slot.lock()
 }
@@ -36,7 +42,7 @@ func (buf *Buf) unlock() {
 }
 
 func (buf *Buf) String() string {
-	return fmt.Sprintf("%v %v", buf.addr, buf.dirty)
+	return fmt.Sprintf("%v %v %p", buf.addr, buf.dirty, buf.txn)
 }
 
 func (buf *Buf) install(blk disk.Block) bool {

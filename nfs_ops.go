@@ -15,7 +15,6 @@ type Nfs struct {
 	mu       *sync.RWMutex
 	condShut *sync.Cond
 	log      *Log
-	ic       *Cache
 	fs       *FsSuper
 	bc       *Cache
 	balloc   *Alloc
@@ -35,7 +34,6 @@ func MkNfs() *Nfs {
 		panic("mkLog failed")
 	}
 	fs.initFs()
-	ic := mkCache(ICACHESZ)
 	bc := mkCache(BCACHESZ)
 	balloc := mkAlloc(fs.bitmapBlockStart(), fs.NBlockBitmap)
 	ialloc := mkAlloc(fs.bitmapInodeStart(), fs.NInodeBitmap)
@@ -46,7 +44,7 @@ func MkNfs() *Nfs {
 	mu := new(sync.RWMutex)
 	cond := sync.NewCond(mu)
 
-	nfs := &Nfs{mu: mu, condShut: cond, log: l, ic: ic, bc: bc, fs: fs,
+	nfs := &Nfs{mu: mu, condShut: cond, log: l, bc: bc, fs: fs,
 		balloc: balloc, ialloc: ialloc, commit: commit, locked: mkAddrMap()}
 	nfs.makeRootDir()
 	return nfs
@@ -202,7 +200,7 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 				// Abort. Try to lock inodes in order
 				txn.Abort([]*Inode{dip})
 				parent := args.What.Dir.makeFh()
-				txn := Begin(nfs)
+				txn = Begin(nfs)
 				inodes = nfs.LookupOrdered(txn, args.What.Name,
 					parent, inum)
 				if inodes == nil {
@@ -211,12 +209,7 @@ func (nfs *Nfs) Lookup(args *LOOKUP3args, reply *LOOKUP3res) error {
 					ip = inodes[0]
 				}
 			} else {
-				ip = loadInode(txn, inum)
-				if ip == nil {
-					return errRet(txn, &reply.Status, NFS3ERR_IO,
-						[]*Inode{dip})
-				}
-				ip.lock()
+				ip = getInodeLocked(txn, inum)
 				inodes = []*Inode{ip, dip}
 			}
 		}
@@ -356,11 +349,7 @@ func (nfs *Nfs) MakeDir(args *MKDIR3args, reply *MKDIR3res) error {
 	if inum == NULLINUM {
 		return errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*Inode{dip})
 	}
-	ip := loadInode(txn, inum)
-	if ip == nil {
-		return errRet(txn, &reply.Status, NFS3ERR_IO, []*Inode{dip})
-	}
-	ip.lock()
+	ip := getInodeLocked(txn, inum)
 	ok := ip.initDir(txn, dip.inum)
 	if !ok {
 		log.Printf("mkdir failed\n")
@@ -418,12 +407,7 @@ func (nfs *Nfs) Remove(args *REMOVE3args, reply *REMOVE3res) error {
 			ip = inodes[0]
 			dip = inodes[1]
 		} else {
-			ip = loadInode(txn, inum)
-			if ip == nil {
-				return errRet(txn, &reply.Status, NFS3ERR_IO,
-					[]*Inode{dip})
-			}
-			ip.lock()
+			ip = getInodeLocked(txn, inum)
 			inodes = []*Inode{ip, dip}
 		}
 	}

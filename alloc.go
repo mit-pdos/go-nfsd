@@ -3,7 +3,6 @@ package goose_nfs
 import (
 	"github.com/tchajed/goose/machine/disk"
 
-	"log"
 	"sync"
 )
 
@@ -106,13 +105,13 @@ func (a *Alloc) FindFreeRegion(txn *Txn) *Buf {
 	start := num
 	for {
 		b := a.LockRegion(txn, num)
-		log.Printf("FindFreeRegion: try %d 0x%x\n", num, b.blk[0])
+		// log.Printf("FindFreeRegion: try %d 0x%x\n", num, b.blk[0])
 		if b.blk[0] != byte(0xFF) {
 			buf = b
 			break
 		}
 		a.UnlockRegion(txn, b)
-		txn.RemBuf(b)
+		txn.ReleaseBuf(b.addr)
 		num = a.IncNext()
 		if num == start {
 			panic("wrap around?")
@@ -135,8 +134,8 @@ func (a *Alloc) LockRegion(txn *Txn, n uint64) *Buf {
 }
 
 func (a *Alloc) UnlockRegion(txn *Txn, buf *Buf) {
-	log.Printf("UnlockRegion: %v\n", buf)
-	txn.locked.Del(buf)
+	// log.Printf("UnlockRegion: %v\n", buf)
+	txn.locked.Del(buf.addr)
 }
 
 func (a *Alloc) Alloc(buf *Buf) uint64 {

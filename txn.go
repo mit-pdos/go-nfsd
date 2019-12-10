@@ -53,7 +53,6 @@ func Begin(nfs *Nfs) *Txn {
 		bc:     nfs.bc,
 		amap:   mkAddrMap(),
 		fs:     nfs.fs,
-		ic:     nfs.ic,
 		balloc: nfs.balloc,
 		ialloc: nfs.ialloc,
 		commit: nfs.commit,
@@ -62,55 +61,38 @@ func Begin(nfs *Nfs) *Txn {
 	return txn
 }
 
-func (txn *Txn) readBufCore(addr Addr) *Buf {
-	blk := txn.ReadBlockCache(addr.blkno)
-
-	// make a private copy of the data in the cache
-	data := make([]byte, addr.sz)
-	copy(data, blk[addr.off:addr.off+addr.sz])
-	buf := mkBuf(addr, data, txn)
-	log.Printf("readBufCore add %v\n", buf)
-	txn.amap.Add(buf)
-
-	txn.releaseBlock(addr.blkno)
-	return buf
-}
-
-func (txn *Txn) ReadBuf(addr Addr) *Buf {
-	var buf *Buf
-	// log.Printf("ReadBuf %v\n", addr)
-	buf = txn.amap.Lookup(addr)
-	if buf != nil {
-		return buf
-	}
-	return txn.readBufCore(addr)
+func (txn *Txn) loadBuf(buf *Buf) {
+	blk := txn.ReadBlockCache(buf.addr.blkno)
+	copy(buf.blk, blk[buf.addr.off:buf.addr.off+buf.addr.sz])
+	txn.releaseBlock(buf.addr.blkno)
 }
 
 func (txn *Txn) ReadBufLocked(addr Addr) *Buf {
 	var buf *Buf
-
-	log.Printf("ReadBufLocked %v\n", addr)
-
-	// is addr already part of this transaction?
-	buf = txn.amap.Lookup(addr)
-	if buf != nil {
-		return buf
-	}
 	for {
-		b := txn.readBufCore(addr)
+		// is addr already part of this transaction?
+		buf = txn.amap.Lookup(addr)
+		if buf != nil {
+			break
+		}
+		b := mkBufData(addr, txn) // XXX maybe not every loop
 		ok := txn.locked.LookupAdd(addr, b)
 		if ok {
 			buf = b
-			// log.Printf("Locked %v\n", buf)
+			txn.loadBuf(buf)
+			txn.amap.Add(buf)
+			log.Printf("%p: Locked %v\n", txn, buf)
 			break
 		}
+		log.Printf("%p: ReadBufLocked: try again\n", txn)
 		continue
 	}
 	return buf
 }
 
-func (txn *Txn) RemBuf(buf *Buf) {
-	txn.amap.Del(buf)
+func (txn *Txn) ReleaseBuf(addr Addr) {
+	log.Printf("%p: Unlock %v\n", txn, addr)
+	txn.amap.Del(addr)
 }
 
 func (txn *Txn) putInodes(inodes []*Inode) {
@@ -154,7 +136,7 @@ func (txn *Txn) computeBlks() []*Buf {
 func (txn *Txn) releaseBufs() {
 	for _, bs := range txn.amap.bufs {
 		for _, b := range bs {
-			log.Printf("release %v\n", b)
+			log.Printf("%p: unlock %v\n", txn, b)
 			if b.addr.blkno >= txn.balloc.start &&
 				b.addr.blkno < txn.balloc.start+txn.balloc.len &&
 				b.addr.sz == 1 {
@@ -164,7 +146,9 @@ func (txn *Txn) releaseBufs() {
 				b.addr.sz == 1 {
 				txn.ialloc.UnlockRegion(txn, b)
 			} else if b.addr.sz == 4096 {
-				txn.locked.Del(b)
+				txn.locked.Del(b.addr)
+			} else if b.addr.sz == 64 {
+				txn.locked.Del(b.addr)
 			}
 		}
 	}
@@ -213,7 +197,8 @@ func (txn *Txn) doCommit(abort bool) (uint64, bool) {
 // buffers than fit in the log.
 func (txn *Txn) CommitWait(inodes []*Inode, wait bool, abort bool) bool {
 	var success bool = true
-	// may free an inode so must be done before Append
+
+	// may free an inode so must be done before commit
 	txn.putInodes(inodes)
 
 	n, ok := txn.doCommit(abort)
@@ -225,9 +210,6 @@ func (txn *Txn) CommitWait(inodes []*Inode, wait bool, abort bool) bool {
 			txn.log.LogAppendWait(n)
 		}
 	}
-
-	// unlock all inodes used in this transaction
-	unlockInodes(inodes)
 
 	return success
 }
@@ -257,7 +239,7 @@ func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
 // do log-by-pass writes.
 func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
 	txn.log.WaitFlushMemLog()
-	unlockInodes(inodes)
+	txn.releaseBufs()
 	return true
 }
 

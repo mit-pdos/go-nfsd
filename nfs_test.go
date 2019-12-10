@@ -79,8 +79,8 @@ func (ts *TestState) GetattrOp(fh Nfs_fh3) *GETATTR3res {
 func (ts *TestState) Getattr(fh Nfs_fh3, sz uint64) {
 	attr := ts.GetattrOp(fh)
 	assert.Equal(ts.t, NFS3_OK, attr.Status)
-	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3REG)
-	assert.Equal(ts.t, attr.Resok.Obj_attributes.Size, Size3(sz))
+	assert.Equal(ts.t, NF3REG, attr.Resok.Obj_attributes.Ftype)
+	assert.Equal(ts.t, Size3(sz), attr.Resok.Obj_attributes.Size)
 }
 
 func (ts *TestState) GetattrDir(fh Nfs_fh3) {

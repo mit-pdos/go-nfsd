@@ -128,8 +128,7 @@ func (dip *Inode) ls3(txn *Txn, start Cookie3, dircount Count3) Dirlistplus3 {
 		// XXX hack release inode and inode block
 		if ip != dip {
 			ip.put(txn)
-			ip.unlock()
-			// txn.releaseInodeBlock(ip.inum)
+			ip.ReleaseInode(txn)
 		}
 
 		e := &Entryplus3{Fileid: Fileid3(de.Inum),
