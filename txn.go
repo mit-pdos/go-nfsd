@@ -7,6 +7,7 @@ import (
 	"sync"
 )
 
+// The lock serializing transaction commit
 type Commit struct {
 	mu *sync.RWMutex
 }
@@ -32,18 +33,10 @@ type Txn struct {
 	bc     *Cache   // a block cache shared between transactions
 	amap   *AddrMap // the bufs that this transaction has exclusively
 	fs     *FsSuper
-	ic     *Cache
 	balloc *Alloc
 	ialloc *Alloc
 	commit *Commit
-	locked *AddrMap // map of bufs for on-disk objects
-}
-
-func (txn *Txn) installCache(buf *Buf, n uint64) {
-	blk := buf.txn.ReadBlockCache(buf.addr.blkno)
-	buf.install(blk)
-	txn.bc.Pin([]uint64{buf.addr.blkno}, n)
-	buf.txn.releaseBlock(buf.addr.blkno)
+	locked *AddrMap // map of locked addresses of disk objects
 }
 
 func Begin(nfs *Nfs) *Txn {
@@ -61,35 +54,51 @@ func Begin(nfs *Nfs) *Txn {
 	return txn
 }
 
-func (txn *Txn) loadBuf(buf *Buf) {
+func (txn *Txn) installCache(buf *Buf, n uint64) {
+	blk := buf.txn.ReadBlockCache(buf.addr.blkno)
+	buf.install(blk)
+	txn.bc.Pin([]uint64{buf.addr.blkno}, n)
+	buf.txn.releaseBlock(buf.addr.blkno)
+}
+
+func (txn *Txn) loadCache(buf *Buf) {
 	blk := txn.ReadBlockCache(buf.addr.blkno)
 	copy(buf.blk, blk[buf.addr.off:buf.addr.off+buf.addr.sz])
 	txn.releaseBlock(buf.addr.blkno)
 }
 
-func (txn *Txn) ReadBufLocked(addr Addr) *Buf {
+// ReadBufLocked acquires a lock on the address of a disk object by
+// inserting the address into a shared locked map.  If it successfully
+// acquires the lock, it reads a disk object from the shared block
+// cache into a private buffer.  The disk objects include individual
+// inodes, chunks of allocator bitmaps, and blocks.  Commit the
+// release locks after installing the modified disk objects into disk
+// cache.
+func (txn *Txn) ReadBufLocked(addr Addr, kind Kind) *Buf {
 	var buf *Buf
 	for {
-		// is addr already part of this transaction?
+		// is addr already locked for this transaction?
 		buf = txn.amap.Lookup(addr)
 		if buf != nil {
 			break
 		}
-		b := mkBufData(addr, txn) // XXX maybe not every loop
+		b := mkBufData(addr, kind, txn) // XXX do not create on each iteration
 		ok := txn.locked.LookupAdd(addr, b)
 		if ok {
 			buf = b
-			txn.loadBuf(buf)
+			txn.loadCache(buf)
 			txn.amap.Add(buf)
 			log.Printf("%p: Locked %v\n", txn, buf)
 			break
 		}
 		log.Printf("%p: ReadBufLocked: try again\n", txn)
+		// XXX condition variable?
 		continue
 	}
 	return buf
 }
 
+// Remove buffer from this transaction
 func (txn *Txn) ReleaseBuf(addr Addr) {
 	log.Printf("%p: Unlock %v\n", txn, addr)
 	txn.amap.Del(addr)
@@ -105,9 +114,9 @@ func (txn *Txn) numberDirty() uint64 {
 	return txn.amap.Dirty()
 }
 
-// Apply the update in buf to its corresponding block in the cache.
+// Compute the update in buf to its corresponding block in the cache.
 // The update in buf may only partially its block. Assume caller holds
-// cache lock
+// cache lock.
 func (txn *Txn) computeBlks() []*Buf {
 	bufs := make([]*Buf, 0)
 	for blkno, bs := range txn.amap.bufs {
@@ -124,7 +133,7 @@ func (txn *Txn) computeBlks() []*Buf {
 		}
 		if dirty {
 			// construct a buf that has all changes to blkno
-			buf := mkBuf(txn.fs.Block2Addr(blkno), data, txn)
+			buf := mkBuf(txn.fs.Block2Addr(blkno), 0, data, txn)
 			bufs = append(bufs, buf)
 			buf.Dirty()
 		}
@@ -132,31 +141,39 @@ func (txn *Txn) computeBlks() []*Buf {
 	return bufs
 }
 
-// XXX Needs fixing
+func (txn *Txn) unlockBuf(b *Buf) {
+	switch b.kind {
+	case BLOCK:
+		txn.locked.Del(b.addr)
+	case INODE:
+		txn.locked.Del(b.addr)
+	case IBMAP:
+		txn.ialloc.UnlockRegion(txn, b)
+	case BBMAP:
+		txn.balloc.UnlockRegion(txn, b)
+	}
+}
+
 func (txn *Txn) releaseBufs() {
 	for _, bs := range txn.amap.bufs {
 		for _, b := range bs {
 			log.Printf("%p: unlock %v\n", txn, b)
-			if b.addr.blkno >= txn.balloc.start &&
-				b.addr.blkno < txn.balloc.start+txn.balloc.len &&
-				b.addr.sz == 1 {
-				txn.balloc.UnlockRegion(txn, b)
-			} else if b.addr.blkno >= txn.ialloc.start &&
-				b.addr.blkno < txn.ialloc.start+txn.ialloc.len &&
-				b.addr.sz == 1 {
-				txn.ialloc.UnlockRegion(txn, b)
-			} else if b.addr.sz == 4096 {
-				txn.locked.Del(b.addr)
-			} else if b.addr.sz == 64 {
-				txn.locked.Del(b.addr)
-			}
+			txn.unlockBuf(b)
 		}
 	}
 }
 
+// doCommit grabs the commit log, appends to the in-memory log and
+// installs changes into the cache.  Then, releases commit log, and
+// locked disk objects. If it cannot commit because in-memory log is
+// full, it signals the logger and installer to log and and install
+// log entries, which frees up space in the in-memory log.
 func (txn *Txn) doCommit(abort bool) (uint64, bool) {
 	var n uint64 = 0
 	var ok bool = false
+
+	// XXX check bufs fit and fail early; deleted this code accidently?
+
 	for !ok {
 		// the following steps must be committed atomically,
 		// so we hold the commit lock
@@ -188,30 +205,22 @@ func (txn *Txn) doCommit(abort bool) (uint64, bool) {
 		}
 	}
 	return n, true
-
 }
 
-// Commit blocks of the transaction into the log. Pin the blocks in
-// the cache until installer has installed all the blocks in the log
-// of this transaction.  Returns falls if trying to commit more
-// buffers than fit in the log.
+// Commit blocks of the transaction into the log, and perhaps wait.
 func (txn *Txn) CommitWait(inodes []*Inode, wait bool, abort bool) bool {
-	var success bool = true
-
 	// may free an inode so must be done before commit
 	txn.putInodes(inodes)
 
 	n, ok := txn.doCommit(abort)
 	if !ok {
 		log.Printf("memappend failed\n")
-		success = false
 	} else {
 		if wait {
 			txn.log.LogAppendWait(n)
 		}
 	}
-
-	return success
+	return ok
 }
 
 // Append to in-memory log and wait until logger has logged this

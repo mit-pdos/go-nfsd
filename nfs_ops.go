@@ -29,23 +29,29 @@ type Nfs struct {
 func MkNfs() *Nfs {
 	fs := mkFsSuper() // run first so that disk is initialized before mkLog
 	log.Printf("Super: %v\n", fs)
+
 	l := mkLog()
 	if l == nil {
 		panic("mkLog failed")
 	}
+
 	fs.initFs()
 	bc := mkCache(BCACHESZ)
-	balloc := mkAlloc(fs.bitmapBlockStart(), fs.NBlockBitmap)
-	ialloc := mkAlloc(fs.bitmapInodeStart(), fs.NInodeBitmap)
-	commit := mkCommit()
+
 	go l.Logger()
 	go Installer(fs, bc, l)
 
 	mu := new(sync.RWMutex)
-	cond := sync.NewCond(mu)
-
-	nfs := &Nfs{mu: mu, condShut: cond, log: l, bc: bc, fs: fs,
-		balloc: balloc, ialloc: ialloc, commit: commit, locked: mkAddrMap()}
+	nfs := &Nfs{
+		mu:       mu,
+		condShut: sync.NewCond(mu),
+		log:      l,
+		bc:       bc,
+		fs:       fs,
+		balloc:   mkAlloc(fs.bitmapBlockStart(), fs.NBlockBitmap, BBMAP),
+		ialloc:   mkAlloc(fs.bitmapInodeStart(), fs.NInodeBitmap, IBMAP),
+		commit:   mkCommit(),
+		locked:   mkAddrMap()}
 	nfs.makeRootDir()
 	return nfs
 }

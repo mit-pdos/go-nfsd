@@ -13,14 +13,16 @@ type Alloc struct {
 	start uint64
 	len   uint64
 	next  uint64 // first number to try
+	kind  Kind
 }
 
-func mkAlloc(start uint64, len uint64) *Alloc {
+func mkAlloc(start uint64, len uint64, kind Kind) *Alloc {
 	a := &Alloc{
 		lock:  new(sync.RWMutex),
 		start: start,
 		len:   len,
 		next:  0,
+		kind:  kind,
 	}
 	return a
 }
@@ -128,7 +130,7 @@ func (a *Alloc) LockRegion(txn *Txn, n uint64) *Buf {
 	i := n / NBITBLOCK
 	byte := (n % NBITBLOCK) / 8
 	addr := mkAddr(a.start+i, byte, 1)
-	buf = txn.ReadBufLocked(addr)
+	buf = txn.ReadBufLocked(addr, a.kind)
 	// log.Printf("LockRegion: %v\n", buf)
 	return buf
 }

@@ -71,7 +71,7 @@ func (fs *FsSuper) initFs() {
 	nulli := mkNullInode()
 	naddr := fs.Inum2Addr(NULLINUM)
 	nullblk := make(disk.Block, INODESZ)
-	buf := mkBuf(naddr, nullblk, nil)
+	buf := mkBuf(naddr, 0, nullblk, nil)
 	nulli.encode(buf)
 	buf.WriteDirect()
 
@@ -79,7 +79,7 @@ func (fs *FsSuper) initFs() {
 	log.Printf("root %v\n", root)
 	raddr := fs.Inum2Addr(ROOTINUM)
 	rootblk := make(disk.Block, INODESZ)
-	rootbuf := mkBuf(raddr, rootblk, nil)
+	rootbuf := mkBuf(raddr, 0, rootblk, nil)
 	root.encode(rootbuf)
 	rootbuf.WriteDirect()
 

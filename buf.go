@@ -6,8 +6,19 @@ import (
 	"fmt"
 )
 
+type Kind uint64
+
+// Type of disk objects:
+const (
+	BLOCK Kind = 1
+	INODE Kind = 2
+	IBMAP Kind = 3
+	BBMAP Kind = 4
+)
+
 type Buf struct {
 	slot  *Cslot
+	kind  Kind
 	addr  Addr
 	blk   disk.Block
 	blkno uint64
@@ -15,10 +26,11 @@ type Buf struct {
 	txn   *Txn
 }
 
-func mkBuf(addr Addr, blk disk.Block, txn *Txn) *Buf {
+func mkBuf(addr Addr, kind Kind, blk disk.Block, txn *Txn) *Buf {
 	b := &Buf{
 		slot:  nil,
 		addr:  addr,
+		kind:  kind,
 		blk:   blk,
 		blkno: addr.blkno,
 		dirty: false,
@@ -27,9 +39,9 @@ func mkBuf(addr Addr, blk disk.Block, txn *Txn) *Buf {
 	return b
 }
 
-func mkBufData(addr Addr, txn *Txn) *Buf {
+func mkBufData(addr Addr, kind Kind, txn *Txn) *Buf {
 	data := make([]byte, addr.sz)
-	buf := mkBuf(addr, data, txn)
+	buf := mkBuf(addr, kind, data, txn)
 	return buf
 }
 

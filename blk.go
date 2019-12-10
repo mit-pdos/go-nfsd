@@ -18,7 +18,7 @@ func (txn *Txn) FreeBlock(blkno uint64) {
 func ReadBlock(txn *Txn, blkno uint64) *Buf {
 	// log.Printf("ReadBlock %d\n", blkno)
 	addr := txn.fs.Block2Addr(blkno)
-	return txn.ReadBufLocked(addr)
+	return txn.ReadBufLocked(addr, BLOCK)
 }
 
 func ZeroBlock(txn *Txn, blkno uint64) {

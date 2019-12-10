@@ -123,7 +123,7 @@ func MaxFileSize() uint64 {
 
 func getInodeLocked(txn *Txn, inum Inum) *Inode {
 	addr := txn.fs.Inum2Addr(inum)
-	buf := txn.ReadBufLocked(addr)
+	buf := txn.ReadBufLocked(addr, INODE)
 	log.Printf("getInodeLocked: buf %v\n", buf)
 	i := decode(buf, inum)
 	log.Printf("getInodeLocked %v\n", i)
@@ -181,7 +181,7 @@ func (ip *Inode) writeInode(txn *Txn) {
 	if ip.inum >= txn.fs.NInode() {
 		panic("writeInode")
 	}
-	buf := txn.ReadBufLocked(txn.fs.Inum2Addr(ip.inum))
+	buf := txn.ReadBufLocked(txn.fs.Inum2Addr(ip.inum), INODE)
 	log.Printf("writeInode %v\n", ip)
 	ip.encode(buf)
 	buf.Dirty()
