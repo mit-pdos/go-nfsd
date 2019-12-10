@@ -36,6 +36,7 @@ type Txn struct {
 	balloc *Alloc
 	ialloc *Alloc
 	commit *Commit
+	locked *AddrMap // map of bufs for on-disk objects
 }
 
 func (txn *Txn) installCache(buf *Buf, n uint64) {
@@ -56,8 +57,22 @@ func Begin(nfs *Nfs) *Txn {
 		balloc: nfs.balloc,
 		ialloc: nfs.ialloc,
 		commit: nfs.commit,
+		locked: nfs.locked,
 	}
 	return txn
+}
+
+func (txn *Txn) readBufCore(addr Addr) *Buf {
+	blk := txn.readBlock(addr.blkno)
+
+	// make a private copy of the data in the cache
+	data := make([]byte, addr.sz)
+	copy(data, blk[addr.off:addr.off+addr.sz])
+	buf := mkBuf(addr, data, txn)
+	txn.amap.Add(buf)
+
+	txn.releaseBlock(addr.blkno)
+	return buf
 }
 
 func (txn *Txn) ReadBuf(addr Addr) *Buf {
@@ -67,17 +82,29 @@ func (txn *Txn) ReadBuf(addr Addr) *Buf {
 	if buf != nil {
 		return buf
 	}
+	return txn.readBufCore(addr)
+}
 
-	blk := txn.readBlock(addr.blkno)
+func (txn *Txn) ReadBufLocked(addr Addr) *Buf {
+	var buf *Buf
 
-	// make a private copy of the data in the cache
-	data := make([]byte, addr.sz)
-	copy(data, blk[addr.off:addr.off+addr.sz])
-	buf = mkBuf(addr, data, txn)
-	txn.amap.Add(buf)
+	log.Printf("ReadBufLocked %v\n", addr)
 
-	txn.releaseBlock(addr.blkno)
-
+	// is addr already part of this transaction?
+	buf = txn.amap.Lookup(addr)
+	if buf != nil {
+		return buf
+	}
+	for {
+		b := txn.readBufCore(addr)
+		ok := txn.locked.LookupAdd(addr, b)
+		if ok {
+			buf = b
+			log.Printf("locked %v\n", buf)
+			break
+		}
+		continue
+	}
 	return buf
 }
 
@@ -130,12 +157,12 @@ func (txn *Txn) releaseBufs() {
 			if b.addr.blkno >= txn.balloc.start &&
 				b.addr.blkno < txn.balloc.start+txn.balloc.len &&
 				b.addr.sz == 1 {
-				txn.balloc.UnlockRegion(b)
+				txn.balloc.UnlockRegion(txn, b)
 			}
 			if b.addr.blkno >= txn.ialloc.start &&
 				b.addr.blkno < txn.ialloc.start+txn.ialloc.len &&
 				b.addr.sz == 1 {
-				txn.ialloc.UnlockRegion(b)
+				txn.ialloc.UnlockRegion(txn, b)
 			}
 		}
 	}

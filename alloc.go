@@ -9,23 +9,19 @@ import (
 
 // Allocator keeps bitmap block in memory.
 type Alloc struct {
-	lock  *sync.RWMutex
+	lock  *sync.RWMutex // protects head
 	start uint64
 	len   uint64
 	head  Addr
-	// the regions that are locked by transactions. XXX move to txn
-	// and use it for all on-disk objects
-	locked *AddrMap
 }
 
 func mkAlloc(start uint64, len uint64) *Alloc {
 	head := mkAddr(start, 0, 1) // 1 byte
 	a := &Alloc{
-		lock:   new(sync.RWMutex),
-		start:  start,
-		len:    len,
-		head:   head,
-		locked: mkAddrMap(),
+		lock:  new(sync.RWMutex),
+		start: start,
+		len:   len,
+		head:  head,
 	}
 	return a
 }
@@ -88,6 +84,7 @@ func markBit(blk disk.Block, bn uint64) {
 func (a *Alloc) FindRegion(txn *Txn) *Buf {
 	var buf *Buf
 	var addr Addr
+	a.lock.Lock()
 	addr = a.head
 	head := a.head
 	for {
@@ -104,6 +101,7 @@ func (a *Alloc) FindRegion(txn *Txn) *Buf {
 		}
 		continue
 	}
+	a.lock.Unlock()
 	return buf
 }
 
@@ -111,50 +109,36 @@ func (a *Alloc) FindRegion(txn *Txn) *Buf {
 // transaction and lock it.
 func (a *Alloc) LockFreeRegion(txn *Txn) *Buf {
 	var buf *Buf
-	a.lock.Lock()
 	for {
 		buf = a.FindRegion(txn)
 		if buf == nil {
 			break
 		}
-		b := a.locked.Lookup(buf.addr)
-		if b == nil { // not locked?
+		ok := txn.locked.LookupAdd(buf.addr, buf)
+		if ok { // not locked?
 			break
 		}
-		txn.RemBuf(buf) // XXX panics
+		txn.RemBuf(buf)
 		continue
 	}
-	if buf != nil {
-		a.locked.Add(buf)
-	}
-	a.lock.Unlock()
 	log.Printf("LockFreeRegion: %v\n", buf)
 	return buf
 }
 
 // Lock the region in the bitmap that contains n
 func (a *Alloc) LockRegion(txn *Txn, n uint64) *Buf {
-	a.lock.Lock()
+	var buf *Buf
 	i := n / NBITBLOCK
 	byte := (n % NBITBLOCK) / 8
 	addr := mkAddr(a.start+i, byte, 1)
-	b := a.locked.Lookup(addr)
-	if b != nil {
-		log.Printf("locked %v\n", b)
-		panic("AllocRegion")
-	}
-	buf := txn.ReadBuf(addr)
+	buf = txn.ReadBufLocked(addr)
 	log.Printf("LockRegion: %v\n", buf)
-	a.locked.Add(buf)
-	a.lock.Unlock()
 	return buf
 }
 
-func (a *Alloc) UnlockRegion(buf *Buf) {
-	a.lock.Lock()
+func (a *Alloc) UnlockRegion(txn *Txn, buf *Buf) {
 	log.Printf("UnlockRegion: %v\n", buf)
-	a.locked.Del(buf)
-	a.lock.Unlock()
+	txn.locked.Del(buf)
 }
 
 func (a *Alloc) Alloc(buf *Buf) uint64 {
@@ -226,12 +210,7 @@ func (a *Alloc) FreeNum(txn *Txn, num uint64) {
 	if num == 0 {
 		panic("FreeNum")
 	}
-	addr := a.RegionAddr(num)
-	var buf *Buf
-	buf = txn.amap.Lookup(addr)
-	if buf == nil {
-		buf = a.LockRegion(txn, num)
-	}
+	buf := a.LockRegion(txn, num)
 	a.Free(buf, num)
 	buf.Dirty()
 }

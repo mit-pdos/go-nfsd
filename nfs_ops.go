@@ -20,6 +20,7 @@ type Nfs struct {
 	bc       *Cache
 	balloc   *Alloc
 	ialloc   *Alloc
+	locked   *AddrMap
 
 	commit  *Commit
 	nthread int
@@ -46,7 +47,7 @@ func MkNfs() *Nfs {
 	cond := sync.NewCond(mu)
 
 	nfs := &Nfs{mu: mu, condShut: cond, log: l, ic: ic, bc: bc, fs: fs,
-		balloc: balloc, ialloc: ialloc, commit: commit}
+		balloc: balloc, ialloc: ialloc, commit: commit, locked: mkAddrMap()}
 	nfs.makeRootDir()
 	return nfs
 }
