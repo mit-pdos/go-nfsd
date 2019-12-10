@@ -96,7 +96,7 @@ func (l *Log) writeHdr(head uint64, tail uint64, dsktxnnxt TxnNum, bufs []Buf) {
 		panic("writeHdr")
 	}
 	for i := tail; i < head; i++ {
-		addrs[l.index(i)] = bufs[l.index(i)].blkno
+		addrs[l.index(i)] = bufs[l.index(i)].addr.blkno
 	}
 	hdr := Hdr{Head: head, Tail: tail, LogTxnNxt: dsktxnnxt, Addrs: addrs}
 	blk := make(disk.Block, disk.BlockSize)
@@ -214,7 +214,7 @@ func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []Buf) {
 	for i := diskhead; i < memhead; i++ {
 		bindex := i - diskhead
 		blk := bufs[bindex].blk
-		blkno := bufs[bindex].blkno
+		blkno := bufs[bindex].addr.blkno
 		log.Printf("logBlocks: %d to log block %d\n", blkno, l.index(i))
 		disk.Write(LOGSTART+l.index(i), blk)
 	}

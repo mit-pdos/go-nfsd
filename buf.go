@@ -17,22 +17,18 @@ const (
 )
 
 type Buf struct {
-	slot  *Cslot
 	kind  Kind
 	addr  Addr
 	blk   disk.Block
-	blkno uint64
 	dirty bool // has this block been written to?
 	txn   *Txn
 }
 
 func mkBuf(addr Addr, kind Kind, blk disk.Block, txn *Txn) *Buf {
 	b := &Buf{
-		slot:  nil,
 		addr:  addr,
 		kind:  kind,
 		blk:   blk,
-		blkno: addr.blkno,
 		dirty: false,
 		txn:   txn,
 	}
@@ -43,14 +39,6 @@ func mkBufData(addr Addr, kind Kind, txn *Txn) *Buf {
 	data := make([]byte, addr.sz)
 	buf := mkBuf(addr, kind, data, txn)
 	return buf
-}
-
-func (buf *Buf) lock() {
-	buf.slot.lock()
-}
-
-func (buf *Buf) unlock() {
-	buf.slot.unlock()
 }
 
 func (buf *Buf) String() string {
