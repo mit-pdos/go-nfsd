@@ -79,49 +79,34 @@ func markBit(blk disk.Block, bn uint64) {
 	blk[byte] = blk[byte] | (1 << bit)
 }
 
-// Find a region in the bitmap with some free bits. Assume caller
-// holds allocator lock
-func (a *Alloc) FindRegion(txn *Txn) *Buf {
+func (a *Alloc) NextRegion() Addr {
+	a.lock.Lock()
+	addr := a.head
+	a.head.Inc(a.start, a.len)
+	a.lock.Unlock()
+	return addr
+}
+
+// Returns a locked region in the bitmap with some free bits.
+func (a *Alloc) FindFreeRegion(txn *Txn) *Buf {
 	var buf *Buf
 	var addr Addr
-	a.lock.Lock()
-	addr = a.head
-	head := a.head
+	head := addr
+	addr = a.NextRegion()
 	for {
-		buf = txn.ReadBuf(addr)
-		a.head.Inc(a.start, a.len)
-		if buf.blk[0] != byte(0xFF) {
+		b := txn.ReadBufLocked(addr)
+		if b.blk[0] != byte(0xFF) {
+			buf = b
 			break
 		}
-		txn.RemBuf(buf)
-		buf = nil
-		addr = a.head
+		a.UnlockRegion(txn, b)
+		txn.RemBuf(b)
 		if addr == head {
 			break
 		}
+		addr = a.NextRegion()
 		continue
 	}
-	a.lock.Unlock()
-	return buf
-}
-
-// Find a free region in the bitmap that is not locked by a
-// transaction and lock it.
-func (a *Alloc) LockFreeRegion(txn *Txn) *Buf {
-	var buf *Buf
-	for {
-		buf = a.FindRegion(txn)
-		if buf == nil {
-			break
-		}
-		ok := txn.locked.LookupAdd(buf.addr, buf)
-		if ok { // not locked?
-			break
-		}
-		txn.RemBuf(buf)
-		continue
-	}
-	log.Printf("LockFreeRegion: %v\n", buf)
 	return buf
 }
 
@@ -194,7 +179,7 @@ func (a *Alloc) AllocNum(txn *Txn) uint64 {
 
 	}
 	if n == 0 {
-		b := a.LockFreeRegion(txn)
+		b := a.FindFreeRegion(txn)
 		if b != nil {
 			n = a.Alloc(b)
 			if n == 0 {
