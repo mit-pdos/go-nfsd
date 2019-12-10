@@ -82,9 +82,9 @@ func (amap *AddrMap) LookupAdd(addr Addr, buf *Buf) bool {
 	amap.mu.Lock()
 	b := amap.LookupInternal(addr)
 	if b == nil {
-		log.Printf("lookupadd %v\n", buf)
 		amap.AddInternal(buf)
 	} else {
+		log.Printf("lookupadd %v\n", addr)
 		panic("lookupadd")
 	}
 	amap.mu.Unlock()
@@ -108,7 +108,6 @@ func (amap *AddrMap) Del(buf *Buf) {
 	var index int = -1
 
 	amap.mu.Lock()
-	log.Printf("del %v\n", buf)
 	blkno := buf.addr.blkno
 	bs, ok := amap.bufs[blkno]
 	if !ok {

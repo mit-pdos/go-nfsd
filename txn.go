@@ -100,7 +100,7 @@ func (txn *Txn) ReadBufLocked(addr Addr) *Buf {
 		ok := txn.locked.LookupAdd(addr, b)
 		if ok {
 			buf = b
-			log.Printf("locked %v\n", buf)
+			// log.Printf("Locked %v\n", buf)
 			break
 		}
 		continue
