@@ -27,17 +27,15 @@ func (c *Commit) unlock() {
 }
 
 type Txn struct {
-	nfs        *Nfs
-	log        *Log
-	bc         *Cache // a cache of Buf's shared between transactions
-	amap       *AddrMap
-	fs         *FsSuper
-	ic         *Cache
-	balloc     *Alloc
-	ialloc     *Alloc
-	commit     *Commit
-	newinodes  []Inum
-	freeinodes []Inum
+	nfs    *Nfs
+	log    *Log
+	bc     *Cache   // a block cache shared between transactions
+	amap   *AddrMap // the bufs that this transaction has exclusively
+	fs     *FsSuper
+	ic     *Cache
+	balloc *Alloc
+	ialloc *Alloc
+	commit *Commit
 }
 
 func (txn *Txn) installCache(buf *Buf, n uint64) {
@@ -49,17 +47,15 @@ func (txn *Txn) installCache(buf *Buf, n uint64) {
 
 func Begin(nfs *Nfs) *Txn {
 	txn := &Txn{
-		nfs:        nfs,
-		log:        nfs.log,
-		bc:         nfs.bc,
-		amap:       mkAddrMap(),
-		fs:         nfs.fs,
-		ic:         nfs.ic,
-		balloc:     nfs.balloc,
-		ialloc:     nfs.ialloc,
-		commit:     nfs.commit,
-		newinodes:  make([]Inum, 0),
-		freeinodes: make([]Inum, 0),
+		nfs:    nfs,
+		log:    nfs.log,
+		bc:     nfs.bc,
+		amap:   mkAddrMap(),
+		fs:     nfs.fs,
+		ic:     nfs.ic,
+		balloc: nfs.balloc,
+		ialloc: nfs.ialloc,
+		commit: nfs.commit,
 	}
 	return txn
 }
@@ -89,22 +85,6 @@ func (txn *Txn) RemBuf(buf *Buf) {
 	txn.amap.Del(buf)
 }
 
-func (txn *Txn) AllocInum() Inum {
-	inum := txn.ialloc.Alloc()
-	if inum != 0 {
-		txn.newinodes = append(txn.newinodes, inum)
-	}
-	log.Printf("alloc inode %v\n", inum)
-	return inum
-}
-
-func (txn *Txn) FreeInum(inum Inum) {
-	if inum == 0 {
-		panic("FreeInum")
-	}
-	txn.freeinodes = append(txn.freeinodes, inum)
-}
-
 func (txn *Txn) putInodes(inodes []*Inode) {
 	for _, ip := range inodes {
 		ip.put(txn)
@@ -115,7 +95,9 @@ func (txn *Txn) numberDirty() uint64 {
 	return txn.amap.Dirty()
 }
 
-// Assume caller holds cache lock
+// Apply the update in buf to its corresponding block in the cache.
+// The update in buf may only partially its block. Assume caller holds
+// cache lock
 func (txn *Txn) computeBlks() []*Buf {
 	bufs := make([]*Buf, 0)
 	for blkno, bs := range txn.amap.bufs {
@@ -140,6 +122,7 @@ func (txn *Txn) computeBlks() []*Buf {
 	return bufs
 }
 
+// XXX Needs fixing
 func (txn *Txn) releaseBufs() {
 	for _, bs := range txn.amap.bufs {
 		for _, b := range bs {
@@ -148,6 +131,11 @@ func (txn *Txn) releaseBufs() {
 				b.addr.blkno < txn.balloc.start+txn.balloc.len &&
 				b.addr.sz == 1 {
 				txn.balloc.UnlockRegion(b)
+			}
+			if b.addr.blkno >= txn.ialloc.start &&
+				b.addr.blkno < txn.ialloc.start+txn.ialloc.len &&
+				b.addr.sz == 1 {
+				txn.ialloc.UnlockRegion(b)
 			}
 		}
 	}
@@ -165,20 +153,9 @@ func (txn *Txn) doCommit(abort bool) (uint64, bool) {
 
 		log.Printf("doCommit: bufs %v\n", bufs)
 
-		// Compute changes to the bitmap blocks
-		var bs []*Buf = bufs
-		if abort {
-			txn.ialloc.AbortNums(txn.newinodes)
-		} else {
-			log.Printf("inodes %v %v\n", txn.newinodes, txn.freeinodes)
-			ibitbufs := txn.ialloc.CommitBmap(txn.newinodes, txn.freeinodes)
-			log.Printf("bitbufs imap: %v\n", ibitbufs)
-			bs = append(bs, ibitbufs...)
-		}
-
 		// Append to the in-memory log and install+pin bufs (except
 		// bitmaps) into cache
-		n, ok = txn.log.MemAppend(bs)
+		n, ok = txn.log.MemAppend(bufs)
 		if ok {
 			log.Printf("install buffers")
 			for _, b := range bufs {

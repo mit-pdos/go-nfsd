@@ -235,6 +235,24 @@ func (ip *Inode) writeInode(txn *Txn) {
 	buf.Dirty()
 }
 
+func (txn *Txn) AllocMyInum(blkno uint64) uint64 {
+	var n uint64 = 0
+	bs := txn.amap.LookupBufs(blkno)
+	for _, b := range bs {
+		n = txn.balloc.Alloc(b)
+		if n != 0 {
+			break
+		}
+	}
+	return n
+}
+
+func (txn *Txn) AllocInum() Inum {
+	n := txn.ialloc.AllocNum(txn)
+	log.Printf("alloc inode %v\n", n)
+	return n
+}
+
 func allocInode(txn *Txn, kind Ftype3) Inum {
 	inum := txn.AllocInum()
 	if inum != 0 {
@@ -258,7 +276,7 @@ func (ip *Inode) freeInode(txn *Txn) {
 	ip.kind = NF3FREE
 	ip.gen = ip.gen + 1
 	ip.writeInode(txn)
-	txn.FreeInum(ip.inum)
+	txn.ialloc.FreeNum(txn, ip.inum)
 }
 
 func freeInum(txn *Txn, inum Inum) {

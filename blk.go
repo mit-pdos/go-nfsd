@@ -49,55 +49,15 @@ func (txn *Txn) releaseBlock(blkno uint64) {
 	txn.bc.freeSlot(blkno)
 }
 
-func (txn *Txn) AllocMyBlock(blkno uint64) uint64 {
-	var n uint64 = 0
-	bs := txn.amap.LookupBufs(blkno)
-	for _, b := range bs {
-		n = txn.balloc.Alloc1(b)
-		if n != 0 {
-			break
-		}
-	}
-	return n
-}
-
 func (txn *Txn) AllocBlock() uint64 {
-	var n uint64 = 0
-	for i := txn.balloc.start; i < txn.balloc.start+txn.balloc.len; i++ {
-		n = txn.AllocMyBlock(i)
-		if n != 0 {
-			break
-		}
-
-	}
-	if n == 0 {
-		b := txn.balloc.LockFreeRegion(txn)
-		if b != nil {
-			n = txn.balloc.Alloc1(b)
-			if n == 0 {
-				panic("AllocBlock")
-			}
-			b.Dirty()
-		}
-	}
+	n := txn.balloc.AllocNum(txn)
 	log.Printf("alloc block %v\n", n)
 	return n
 }
 
-// XXX first check locally
 func (txn *Txn) FreeBlock(blkno uint64) {
 	log.Printf("free block %v\n", blkno)
-	if blkno == 0 {
-		panic("FreeBlock")
-	}
-	addr := txn.balloc.RegionAddr(blkno)
-	var buf *Buf
-	buf = txn.amap.Lookup(addr)
-	if buf == nil {
-		buf = txn.balloc.LockRegion(txn, blkno)
-	}
-	txn.balloc.Free1(buf, blkno)
-	buf.Dirty()
+	txn.balloc.FreeNum(txn, blkno)
 }
 
 func zeroBlock(txn *Txn, blkno uint64) {
