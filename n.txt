@@ -1,14 +1,8 @@
-Txn layer knows about inodes, no need to pass them on commit.  Perhaps
-can also simplify inode cache.
+Allocator: deadlock possible, because transaction hold long-term locks
+for chunks of bitmap
 
-Clean up tnx layer by enumerating the 3 logical operations that can
-happen: update a bit, update inode size object, update block.  Maybe a
-buf has offset, sz. Goal: factor out allocator.  Cache will be below logging layer.
-
-Change allocator to start threads in different parts of the allocator,
-so that they cannot set the same bit.  If cannot find one, start in a
-different place.  Goal: don't to allocator on commit lock.  Don't need
-two bitmaps.
+Txn layer knows about inodes, no need to pass them on commit. No need
+for iput()?
 
 Test for reallocating inode before shrunk
 
@@ -21,9 +15,8 @@ log absorption
 
 test out of fs space
 
-check that inodes are correctly written to disk on abort
-  nlink on failure to add to dir
-  example NOSPACE?
+check that inodes are not modified on disk on abort
+  e.g., nlink on failure to add to dir
 
 mtime
 
