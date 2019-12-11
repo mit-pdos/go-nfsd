@@ -1,31 +1,35 @@
 package goose_nfs
 
 import (
-	"github.com/zeldovich/go-rpcgen/xdr"
-
 	"log"
 )
 
-func (nfs *Nfs) NullMount(args *xdr.Void, reply *xdr.Void) error {
+func (nfs *Nfs) MOUNTPROC3_NULL() {
 	log.Printf("Null\n")
-	return nil
 }
 
-func (nfs *Nfs) Mount(args *Dirpath3, reply *Mountres3) error {
+func (nfs *Nfs) MOUNTPROC3_MNT(args Dirpath3) (reply Mountres3) {
 	log.Printf("Mount %v\n", args)
 	reply.Fhs_status = MNT3_OK
 	reply.Mountinfo.Fhandle = MkRootFh3().Data
-	return nil
+	return
 }
 
-func (nfs *Nfs) Dump(args *xdr.Void, reply *Mountopt3) error {
+func (nfs *Nfs) MOUNTPROC3_UMNT(args Dirpath3) {
+	log.Printf("Unmount %v\n", args)
+}
+
+func (nfs *Nfs) MOUNTPROC3_UMNTALL() {
+	log.Printf("Unmountall\n")
+}
+
+func (nfs *Nfs) MOUNTPROC3_DUMP() Mountopt3 {
 	log.Printf("Dump\n")
-	return nil
+	return Mountopt3{nil}
 }
 
-func (nfs *Nfs) Export(args *xdr.Void, reply *Exportsopt3) error {
+func (nfs *Nfs) MOUNTPROC3_EXPORT() Exportsopt3 {
 	res := Exports3{}
 	res.Ex_dir = "/"
-	reply.P = &res
-	return nil
+	return Exportsopt3{&res}
 }

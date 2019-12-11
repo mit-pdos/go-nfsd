@@ -11,45 +11,6 @@ type nfsWrapper struct {
 	nfs *goose_nfs.Nfs
 }
 
-func (w *nfsWrapper) nullmount(args *xdr.XdrState) (res xdr.Xdrable, err error) {
-	var in xdr.Void
-	in.Xdr(args)
-	err = args.Error()
-	if err != nil {
-		return
-	}
-
-	var out xdr.Void
-	err = w.nfs.NullMount(&in, &out)
-	return &out, err
-}
-
-func (w *nfsWrapper) mount(args *xdr.XdrState) (res xdr.Xdrable, err error) {
-	var in goose_nfs.Dirpath3
-	in.Xdr(args)
-	err = args.Error()
-	if err != nil {
-		return
-	}
-
-	var out goose_nfs.Mountres3
-	err = w.nfs.Mount(&in, &out)
-	return &out, err
-}
-
-func (w *nfsWrapper) export(args *xdr.XdrState) (res xdr.Xdrable, err error) {
-	var in xdr.Void
-	in.Xdr(args)
-	err = args.Error()
-	if err != nil {
-		return
-	}
-
-	var out goose_nfs.Exportsopt3
-	err = w.nfs.Export(&in, &out)
-	return &out, err
-}
-
 func (w *nfsWrapper) nullnfs(args *xdr.XdrState) (res xdr.Xdrable, err error) {
 	var in xdr.Void
 
@@ -251,14 +212,7 @@ func registerNFS(srv *rfc1057.Server, nfs *goose_nfs.Nfs) {
 
 	// MOUNT
 
-	srv.Register(goose_nfs.MOUNT_PROGRAM, goose_nfs.MOUNT_V3,
-		goose_nfs.MOUNTPROC3_NULL, w.nullmount)
-
-	srv.Register(goose_nfs.MOUNT_PROGRAM, goose_nfs.MOUNT_V3,
-		goose_nfs.MOUNTPROC3_MNT, w.mount)
-
-	srv.Register(goose_nfs.MOUNT_PROGRAM, goose_nfs.MOUNT_V3,
-		goose_nfs.MOUNTPROC3_EXPORT, w.export)
+	srv.RegisterMany(goose_nfs.MOUNT_PROGRAM_MOUNT_V3_regs(nfs))
 
 	// NFS
 
