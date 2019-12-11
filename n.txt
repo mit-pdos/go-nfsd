@@ -4,6 +4,8 @@ for chunks of bitmap
 Txn layer knows about inodes, no need to pass them on commit. No need
 for iput()?
 
+An icache, but simpler now
+
 Test for reallocating inode before shrunk
 
 directories ls: if lock ordering problem, return what we have read so far

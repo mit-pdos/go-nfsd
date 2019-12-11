@@ -50,7 +50,7 @@ func mkLog() *Log {
 		dskTxnNxt:   0,
 		shutdown:    false,
 	}
-	DPrintf("mkLog: size %d\n", l.logSz)
+	DPrintf(1, "mkLog: size %d\n", l.logSz)
 	l.writeHdr(0, 0, 0, l.memLog)
 	return l
 }
@@ -214,7 +214,7 @@ func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []Buf) {
 		bindex := i - diskhead
 		blk := bufs[bindex].blk
 		blkno := bufs[bindex].addr.blkno
-		DPrintf("logBlocks: %d to log block %d\n", blkno, l.index(i))
+		DPrintf(5, "logBlocks: %d to log block %d\n", blkno, l.index(i))
 		disk.Write(LOGSTART+l.index(i), blk)
 	}
 }
@@ -258,7 +258,7 @@ func (l *Log) installBlocks(addrs []uint64, blks []disk.Block) {
 	for i := uint64(0); i < n; i++ {
 		blkno := addrs[i]
 		blk := blks[i]
-		DPrintf("installBlocks: write log block %d to %d\n", i, blkno)
+		DPrintf(5, "installBlocks: write log block %d to %d\n", i, blkno)
 		disk.Write(blkno, blk)
 	}
 }

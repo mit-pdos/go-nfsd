@@ -123,9 +123,8 @@ func MaxFileSize() uint64 {
 func getInodeLocked(txn *Txn, inum Inum) *Inode {
 	addr := txn.fs.Inum2Addr(inum)
 	buf := txn.ReadBufLocked(addr, INODE)
-	DPrintf("getInodeLocked: buf %v\n", buf)
 	i := decode(buf, inum)
-	DPrintf("getInodeLocked %v\n", i)
+	DPrintf(5, "getInodeLocked %v\n", i)
 	return i
 }
 
@@ -140,7 +139,6 @@ func getInodeInum(txn *Txn, inum Inum) *Inode {
 		return nil
 	}
 	if ip.kind == NF3FREE {
-		DPrintf("inode is free\n")
 		ip.put(txn)
 		ip.ReleaseInode(txn)
 		return nil
@@ -151,11 +149,6 @@ func getInodeInum(txn *Txn, inum Inum) *Inode {
 	return ip
 }
 
-// Returns locked inode on success. This implicitly locks the inode
-// block too.  If we put several inodes in a single inode block then
-// we should lock the inode block explicitly (if the inode is already
-// in cache).  (Or maybe delete the inode lock and always lock the
-// block that contains the inode.)
 func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
 	ip := getInodeInum(txn, fh.ino)
@@ -163,7 +156,6 @@ func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 		return nil
 	}
 	if ip.gen != fh.gen {
-		DPrintf("non existent ip or wrong gen\n")
 		ip.put(txn)
 		ip.ReleaseInode(txn)
 		return nil
@@ -181,26 +173,14 @@ func (ip *Inode) writeInode(txn *Txn) {
 		panic("writeInode")
 	}
 	buf := txn.ReadBufLocked(txn.fs.Inum2Addr(ip.inum), INODE)
-	DPrintf("writeInode %v\n", ip)
+	DPrintf(5, "writeInode %v\n", ip)
 	ip.encode(buf)
 	buf.Dirty()
 }
 
-func (txn *Txn) AllocMyInum(blkno uint64) uint64 {
-	var n uint64 = 0
-	bs := txn.amap.LookupBufs(blkno)
-	for _, b := range bs {
-		n = txn.balloc.Alloc(b)
-		if n != 0 {
-			break
-		}
-	}
-	return n
-}
-
 func (txn *Txn) AllocInum() Inum {
 	n := txn.ialloc.AllocNum(txn)
-	DPrintf("alloc inode %v\n", n)
+	DPrintf(5, "alloc inode %v\n", n)
 	return n
 }
 
@@ -209,7 +189,7 @@ func allocInode(txn *Txn, kind Ftype3) Inum {
 	if inum != 0 {
 		ip := getInodeLocked(txn, inum)
 		if ip.kind == NF3FREE {
-			DPrintf("allocInode: allocate inode %d\n", inum)
+			DPrintf(5, "allocInode: allocate inode %d\n", inum)
 			ip.inum = inum
 			ip.kind = kind
 			ip.nlink = 1
@@ -238,11 +218,9 @@ func freeInum(txn *Txn, inum Inum) {
 	i.freeInode(txn)
 }
 
-// Done with ip and remove inode if nlink = 0. Must be run inside of a
-// transaction since it may modify inode, and assumes caller has lock
-// on inode.
+// Done with ip and remove inode if nlink = 0.
 func (ip *Inode) put(txn *Txn) {
-	DPrintf("put inode %d nlink %d\n", ip.inum, ip.nlink)
+	DPrintf(5, "put inode %d nlink %d\n", ip.inum, ip.nlink)
 	// shrinker may put an FREE inode
 	if ip.nlink == 0 && ip.kind != NF3FREE {
 		ip.resize(txn, 0)
@@ -280,9 +258,7 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 	bo := o * 8
 	ind := off % divisor
 
-	// DPrintf("indbmap: root %d off %d o %d\n", root, off, o)
 	if root != 0 && off == 0 && grow { // old root from previous file?
-		DPrintf("zero: blkno %d\n", blkno)
 		ZeroBlock(txn, blkno)
 	}
 
@@ -302,9 +278,9 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 // Lazily resize file. Bmap allocates/zeros blocks on demand.  Create
 // a new thread to free blocks in a separate transaction.
 func (ip *Inode) resize(txn *Txn, sz uint64) {
-	DPrintf("resize %v to sz %d\n", ip, sz)
+	DPrintf(5, "resize %v to sz %d\n", ip, sz)
 	if sz < ip.size {
-		DPrintf("start shrink thread\n")
+		DPrintf(1, "start shrink thread\n")
 		txn.nfs.nthread = txn.nfs.nthread + 1
 		go shrink(txn.nfs, ip.inum, ip.size)
 	}
@@ -355,7 +331,6 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 	var n uint64 = uint64(0)
 
-	// DPrintf("read %d %d ipsz %d\n", offset, count, ip.size)
 	if offset >= ip.size {
 		return nil, true
 	}
@@ -377,7 +352,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 			ip.writeInode(txn)
 		}
 		buf := ReadBlock(txn, blkno)
-		// DPrintf("read off %d blkno %d %d %v..\n", n, blkno, nbytes, buf.blk[0:32])
+
 		for b := uint64(0); b < nbytes; b++ {
 			data = append(data, buf.blk[byteoff+b])
 		}
@@ -394,8 +369,6 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	var ok bool = true
 	var alloc bool = false
 	n := count
-
-	DPrintf("write %d %d ipsz %d\n", offset, count, ip.size)
 
 	if offset+count > MaxFileSize() {
 		return 0, false
@@ -467,7 +440,7 @@ func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint6
 
 func shrink(nfs *Nfs, inum Inum, oldsz uint64) {
 	bn := roundupblk(oldsz)
-	DPrintf("Shrinker: shrink %d from bn %d\n", inum, bn)
+	DPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
 	for {
 		txn := Begin(nfs)
 		ip := getInodeInumFree(txn, inum)
@@ -482,7 +455,7 @@ func shrink(nfs *Nfs, inum Inum, oldsz uint64) {
 			break
 		}
 		cursz := roundupblk(ip.size)
-		DPrintf("shrink: bn %d cursz %d\n", bn, cursz)
+		DPrintf(5, "shrink: bn %d cursz %d\n", bn, cursz)
 		// 4: inode block, 2xbitmap block, indirect block, double indirect
 		for bn > cursz && txn.numberDirty()+4 < txn.log.logSz {
 			bn = bn - 1
@@ -516,7 +489,7 @@ func shrink(nfs *Nfs, inum Inum, oldsz uint64) {
 			break
 		}
 	}
-	DPrintf("Shrinker: done shrinking %d to bn %d\n", inum, bn)
+	DPrintf(1, "Shrinker: done shrinking %d to bn %d\n", inum, bn)
 	nfs.mu.Lock()
 	nfs.nthread = nfs.nthread - 1
 	nfs.mu.Unlock()

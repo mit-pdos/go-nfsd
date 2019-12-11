@@ -83,7 +83,7 @@ func (amap *AddrMap) LookupAdd(addr Addr, buf *Buf) bool {
 	if b == nil {
 		amap.AddInternal(buf)
 	} else {
-		DPrintf("lookupadd already locked %v %v\n", addr, b)
+		DPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
 	}
 	amap.mu.Unlock()
 	return b == nil
@@ -109,7 +109,6 @@ func (amap *AddrMap) Del(addr Addr) {
 	blkno := addr.blkno
 	bs, ok := amap.bufs[blkno]
 	if !ok {
-		DPrintf("Del %v\n", addr)
 		panic("Del")
 	}
 	for i, b := range bs {
@@ -118,7 +117,6 @@ func (amap *AddrMap) Del(addr Addr) {
 		}
 	}
 	if index == -1 {
-		DPrintf("Del index not found %v\n", addr)
 		panic("Del")
 	}
 	bufs := append(bs[0:index], bs[index+1:]...)
