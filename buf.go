@@ -45,35 +45,65 @@ func (buf *Buf) String() string {
 	return fmt.Sprintf("%v %v %p", buf.addr, buf.dirty, buf.txn)
 }
 
-func (buf *Buf) install(blk disk.Block) bool {
-	if buf.dirty {
-		byte := buf.addr.off / 8
-		if buf.addr.sz%8 == 0 {
-			sz := buf.addr.sz / 8
-			for i := byte; i < byte+sz; i++ {
-				blk[i] = buf.blk[i-byte]
-			}
-		} else {
-			bit := buf.addr.off % 8
-			valbuf := buf.blk[0]
-			valblk := blk[byte]
-			//DPrintf(20, "valbuf 0x%x valblk 0x%x %d sz %d\n", valbuf,
-			//	valblk, bit, buf.addr.sz)
-			for i := bit; i < bit+buf.addr.sz; i++ {
-				if valbuf&(1<<i) == valblk&(1<<i) {
-					continue
-				}
-				if valbuf&(1<<i) == 0 {
-					// valblk is 1, but should be 0
-					valblk = valblk & ^(1 << bit)
-				} else {
-					// valblk is 0, but should be 1
-					valblk = valblk | (1 << bit)
-				}
-			}
-			blk[byte] = valblk
-			DPrintf(0, "res 0x%x\n", valblk)
+func installBits(src byte, dst byte, bit uint64, nbit uint64) byte {
+	DPrintf(20, "installBits: src 0x%x dst 0x%x %d sz %d\n", src, dst, bit, nbit)
+	var new byte = dst
+	for i := bit; i < bit+nbit; i++ {
+		if src&(1<<i) == dst&(1<<i) {
+			continue
 		}
+		if src&(1<<i) == 0 {
+			// dst is 1, but should be 0
+			new = new & ^(1 << bit)
+		} else {
+			// dst is 0, but should be 1
+			new = new | (1 << bit)
+		}
+	}
+	DPrintf(20, "installBits -> 0x%x\n", new)
+	return new
+}
+
+// copy nbits from src to dst, at dstoff in destination. dstoff is in bits.
+func copyBits(src []byte, dst []byte, dstoff uint64, nbit uint64) {
+	var n uint64 = nbit
+	var off uint64 = 0
+	var dstbyte uint64 = dstoff / 8
+
+	// copy few last bits in first byte, if not byte aligned
+	if dstoff%8 != 0 {
+		bit := dstoff % 8
+		nbit := Min(8-bit, n)
+		srcbyte := src[0]
+		dstbyte := dst[dstbyte]
+		dst[dstbyte] = installBits(srcbyte, dstbyte, bit, nbit)
+		off += 8
+		dstbyte += 1
+		n -= nbit
+	}
+
+	// copy bytes
+	sz := n / 8
+	for i := off; i < off+sz; i++ {
+		dst[i+dstbyte] = src[i]
+	}
+	n -= sz * 8
+	off += sz * 8
+
+	// copy remaining bits
+	if n > 0 {
+		lastbyte := off / 8
+		srcbyte := src[lastbyte]
+		dstbyte := dst[lastbyte+dstbyte]
+		dst[lastbyte] = installBits(srcbyte, dstbyte, 0, n)
+	}
+
+}
+
+// Install the bits from buf into blk, if buf has been modified
+func (buf *Buf) Install(blk disk.Block) bool {
+	if buf.dirty {
+		copyBits(buf.blk, blk, buf.addr.off, buf.addr.sz)
 	}
 	return buf.dirty
 }
@@ -84,7 +114,7 @@ func (buf *Buf) WriteDirect() {
 		disk.Write(buf.addr.blkno, buf.blk)
 	} else {
 		blk := disk.Read(buf.addr.blkno)
-		buf.install(blk)
+		buf.Install(blk)
 		disk.Write(buf.addr.blkno, blk)
 	}
 }

@@ -55,7 +55,7 @@ func Begin(nfs *Nfs) *Txn {
 
 func (txn *Txn) installCache(buf *Buf, n uint64) {
 	blk := buf.txn.ReadBlockCache(buf.addr.blkno)
-	buf.install(blk)
+	buf.Install(blk)
 	txn.bc.Pin([]uint64{buf.addr.blkno}, n)
 	buf.txn.releaseBlock(buf.addr.blkno)
 }
@@ -130,7 +130,7 @@ func (txn *Txn) computeBlks() []*Buf {
 		copy(data, blk)
 		txn.releaseBlock(blkno)
 		for _, b := range bs {
-			if b.install(data) {
+			if b.Install(data) {
 				dirty = true
 			}
 		}

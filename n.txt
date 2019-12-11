@@ -1,6 +1,3 @@
-Allocator: deadlock possible, because transaction hold long-term locks
-for chunks of bitmap
-
 Txn layer knows about inodes, no need to pass them on commit. No need
 for iput()?
 

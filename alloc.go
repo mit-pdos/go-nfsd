@@ -113,9 +113,12 @@ func (a *Alloc) RegionAddr(n uint64, nbits uint64) Addr {
 }
 
 func (a *Alloc) AllocNum(txn *Txn) uint64 {
+	var num uint64 = 0
 	b := a.FindFreeRegion(txn)
-	b.Dirty()
-	num := (b.addr.blkno-a.start)*NBITBLOCK + b.addr.off
+	if b != nil {
+		b.Dirty()
+		num = (b.addr.blkno-a.start)*NBITBLOCK + b.addr.off
+	}
 	return num
 }
 

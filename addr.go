@@ -28,9 +28,6 @@ func (a *Addr) Inc(start uint64, len uint64) {
 }
 
 func mkAddr(blkno uint64, off uint64, sz uint64) Addr {
-	if sz%8 != 0 && (sz%8+sz) >= 8 { // don't span byte boundaries
-		panic("install")
-	}
 	return Addr{blkno: blkno, off: off, sz: sz}
 }
 
