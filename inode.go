@@ -100,10 +100,6 @@ func decode(buf *Buf, inum uint64) *Inode {
 	return ip
 }
 
-func roundupblk(n uint64) uint64 {
-	return (n + disk.BlockSize - 1) / disk.BlockSize
-}
-
 func pow(level uint64) uint64 {
 	if level == 0 {
 		return 1
@@ -293,7 +289,7 @@ func (ip *Inode) resize(txn *Txn, sz uint64) {
 // versions of this inode, but zero them.
 func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 	var alloc bool = false
-	sz := roundupblk(ip.size)
+	sz := RoundUp(ip.size, disk.BlockSize)
 	grow := bn > sz
 	if bn < NDIRECT {
 		if ip.blks[bn] != 0 && grow {
@@ -439,7 +435,7 @@ func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint6
 }
 
 func shrink(nfs *Nfs, inum Inum, oldsz uint64) {
-	bn := roundupblk(oldsz)
+	bn := RoundUp(oldsz, disk.BlockSize)
 	DPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
 	for {
 		txn := Begin(nfs)
@@ -454,7 +450,7 @@ func shrink(nfs *Nfs, inum Inum, oldsz uint64) {
 			}
 			break
 		}
-		cursz := roundupblk(ip.size)
+		cursz := RoundUp(ip.size, disk.BlockSize)
 		DPrintf(5, "shrink: bn %d cursz %d\n", bn, cursz)
 		// 4: inode block, 2xbitmap block, indirect block, double indirect
 		for bn > cursz && txn.numberDirty()+4 < txn.log.logSz {

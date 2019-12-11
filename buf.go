@@ -47,8 +47,32 @@ func (buf *Buf) String() string {
 
 func (buf *Buf) install(blk disk.Block) bool {
 	if buf.dirty {
-		for i := buf.addr.off; i < buf.addr.off+buf.addr.sz; i++ {
-			blk[i] = buf.blk[i-buf.addr.off]
+		byte := buf.addr.off / 8
+		if buf.addr.sz%8 == 0 {
+			sz := buf.addr.sz / 8
+			for i := byte; i < byte+sz; i++ {
+				blk[i] = buf.blk[i-byte]
+			}
+		} else {
+			bit := buf.addr.off % 8
+			valbuf := buf.blk[0]
+			valblk := blk[byte]
+			//DPrintf(20, "valbuf 0x%x valblk 0x%x %d sz %d\n", valbuf,
+			//	valblk, bit, buf.addr.sz)
+			for i := bit; i < bit+buf.addr.sz; i++ {
+				if valbuf&(1<<i) == valblk&(1<<i) {
+					continue
+				}
+				if valbuf&(1<<i) == 0 {
+					// valblk is 1, but should be 0
+					valblk = valblk & ^(1 << bit)
+				} else {
+					// valblk is 0, but should be 1
+					valblk = valblk | (1 << bit)
+				}
+			}
+			blk[byte] = valblk
+			DPrintf(0, "res 0x%x\n", valblk)
 		}
 	}
 	return buf.dirty

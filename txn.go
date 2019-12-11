@@ -62,7 +62,10 @@ func (txn *Txn) installCache(buf *Buf, n uint64) {
 
 func (txn *Txn) loadCache(buf *Buf) {
 	blk := txn.ReadBlockCache(buf.addr.blkno)
-	copy(buf.blk, blk[buf.addr.off:buf.addr.off+buf.addr.sz])
+	byte := buf.addr.off / 8
+	sz := RoundUp(buf.addr.sz, 8)
+	copy(buf.blk, blk[byte:byte+sz])
+	DPrintf(15, "addr %v read %v %v = 0x%x\n", buf.addr, byte, sz, blk[byte:byte+1])
 	txn.releaseBlock(buf.addr.blkno)
 }
 
@@ -94,13 +97,13 @@ func (txn *Txn) ReadBufLocked(addr Addr, kind Kind) *Buf {
 		txn.amap.Add(buf)
 
 	}
-	DPrintf(5, "%p: Locked %v\n", txn, buf)
+	DPrintf(10, "%p: Locked %v\n", txn, buf)
 	return buf
 }
 
 // Remove buffer from this transaction
 func (txn *Txn) ReleaseBuf(addr Addr) {
-	DPrintf(5, "%p: Unlock %v\n", txn, addr)
+	DPrintf(10, "%p: Unlock %v\n", txn, addr)
 	txn.amap.Del(addr)
 }
 

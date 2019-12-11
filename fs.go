@@ -49,7 +49,7 @@ func (fs *FsSuper) dataStart() uint64 {
 }
 
 func (fs *FsSuper) Block2Addr(blkno uint64) Addr {
-	return mkAddr(blkno, 0, disk.BlockSize)
+	return mkAddr(blkno, 0, NBITBLOCK)
 }
 
 func (fs *FsSuper) NInode() uint64 {
@@ -57,7 +57,7 @@ func (fs *FsSuper) NInode() uint64 {
 }
 
 func (fs *FsSuper) Inum2Addr(inum Inum) Addr {
-	return mkAddr(fs.inodeStart()+inum/INODEBLK, (inum%INODEBLK)*INODESZ, INODESZ)
+	return mkAddr(fs.inodeStart()+inum/INODEBLK, (inum%INODEBLK)*INODESZ*8, INODESZ*8)
 }
 
 //
