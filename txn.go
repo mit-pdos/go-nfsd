@@ -172,14 +172,15 @@ func (txn *Txn) doCommit(abort bool) (uint64, bool) {
 	var n uint64 = 0
 	var ok bool = false
 
-	// XXX check bufs fit and fail early; deleted this code accidently?
-
 	for !ok {
 		// the following steps must be committed atomically,
 		// so we hold the commit lock
 		txn.commit.lock()
 
 		bufs := txn.computeBlks()
+		if uint64(len(bufs)) >= txn.log.logSz {
+			break
+		}
 
 		log.Printf("doCommit: bufs %v\n", bufs)
 
@@ -209,6 +210,7 @@ func (txn *Txn) doCommit(abort bool) (uint64, bool) {
 
 // Commit blocks of the transaction into the log, and perhaps wait.
 func (txn *Txn) CommitWait(inodes []*Inode, wait bool, abort bool) bool {
+
 	// may free an inode so must be done before commit
 	txn.putInodes(inodes)
 
