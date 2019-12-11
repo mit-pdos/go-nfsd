@@ -349,7 +349,6 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 			return blkno, newroot != 0
 		}
 	}
-	return 0, false
 }
 
 // Returns number of bytes read and eof

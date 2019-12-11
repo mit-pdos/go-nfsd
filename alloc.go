@@ -117,7 +117,6 @@ func (a *Alloc) FindFreeRegion(txn *Txn) *Buf {
 		num = a.IncNext()
 		if num == start {
 			panic("wrap around?")
-			break
 		}
 		continue
 	}
