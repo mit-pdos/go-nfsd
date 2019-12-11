@@ -75,25 +75,26 @@ func (txn *Txn) loadCache(buf *Buf) {
 // cache.
 func (txn *Txn) ReadBufLocked(addr Addr, kind Kind) *Buf {
 	var buf *Buf
-	for {
-		// is addr already locked for this transaction?
-		buf = txn.amap.Lookup(addr)
-		if buf != nil {
-			break
+
+	// is addr already locked for this transaction?
+	buf = txn.amap.Lookup(addr)
+	if buf == nil {
+		b := mkBufData(addr, kind, txn)
+		for {
+			ok := txn.locked.LookupAdd(addr, b)
+			if ok {
+				buf = b
+				break
+			}
+			DPrintf(5, "%p: ReadBufLocked: try again\n", txn)
+			// XXX condition variable?
+			continue
 		}
-		b := mkBufData(addr, kind, txn) // XXX do not create on each iteration
-		ok := txn.locked.LookupAdd(addr, b)
-		if ok {
-			buf = b
-			txn.loadCache(buf)
-			txn.amap.Add(buf)
-			DPrintf(5, "%p: Locked %v\n", txn, buf)
-			break
-		}
-		DPrintf(5, "%p: ReadBufLocked: try again\n", txn)
-		// XXX condition variable?
-		continue
+		txn.loadCache(buf)
+		txn.amap.Add(buf)
+
 	}
+	DPrintf(5, "%p: Locked %v\n", txn, buf)
 	return buf
 }
 
