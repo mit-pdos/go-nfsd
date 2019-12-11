@@ -32,10 +32,8 @@ type TestState struct {
 func (ts *TestState) CreateFh(fh Nfs_fh3, name string) {
 	where := Diropargs3{Dir: fh, Name: Filename3(name)}
 	how := Createhow3{}
-	args := &CREATE3args{Where: where, How: how}
-	attr := &CREATE3res{}
-	res := ts.nfs.Create(args, attr)
-	assert.Nil(ts.t, res)
+	args := CREATE3args{Where: where, How: how}
+	attr := ts.nfs.NFSPROC3_CREATE(args)
 	assert.Equal(ts.t, NFS3_OK, attr.Status)
 }
 
@@ -45,11 +43,9 @@ func (ts *TestState) Create(name string) {
 
 func (ts *TestState) LookupOp(fh Nfs_fh3, name string) *LOOKUP3res {
 	what := Diropargs3{Dir: fh, Name: Filename3(name)}
-	args := &LOOKUP3args{What: what}
-	reply := &LOOKUP3res{}
-	res := ts.nfs.Lookup(args, reply)
-	assert.Nil(ts.t, res)
-	return reply
+	args := LOOKUP3args{What: what}
+	reply := ts.nfs.NFSPROC3_LOOKUP(args)
+	return &reply
 }
 
 func (ts *TestState) LookupFh(fh Nfs_fh3, name string) Nfs_fh3 {
@@ -69,11 +65,9 @@ func (ts *TestState) Lookup(name string, succeed bool) Nfs_fh3 {
 }
 
 func (ts *TestState) GetattrOp(fh Nfs_fh3) *GETATTR3res {
-	args := &GETATTR3args{Object: fh}
-	attr := &GETATTR3res{}
-	res := ts.nfs.GetAttr(args, attr)
-	assert.Nil(ts.t, res)
-	return attr
+	args := GETATTR3args{Object: fh}
+	attr := ts.nfs.NFSPROC3_GETATTR(args)
+	return &attr
 }
 
 func (ts *TestState) Getattr(fh Nfs_fh3, sz uint64) {
@@ -97,24 +91,20 @@ func (ts *TestState) GetattrFail(fh Nfs_fh3) {
 func (ts *TestState) Setattr(fh Nfs_fh3, sz uint64) {
 	size := Set_size3{Set_it: true, Size: Size3(sz)}
 	attr := Sattr3{Size: size}
-	args := &SETATTR3args{Object: fh, New_attributes: attr}
-	reply := &SETATTR3res{}
-	res := ts.nfs.SetAttr(args, reply)
-	assert.Nil(ts.t, res)
+	args := SETATTR3args{Object: fh, New_attributes: attr}
+	reply := ts.nfs.NFSPROC3_SETATTR(args)
 	assert.Equal(ts.t, reply.Status, NFS3_OK)
 }
 
 func (ts *TestState) WriteOp(fh Nfs_fh3, off uint64, data []byte, how Stable_how) *WRITE3res {
-	args := &WRITE3args{
+	args := WRITE3args{
 		File:   fh,
 		Offset: Offset3(off),
 		Count:  Count3(len(data)),
 		Stable: how,
 		Data:   data}
-	reply := &WRITE3res{}
-	res := ts.nfs.Write(args, reply)
-	assert.Nil(ts.t, res)
-	return reply
+	reply := ts.nfs.NFSPROC3_WRITE(args)
+	return &reply
 }
 
 func (ts *TestState) WriteOff(fh Nfs_fh3, off uint64, data []byte, how Stable_how) {
@@ -133,13 +123,11 @@ func (ts *TestState) Write(fh Nfs_fh3, data []byte, how Stable_how) {
 }
 
 func (ts *TestState) Read(fh Nfs_fh3, off uint64, sz uint64) []byte {
-	args := &READ3args{
+	args := READ3args{
 		File:   fh,
 		Offset: Offset3(off),
 		Count:  Count3(sz)}
-	reply := &READ3res{}
-	res := ts.nfs.Read(args, reply)
-	assert.Nil(ts.t, res)
+	reply := ts.nfs.NFSPROC3_READ(args)
 	assert.Equal(ts.t, reply.Status, NFS3_OK)
 	assert.Equal(ts.t, reply.Resok.Count, Count3(sz))
 	return reply.Resok.Data
@@ -147,43 +135,35 @@ func (ts *TestState) Read(fh Nfs_fh3, off uint64, sz uint64) []byte {
 
 func (ts *TestState) Remove(name string) {
 	what := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
-	args := &REMOVE3args{
+	args := REMOVE3args{
 		Object: what,
 	}
-	reply := &REMOVE3res{}
-	res := ts.nfs.Remove(args, reply)
-	assert.Nil(ts.t, res)
+	reply := ts.nfs.NFSPROC3_REMOVE(args)
 	assert.Equal(ts.t, reply.Status, NFS3_OK)
 }
 
 func (ts *TestState) MkDir(name string) {
 	where := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
 	sattr := Sattr3{}
-	args := &MKDIR3args{Where: where, Attributes: sattr}
-	attr := &MKDIR3res{}
-	res := ts.nfs.MakeDir(args, attr)
-	assert.Nil(ts.t, res)
+	args := MKDIR3args{Where: where, Attributes: sattr}
+	attr := ts.nfs.NFSPROC3_MKDIR(args)
 	assert.Equal(ts.t, NFS3_OK, attr.Status)
 }
 
 func (ts *TestState) ReadDirPlus() Dirlistplus3 {
-	args := &READDIRPLUS3args{Dir: MkRootFh3(), Dircount: Count3(100), Maxcount: Count3(NDIRECT * disk.BlockSize)}
-	reply := &READDIRPLUS3res{}
-	res := ts.nfs.ReadDirPlus(args, reply)
-	assert.Nil(ts.t, res)
+	args := READDIRPLUS3args{Dir: MkRootFh3(), Dircount: Count3(100), Maxcount: Count3(NDIRECT * disk.BlockSize)}
+	reply := ts.nfs.NFSPROC3_READDIRPLUS(args)
 	assert.Equal(ts.t, reply.Status, NFS3_OK)
 	return reply.Resok.Reply
 }
 
 func (ts *TestState) CommitOp(fh Nfs_fh3, cnt uint64) *COMMIT3res {
-	args := &COMMIT3args{
+	args := COMMIT3args{
 		File:   fh,
 		Offset: Offset3(0),
 		Count:  Count3(cnt)}
-	reply := &COMMIT3res{}
-	res := ts.nfs.Commit(args, reply)
-	assert.Nil(ts.t, res)
-	return reply
+	reply := ts.nfs.NFSPROC3_COMMIT(args)
+	return &reply
 }
 
 func (ts *TestState) Commit(fh Nfs_fh3, cnt uint64) {
@@ -198,13 +178,11 @@ func (ts *TestState) CommitErr(fh Nfs_fh3, cnt uint64, err Nfsstat3) {
 
 func (ts *TestState) RenameOp(fhfrom Nfs_fh3, from string,
 	fhto Nfs_fh3, to string) Nfsstat3 {
-	args := &RENAME3args{
+	args := RENAME3args{
 		From: Diropargs3{Dir: fhfrom, Name: Filename3(from)},
 		To:   Diropargs3{Dir: fhto, Name: Filename3(to)},
 	}
-	reply := &RENAME3res{}
-	res := ts.nfs.Rename(args, reply)
-	assert.Nil(ts.t, res)
+	reply := ts.nfs.NFSPROC3_RENAME(args)
 	return reply.Status
 }
 

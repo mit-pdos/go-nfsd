@@ -69,7 +69,8 @@ func main() {
 	defer nfs.ShutdownNfs()
 
 	srv := rfc1057.MakeServer()
-	registerNFS(srv, nfs)
+	srv.RegisterMany(goose_nfs.MOUNT_PROGRAM_MOUNT_V3_regs(nfs))
+	srv.RegisterMany(goose_nfs.NFS_PROGRAM_NFS_V3_regs(nfs))
 
 	// srv.RegisterMany(goose_nfs.NFS_PROGRAM_NFS_V3_regs(nfs))
 
