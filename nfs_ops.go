@@ -7,7 +7,7 @@ import (
 	"github.com/zeldovich/go-rpcgen/xdr"
 )
 
-const ICACHESZ uint64 = 20
+const ICACHESZ uint64 = 20            // XXX resurrect icache
 const BCACHESZ uint64 = HDRADDRS + 10 // At least as big as log
 
 type Nfs struct {
@@ -519,7 +519,7 @@ func (nfs *Nfs) Rename(args *RENAME3args, reply *RENAME3res) error {
 
 		// does to exist?
 		if toinum != NULLINUM {
-			// must lock 4 inodes in order
+			// must lock 3 or 4 inodes in order
 			var to *Inode
 			var from *Inode
 			txn.Abort(inodes)

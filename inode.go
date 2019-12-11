@@ -149,11 +149,6 @@ func getInodeInum(txn *Txn, inum Inum) *Inode {
 	return ip
 }
 
-// Returns locked inode on success. This implicitly locks the inode
-// block too.  If we put several inodes in a single inode block then
-// we should lock the inode block explicitly (if the inode is already
-// in cache).  (Or maybe delete the inode lock and always lock the
-// block that contains the inode.)
 func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	fh := fh3.makeFh()
 	ip := getInodeInum(txn, fh.ino)
@@ -181,18 +176,6 @@ func (ip *Inode) writeInode(txn *Txn) {
 	DPrintf(5, "writeInode %v\n", ip)
 	ip.encode(buf)
 	buf.Dirty()
-}
-
-func (txn *Txn) AllocMyInum(blkno uint64) uint64 {
-	var n uint64 = 0
-	bs := txn.amap.LookupBufs(blkno)
-	for _, b := range bs {
-		n = txn.balloc.Alloc(b)
-		if n != 0 {
-			break
-		}
-	}
-	return n
 }
 
 func (txn *Txn) AllocInum() Inum {
@@ -235,9 +218,7 @@ func freeInum(txn *Txn, inum Inum) {
 	i.freeInode(txn)
 }
 
-// Done with ip and remove inode if nlink = 0. Must be run inside of a
-// transaction since it may modify inode, and assumes caller has lock
-// on inode.
+// Done with ip and remove inode if nlink = 0.
 func (ip *Inode) put(txn *Txn) {
 	DPrintf(5, "put inode %d nlink %d\n", ip.inum, ip.nlink)
 	// shrinker may put an FREE inode
