@@ -2,8 +2,6 @@ package goose_nfs
 
 import (
 	"github.com/tchajed/goose/machine/disk"
-
-	"log"
 )
 
 // Returns a block
@@ -30,7 +28,7 @@ func (txn *Txn) ReadBlockCache(addr uint64) disk.Block {
 	var slot *Cslot
 	slot = txn.bc.lookupSlot(addr)
 	for slot == nil {
-		log.Printf("ReadBlock: miss on %d WaitFlushMemLog and signal installer\n",
+		DPrintf("ReadBlock: miss on %d WaitFlushMemLog and signal installer\n",
 			addr)
 		txn.log.WaitFlushMemLog()
 		txn.log.SignalInstaller()

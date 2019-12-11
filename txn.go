@@ -3,7 +3,6 @@ package goose_nfs
 import (
 	"github.com/tchajed/goose/machine/disk"
 
-	"log"
 	"sync"
 )
 
@@ -88,10 +87,10 @@ func (txn *Txn) ReadBufLocked(addr Addr, kind Kind) *Buf {
 			buf = b
 			txn.loadCache(buf)
 			txn.amap.Add(buf)
-			log.Printf("%p: Locked %v\n", txn, buf)
+			DPrintf("%p: Locked %v\n", txn, buf)
 			break
 		}
-		log.Printf("%p: ReadBufLocked: try again\n", txn)
+		DPrintf("%p: ReadBufLocked: try again\n", txn)
 		// XXX condition variable?
 		continue
 	}
@@ -100,7 +99,7 @@ func (txn *Txn) ReadBufLocked(addr Addr, kind Kind) *Buf {
 
 // Remove buffer from this transaction
 func (txn *Txn) ReleaseBuf(addr Addr) {
-	log.Printf("%p: Unlock %v\n", txn, addr)
+	DPrintf("%p: Unlock %v\n", txn, addr)
 	txn.amap.Del(addr)
 }
 
@@ -121,7 +120,7 @@ func (txn *Txn) computeBlks() []*Buf {
 	bufs := make([]*Buf, 0)
 	for blkno, bs := range txn.amap.bufs {
 		var dirty bool = false
-		log.Printf("computeBlks %d %v\n", blkno, bs)
+		DPrintf("computeBlks %d %v\n", blkno, bs)
 		blk := txn.ReadBlockCache(blkno)
 		data := make([]byte, disk.BlockSize)
 		copy(data, blk)
@@ -157,7 +156,7 @@ func (txn *Txn) unlockBuf(b *Buf) {
 func (txn *Txn) releaseBufs() {
 	for _, bs := range txn.amap.bufs {
 		for _, b := range bs {
-			log.Printf("%p: unlock %v\n", txn, b)
+			DPrintf("%p: unlock %v\n", txn, b)
 			txn.unlockBuf(b)
 		}
 	}
@@ -182,13 +181,13 @@ func (txn *Txn) doCommit(abort bool) (uint64, bool) {
 			break
 		}
 
-		log.Printf("doCommit: bufs %v\n", bufs)
+		DPrintf("doCommit: bufs %v\n", bufs)
 
 		// Append to the in-memory log and install+pin bufs (except
 		// bitmaps) into cache
 		n, ok = txn.log.MemAppend(bufs)
 		if ok {
-			log.Printf("install buffers")
+			DPrintf("install buffers")
 			for _, b := range bufs {
 				txn.installCache(b, n+1)
 			}
@@ -200,7 +199,7 @@ func (txn *Txn) doCommit(abort bool) (uint64, bool) {
 			txn.releaseBufs()
 		}
 		if !ok {
-			log.Printf("doCommit: log is full; wait")
+			DPrintf("doCommit: log is full; wait")
 			txn.log.condLogger.Signal()
 			txn.log.condInstall.Signal()
 		}
@@ -216,7 +215,7 @@ func (txn *Txn) CommitWait(inodes []*Inode, wait bool, abort bool) bool {
 
 	n, ok := txn.doCommit(abort)
 	if !ok {
-		log.Printf("memappend failed\n")
+		DPrintf("memappend failed\n")
 	} else {
 		if wait {
 			txn.log.LogAppendWait(n)
@@ -239,7 +238,7 @@ func (txn *Txn) CommitData(inodes []*Inode, fh Fh) bool {
 // Append to in-memory log, but don't wait for the logger to complete
 // diskAppend.
 func (txn *Txn) CommitUnstable(inodes []*Inode, fh Fh) bool {
-	log.Printf("CommitUnstable\n")
+	DPrintf("CommitUnstable\n")
 	if len(inodes) > 1 {
 		panic("CommitUnstable")
 	}
@@ -255,7 +254,7 @@ func (txn *Txn) CommitFh(fh Fh, inodes []*Inode) bool {
 }
 
 func (txn *Txn) Abort(inodes []*Inode) bool {
-	log.Printf("abort\n")
+	DPrintf("abort\n")
 
 	// An an abort may free an inode, which results in dirty
 	// buffers that need to be written to log. So, call commit.
@@ -280,7 +279,7 @@ func Installer(fs *FsSuper, bc *Cache, l *Log) {
 			}
 		}
 		if len(blknos) > 0 {
-			log.Printf("Installed till txn %d\n", txn)
+			DPrintf("Installed till txn %d\n", txn)
 			bc.UnPin(bs, txn)
 		}
 		l.condInstall.Wait()

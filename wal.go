@@ -3,7 +3,6 @@ package goose_nfs
 import (
 	"github.com/tchajed/goose/machine/disk"
 
-	"log"
 	"sync"
 )
 
@@ -51,7 +50,7 @@ func mkLog() *Log {
 		dskTxnNxt:   0,
 		shutdown:    false,
 	}
-	log.Printf("mkLog: size %d\n", l.logSz)
+	DPrintf("mkLog: size %d\n", l.logSz)
 	l.writeHdr(0, 0, 0, l.memLog)
 	return l
 }
@@ -215,7 +214,7 @@ func (l *Log) logBlocks(memhead uint64, diskhead uint64, bufs []Buf) {
 		bindex := i - diskhead
 		blk := bufs[bindex].blk
 		blkno := bufs[bindex].addr.blkno
-		log.Printf("logBlocks: %d to log block %d\n", blkno, l.index(i))
+		DPrintf("logBlocks: %d to log block %d\n", blkno, l.index(i))
 		disk.Write(LOGSTART+l.index(i), blk)
 	}
 }
@@ -233,7 +232,7 @@ func (l *Log) logAppend() {
 	}
 	l.memLock.Unlock()
 
-	//log.Printf("logAppend memhead %d memtail %d diskhead %d disktail %d txnnxt %d\n", memhead, memtail, hdr.Head, hdr.Tail, txnnxt)
+	//DPrintf("logAppend memhead %d memtail %d diskhead %d disktail %d txnnxt %d\n", memhead, memtail, hdr.Head, hdr.Tail, txnnxt)
 	newbufs := memlog[l.index(hdr.Head):l.index(memhead)]
 	l.logBlocks(memhead, hdr.Head, newbufs)
 	l.writeHdr(memhead, memtail, txnnxt, memlog)
@@ -259,7 +258,7 @@ func (l *Log) installBlocks(addrs []uint64, blks []disk.Block) {
 	for i := uint64(0); i < n; i++ {
 		blkno := addrs[i]
 		blk := blks[i]
-		log.Printf("installBlocks: write log block %d to %d\n", i, blkno)
+		DPrintf("installBlocks: write log block %d to %d\n", i, blkno)
 		disk.Write(blkno, blk)
 	}
 }
@@ -269,7 +268,7 @@ func (l *Log) installBlocks(addrs []uint64, blks []disk.Block) {
 func (l *Log) LogInstall() ([]uint64, TxnNum) {
 	hdr := l.readHdr()
 	blks := l.readLogBlocks(hdr.Head - hdr.Tail)
-	//log.Printf("logInstall diskhead %d disktail %d\n", hdr.Head, hdr.Tail)
+	//DPrintf("logInstall diskhead %d disktail %d\n", hdr.Head, hdr.Tail)
 	l.installBlocks(hdr.Addrs, blks)
 	hdr.Tail = hdr.Head
 	l.writeHdr(hdr.Head, hdr.Tail, hdr.LogTxnNxt, []Buf{})

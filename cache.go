@@ -1,7 +1,6 @@
 package goose_nfs
 
 import (
-	"log"
 	"sync"
 )
 
@@ -52,7 +51,7 @@ func mkCache(sz uint64) *Cache {
 
 func (c *Cache) printCache() {
 	for k, v := range c.entries {
-		log.Printf("Entry %v: %v\n", k, v)
+		DPrintf("Entry %v: %v\n", k, v)
 	}
 }
 
@@ -66,7 +65,7 @@ func (c *Cache) evict() uint64 {
 		continue
 	}
 	if addr != 0 {
-		log.Printf("evict: %d\n", addr)
+		DPrintf("evict: %d\n", addr)
 		delete(c.entries, addr)
 		c.cnt = c.cnt - 1
 	}
@@ -131,11 +130,11 @@ func (c *Cache) delSlot(id uint64) {
 // Pin ids until txn < nexttxn have committed
 func (c *Cache) Pin(ids []uint64, nxttxn TxnNum) {
 	c.mu.Lock()
-	log.Printf("Pin till nxttxn %d %v\n", nxttxn, ids)
+	DPrintf("Pin till nxttxn %d %v\n", nxttxn, ids)
 	for _, id := range ids {
 		e := c.entries[id]
 		if e == nil {
-			log.Printf("Pin: not present %d\n", id)
+			DPrintf("Pin: not present %d\n", id)
 			panic("Pin")
 		}
 		e.pin = nxttxn
@@ -146,17 +145,17 @@ func (c *Cache) Pin(ids []uint64, nxttxn TxnNum) {
 // Unpin ids through nxttxn
 func (c *Cache) UnPin(ids []uint64, nxttxn TxnNum) {
 	c.mu.Lock()
-	log.Printf("Unpin through %d %v\n", nxttxn, ids)
+	DPrintf("Unpin through %d %v\n", nxttxn, ids)
 	for _, id := range ids {
 		entry := c.entries[id]
 		if entry == nil {
-			log.Printf("Unpin %d isn't present\n", id)
+			DPrintf("Unpin %d isn't present\n", id)
 			panic("Unpin")
 		}
 		if nxttxn >= entry.pin {
 			entry.pin = 0
 		} else {
-			log.Printf("Unpin: keep %d pinned at %d\n", id, entry.pin)
+			DPrintf("Unpin: keep %d pinned at %d\n", id, entry.pin)
 		}
 	}
 	c.mu.Unlock()
