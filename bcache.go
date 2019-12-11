@@ -28,7 +28,7 @@ func (txn *Txn) ReadBlockCache(addr uint64) disk.Block {
 	var slot *Cslot
 	slot = txn.bc.lookupSlot(addr)
 	for slot == nil {
-		DPrintf("ReadBlock: miss on %d WaitFlushMemLog and signal installer\n",
+		DPrintf(5, "ReadBlock: miss on %d WaitFlushMemLog and signal installer\n",
 			addr)
 		txn.log.WaitFlushMemLog()
 		txn.log.SignalInstaller()

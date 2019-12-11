@@ -51,7 +51,7 @@ func mkCache(sz uint64) *Cache {
 
 func (c *Cache) printCache() {
 	for k, v := range c.entries {
-		DPrintf("Entry %v: %v\n", k, v)
+		DPrintf(0, "Entry %v: %v\n", k, v)
 	}
 }
 
@@ -65,7 +65,7 @@ func (c *Cache) evict() uint64 {
 		continue
 	}
 	if addr != 0 {
-		DPrintf("evict: %d\n", addr)
+		DPrintf(5, "evict: %d\n", addr)
 		delete(c.entries, addr)
 		c.cnt = c.cnt - 1
 	}
@@ -130,11 +130,10 @@ func (c *Cache) delSlot(id uint64) {
 // Pin ids until txn < nexttxn have committed
 func (c *Cache) Pin(ids []uint64, nxttxn TxnNum) {
 	c.mu.Lock()
-	DPrintf("Pin till nxttxn %d %v\n", nxttxn, ids)
+	DPrintf(5, "Pin till nxttxn %d %v\n", nxttxn, ids)
 	for _, id := range ids {
 		e := c.entries[id]
 		if e == nil {
-			DPrintf("Pin: not present %d\n", id)
 			panic("Pin")
 		}
 		e.pin = nxttxn
@@ -145,17 +144,16 @@ func (c *Cache) Pin(ids []uint64, nxttxn TxnNum) {
 // Unpin ids through nxttxn
 func (c *Cache) UnPin(ids []uint64, nxttxn TxnNum) {
 	c.mu.Lock()
-	DPrintf("Unpin through %d %v\n", nxttxn, ids)
+	DPrintf(5, "Unpin through %d %v\n", nxttxn, ids)
 	for _, id := range ids {
 		entry := c.entries[id]
 		if entry == nil {
-			DPrintf("Unpin %d isn't present\n", id)
 			panic("Unpin")
 		}
 		if nxttxn >= entry.pin {
 			entry.pin = 0
 		} else {
-			DPrintf("Unpin: keep %d pinned at %d\n", id, entry.pin)
+			DPrintf(10, "Unpin: keep %d pinned at %d\n", id, entry.pin)
 		}
 	}
 	c.mu.Unlock()

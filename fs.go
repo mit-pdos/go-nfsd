@@ -74,7 +74,7 @@ func (fs *FsSuper) initFs() {
 	buf.WriteDirect()
 
 	root := mkRootInode()
-	DPrintf("root %v\n", root)
+	DPrintf(5, "root %v\n", root)
 	raddr := fs.Inum2Addr(ROOTINUM)
 	rootblk := make(disk.Block, INODESZ)
 	rootbuf := mkBuf(raddr, 0, rootblk, nil)
@@ -85,7 +85,7 @@ func (fs *FsSuper) initFs() {
 }
 
 func (fs *FsSuper) markAlloc(n uint64, m uint64) {
-	DPrintf("markAlloc: [0, %d) and [%d,%d)\n", n, m, fs.NBlockBitmap*NBITBLOCK)
+	DPrintf(1, "markAlloc: [0, %d) and [%d,%d)\n", n, m, fs.NBlockBitmap*NBITBLOCK)
 	if n >= NBITBLOCK || m >= NBITBLOCK*fs.NBlockBitmap || m < NBITBLOCK {
 		panic("markAlloc")
 	}
@@ -117,7 +117,7 @@ func (fs *FsSuper) putBlkDirect(inum uint64, blk disk.Block) bool {
 	if inum >= fs.NInode() {
 		return false
 	}
-	DPrintf("write blk direct %d\n", fs.inodeStart()+inum)
+	DPrintf(10, "write blk direct %d\n", fs.inodeStart()+inum)
 	disk.Write(fs.inodeStart()+inum, blk)
 	return true
 }

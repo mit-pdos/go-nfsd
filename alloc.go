@@ -71,7 +71,6 @@ func freeBit(buf *Buf, bn uint64) {
 	}
 	bit := bn % 8
 	buf.blk[0] = buf.blk[0] & ^(1 << bit)
-	// DPrintf("FreeBit %d done %v 0x%x\n", bit, buf, buf.blk[0])
 }
 
 // Alloc bit bn in blk
@@ -107,7 +106,6 @@ func (a *Alloc) FindFreeRegion(txn *Txn) *Buf {
 	start := num
 	for {
 		b := a.LockRegion(txn, num)
-		// DPrintf("FindFreeRegion: try %d 0x%x\n", num, b.blk[0])
 		if b.blk[0] != byte(0xFF) {
 			buf = b
 			break
@@ -131,19 +129,18 @@ func (a *Alloc) LockRegion(txn *Txn, n uint64) *Buf {
 	byte := (n % NBITBLOCK) / 8
 	addr := mkAddr(a.start+i, byte, 1)
 	buf = txn.ReadBufLocked(addr, a.kind)
-	// DPrintf("LockRegion: %v\n", buf)
+	DPrintf(10, "LockRegion: %v\n", buf)
 	return buf
 }
 
 func (a *Alloc) UnlockRegion(txn *Txn, buf *Buf) {
-	// DPrintf("UnlockRegion: %v\n", buf)
+	DPrintf(10, "UnlockRegion: %v\n", buf)
 	txn.locked.Del(buf.addr)
 }
 
 func (a *Alloc) Alloc(buf *Buf) uint64 {
 	var n uint64 = 0
 
-	//DPrintf("Alloc %v 0x%x\n", buf, buf.blk[0])
 	b, found := findAndMark(buf.blk)
 	if !found {
 		return n
@@ -154,7 +151,6 @@ func (a *Alloc) Alloc(buf *Buf) uint64 {
 
 func (a *Alloc) Free(buf *Buf, n uint64) {
 	i := n / NBITBLOCK
-	//DPrintf("Free buf %v %d %d 0x%x\n", buf, n, i, buf.blk[0])
 	if i >= a.len {
 		panic("freeBlock")
 	}
