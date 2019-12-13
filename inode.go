@@ -224,10 +224,6 @@ func (ip *Inode) put(txn *Txn) {
 	}
 }
 
-//
-// Freeing of a file, run in separate thread/transaction
-//
-
 // Returns blkno for indirect bn and newroot if root was allocated. If
 // blkno is 0, failure.
 func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow bool) (uint64, uint64) {
@@ -244,7 +240,7 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 
 	if level == 0 { // leaf?
 		if root != 0 && grow { // old leaf?
-			ZeroBlock(txn, blkno)
+			txn.ZeroBlock(blkno)
 		}
 		return blkno, newroot
 	}
@@ -255,10 +251,10 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 	ind := off % divisor
 
 	if root != 0 && off == 0 && grow { // old root from previous file?
-		ZeroBlock(txn, blkno)
+		txn.ZeroBlock(blkno)
 	}
 
-	buf := ReadBlock(txn, blkno)
+	buf := txn.ReadBlock(blkno)
 	nxtroot := machine.UInt64Get(buf.blk[bo : bo+8])
 	b, newroot1 := ip.indbmap(txn, nxtroot, level-1, ind, grow)
 	if newroot1 != 0 {
@@ -293,7 +289,7 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 	grow := bn > sz
 	if bn < NDIRECT {
 		if ip.blks[bn] != 0 && grow {
-			ZeroBlock(txn, ip.blks[bn])
+			txn.ZeroBlock(ip.blks[bn])
 		}
 		if ip.blks[bn] == 0 {
 			blkno := txn.AllocBlock()
@@ -347,7 +343,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 		if alloc { // fill in a hole
 			ip.writeInode(txn)
 		}
-		buf := ReadBlock(txn, blkno)
+		buf := txn.ReadBlock(blkno)
 
 		for b := uint64(0); b < nbytes; b++ {
 			data = append(data, buf.blk[byteoff+b])
@@ -378,7 +374,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		if new {
 			alloc = true
 		}
-		buf := ReadBlock(txn, blkno)
+		buf := txn.ReadBlock(blkno)
 		byteoff := offset % disk.BlockSize
 		nbytes := disk.BlockSize - byteoff
 		if n < nbytes {
@@ -407,6 +403,10 @@ func (ip *Inode) decLink(txn *Txn) {
 	ip.writeInode(txn)
 }
 
+//
+// Freeing of a file, run in separate thread/transaction
+//
+
 // Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn
 // have been cleared
 func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint64 {
@@ -417,7 +417,7 @@ func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint6
 	off := (bn / divisor)
 	ind := bn % divisor
 	boff := off * 8
-	buf := ReadBlock(txn, root)
+	buf := txn.ReadBlock(root)
 	nxtroot := machine.UInt64Get(buf.blk[boff : boff+8])
 	if nxtroot != 0 {
 		freeroot := ip.indshrink(txn, nxtroot, level-1, ind)

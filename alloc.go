@@ -45,13 +45,6 @@ func (a *Alloc) IncNext(inc uint64) uint64 {
 	return num
 }
 
-func (a *Alloc) ReadNext() uint64 {
-	a.lock.Lock()
-	num := a.next
-	a.lock.Unlock()
-	return num
-}
-
 // Returns a locked region in the bitmap with some free bits.
 func (a *Alloc) FindFreeRegion(txn *Txn) *Buf {
 	var buf *Buf
@@ -103,13 +96,6 @@ func (a *Alloc) Free(buf *Buf, n uint64) {
 		panic("freeBlock")
 	}
 	freeBit(buf, n%NBITBLOCK)
-}
-
-func (a *Alloc) RegionAddr(n uint64, nbits uint64) Addr {
-	i := n / NBITBLOCK
-	bit := n % NBITBLOCK
-	addr := mkAddr(a.start+i, bit, nbits)
-	return addr
 }
 
 func (a *Alloc) AllocNum(txn *Txn) uint64 {

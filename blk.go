@@ -11,15 +11,15 @@ func (txn *Txn) FreeBlock(blkno uint64) {
 	txn.balloc.FreeNum(txn, blkno)
 }
 
-func ReadBlock(txn *Txn, blkno uint64) *Buf {
+func (txn *Txn) ReadBlock(blkno uint64) *Buf {
 	DPrintf(10, "ReadBlock %d\n", blkno)
 	addr := txn.fs.Block2Addr(blkno)
 	return txn.ReadBufLocked(addr, BLOCK)
 }
 
-func ZeroBlock(txn *Txn, blkno uint64) {
+func (txn *Txn) ZeroBlock(blkno uint64) {
 	DPrintf(5, "zero block %d\n", blkno)
-	buf := ReadBlock(txn, blkno)
+	buf := txn.ReadBlock(blkno)
 	for i, _ := range buf.blk {
 		buf.blk[i] = 0
 	}

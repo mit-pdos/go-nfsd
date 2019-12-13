@@ -35,7 +35,7 @@ type Txn struct {
 	balloc *Alloc
 	ialloc *Alloc
 	commit *Commit
-	locked *AddrMap // map of locked addresses of disk objects
+	locked *AddrMap // shared map of locked addresses of disk objects
 }
 
 func Begin(nfs *Nfs) *Txn {
