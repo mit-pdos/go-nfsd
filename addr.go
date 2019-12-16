@@ -71,8 +71,6 @@ func (amap *addrMap) lookupAdd(addr addr, buf *buf) bool {
 		amap.addInternal(buf)
 		amap.mu.Unlock()
 		return true
-	} else {
-		dPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
 	}
 	dPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
 	amap.mu.Unlock()

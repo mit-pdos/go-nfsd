@@ -56,7 +56,7 @@ func (a *alloc) findFreeRegion(txn *txn) *buf {
 		bit := num % 8
 		dPrintf(15, "findregion: %v %d 0x%x\n", b, num, b.blk[0])
 		if b.blk[0]&(1<<bit) == 0 {
-			b.blk[0] |= (1 << bit)
+			b.blk[0] = b.blk[0] | (1 << bit)
 			buf = b
 			break
 		}
