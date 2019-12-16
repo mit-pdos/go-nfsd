@@ -113,20 +113,6 @@ func (c *cache) freeSlot(id uint64) {
 	panic("putObj")
 }
 
-// Decrease ref count of the cache slot for id. The caller should hold
-// the locked obj in the slot.
-func (c *cache) delSlot(id uint64) {
-	c.mu.Lock()
-	entry := c.entries[id]
-	if entry != nil {
-		entry.ref = entry.ref - 1
-		c.mu.Unlock()
-		return
-	}
-	c.mu.Unlock()
-	panic("delSlot")
-}
-
 // Pin ids until txn < nexttxn have committed
 func (c *cache) pin(ids []uint64, nxttxn txnNum) {
 	c.mu.Lock()

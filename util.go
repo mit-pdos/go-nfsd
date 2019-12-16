@@ -8,7 +8,6 @@ func dPrintf(level int, format string, a ...interface{}) {
 	if level <= Debug {
 		log.Printf(format, a...)
 	}
-	return
 }
 
 func roundUp(n uint64, sz uint64) uint64 {

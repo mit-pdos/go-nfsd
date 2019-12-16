@@ -118,14 +118,6 @@ func (l *walog) readLogBlocks(len uint64) []disk.Block {
 	return blks
 }
 
-func (l *walog) read() (hdr, []disk.Block) {
-	l.logLock.Lock()
-	hdr := l.readHdr()
-	blks := l.readLogBlocks(hdr.head - hdr.tail)
-	l.logLock.Unlock()
-	return hdr, blks
-}
-
 func (l *walog) memWrite(bufs []*buf) {
 	n := uint64(len(bufs))
 	for i := uint64(0); i < n; i++ {
@@ -147,13 +139,6 @@ func (l *walog) readLogTxnNxt() txnNum {
 	l.logLock.Lock()
 	n := l.logtxnNxt
 	l.logLock.Unlock()
-	return n
-}
-
-func (l *walog) readDsktxnNxt() txnNum {
-	l.memLock.Lock()
-	n := l.dsktxnNxt
-	l.memLock.Unlock()
 	return n
 }
 

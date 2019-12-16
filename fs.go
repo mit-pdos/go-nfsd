@@ -112,12 +112,3 @@ func (fs *fsSuper) markAlloc(n uint64, m uint64) {
 	blk2[0] |= (1 << 1)
 	disk.Write(fs.bitmapInodeStart(), blk2)
 }
-
-func (fs *fsSuper) putBlkDirect(inum uint64, blk disk.Block) bool {
-	if inum >= fs.nInode() {
-		return false
-	}
-	dPrintf(10, "write blk direct %d\n", fs.inodeStart()+inum)
-	disk.Write(fs.inodeStart()+inum, blk)
-	return true
-}

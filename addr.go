@@ -1,8 +1,6 @@
 package goose_nfs
 
 import (
-	"github.com/tchajed/goose/machine/disk"
-
 	"sync"
 )
 
@@ -14,17 +12,6 @@ type addr struct {
 
 func (a *addr) eq(b addr) bool {
 	return a.blkno == b.blkno && a.off == b.off && a.sz == b.sz
-}
-
-func (a *addr) inc(start uint64, len uint64) {
-	a.off = a.off + 1
-	if a.off >= disk.BlockSize {
-		a.off = 0
-		a.blkno = a.blkno + 1
-	}
-	if a.blkno >= start+len {
-		a.blkno = start
-	}
 }
 
 func mkaddr(blkno uint64, off uint64, sz uint64) addr {
@@ -90,13 +77,6 @@ func (amap *addrMap) lookupAdd(addr addr, buf *buf) bool {
 	dPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
 	amap.mu.Unlock()
 	return false
-}
-
-func (amap *addrMap) lookupBufs(blkno uint64) []*buf {
-	amap.mu.Lock()
-	bs, _ := amap.bufs[blkno]
-	amap.mu.Unlock()
-	return bs
 }
 
 func (amap *addrMap) add(buf *buf) {
