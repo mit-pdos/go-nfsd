@@ -5,26 +5,26 @@ import (
 )
 
 type fh struct {
-	ino uint64
+	ino inum
 	gen uint64
 }
 
 func (fh3 Nfs_fh3) makeFh() fh {
 	i := machine.UInt64Get(fh3.Data[0:8])
 	g := machine.UInt64Get(fh3.Data[8:])
-	return fh{ino: i, gen: g}
+	return fh{ino: inum(i), gen: g}
 }
 
 func (fh fh) makeFh3() Nfs_fh3 {
 	fh3 := Nfs_fh3{Data: make([]byte, 16)}
-	machine.UInt64Put(fh3.Data[0:8], fh.ino)
+	machine.UInt64Put(fh3.Data[0:8], uint64(fh.ino))
 	machine.UInt64Put(fh3.Data[8:], fh.gen)
 	return fh3
 }
 
 func MkRootFh3() Nfs_fh3 {
 	d := make([]byte, 16)
-	machine.UInt64Put(d[0:8], ROOTINUM)
+	machine.UInt64Put(d[0:8], uint64(ROOTINUM))
 	machine.UInt64Put(d[8:16], 0)
 	return Nfs_fh3{Data: d}
 }

@@ -53,7 +53,7 @@ func begin(nfs *Nfs) *txn {
 	return txn
 }
 
-func (txn *txn) installCache(buf *buf, n uint64) {
+func (txn *txn) installCache(buf *buf, n txnNum) {
 	blk := buf.txn.readBlockCache(buf.addr.blkno)
 	buf.install(blk)
 	txn.bc.pin([]uint64{buf.addr.blkno}, n)
@@ -171,8 +171,8 @@ func (txn *txn) releaseBufs() {
 // locked disk objects. If it cannot commit because in-memory log is
 // full, it signals the logger and installer to log and and install
 // log entries, which frees up space in the in-memory log.
-func (txn *txn) doCommit(abort bool) (uint64, bool) {
-	var n uint64 = 0
+func (txn *txn) doCommit(abort bool) (txnNum, bool) {
+	var n txnNum = 0
 	var ok bool = false
 
 	for !ok {

@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-type txnNum = uint64
+type txnNum uint64
 
 const LOGHDR = uint64(0)
 const LOGSTART = uint64(1)
@@ -67,7 +67,7 @@ func decodeHdr(blk disk.Block) hdr {
 	dec := newDec(blk)
 	hdr.head = dec.getInt()
 	hdr.tail = dec.getInt()
-	hdr.logTxnNxt = dec.getInt()
+	hdr.logTxnNxt = txnNum(dec.getInt())
 	hdr.addrs = dec.getInts(hdr.head - hdr.tail)
 	return hdr
 }
@@ -76,7 +76,7 @@ func encodeHdr(hdr hdr, blk disk.Block) {
 	enc := newEnc(blk)
 	enc.putInt(hdr.head)
 	enc.putInt(hdr.tail)
-	enc.putInt(hdr.logTxnNxt)
+	enc.putInt(uint64(hdr.logTxnNxt))
 	enc.putInts(hdr.addrs)
 }
 
@@ -155,7 +155,7 @@ func (l *walog) readtxnNxt() txnNum {
 
 // Append to in-memory log. Returns false, if bufs don't fit
 func (l *walog) memAppend(bufs []*buf) (txnNum, bool) {
-	var txn uint64 = 0
+	var txn txnNum = 0
 	l.memLock.Lock()
 	if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {
 		l.memLock.Unlock()

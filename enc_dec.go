@@ -75,7 +75,7 @@ func putBytes(d []byte, b []byte) {
 // Caller must ensure de.Name fits
 func encodeDirEnt(de *dirEnt) []byte {
 	d := make([]byte, DIRENTSZ)
-	machine.UInt64Put(d[:8], de.inum)
+	machine.UInt64Put(d[:8], uint64(de.inum))
 	machine.UInt64Put(d[8:16], uint64(len(de.name)))
 	putBytes(d[16:], []byte(de.name))
 	return d
@@ -83,7 +83,7 @@ func encodeDirEnt(de *dirEnt) []byte {
 
 func decodeDirEnt(d []byte) *dirEnt {
 	de := &dirEnt{}
-	de.inum = machine.UInt64Get(d[:8])
+	de.inum = inum(machine.UInt64Get(d[:8]))
 	l := machine.UInt64Get(d[8:16])
 	de.name = string(d[16 : 16+l])
 	return de

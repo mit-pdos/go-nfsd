@@ -19,9 +19,15 @@ const (
 	INODESZ   uint64 = 64                 // on-disk size
 )
 
+type inum uint64
+
+const NULLINUM inum = 0
+const ROOTINUM inum = 1
+
 type inode struct {
 	// in-memory info:
-	inum uint64
+	inum inum
+
 	// the on-disk inode:
 	kind  Ftype3
 	nlink uint32
@@ -29,11 +35,6 @@ type inode struct {
 	size  uint64
 	blks  []uint64
 }
-
-type inum = uint64
-
-const NULLINUM uint64 = 0
-const ROOTINUM uint64 = 1
 
 func mkNullInode() *inode {
 	return &inode{
@@ -88,7 +89,7 @@ func (ip *inode) encode(buf *buf) {
 	enc.putInts(ip.blks)
 }
 
-func decode(buf *buf, inum uint64) *inode {
+func decode(buf *buf, inum inum) *inode {
 	ip := &inode{}
 	dec := newDec(buf.blk)
 	ip.inum = inum
@@ -177,7 +178,7 @@ func (ip *inode) writeInode(txn *txn) {
 func (txn *txn) allocInum() inum {
 	n := txn.ialloc.allocNum(txn)
 	dPrintf(5, "alloc inode %v\n", n)
-	return n
+	return inum(n)
 }
 
 func allocInode(txn *txn, kind Ftype3) inum {
@@ -203,7 +204,7 @@ func (ip *inode) freeInode(txn *txn) {
 	ip.kind = NF3FREE
 	ip.gen = ip.gen + 1
 	ip.writeInode(txn)
-	txn.ialloc.freeNum(txn, ip.inum)
+	txn.ialloc.freeNum(txn, uint64(ip.inum))
 }
 
 func freeInum(txn *txn, inum inum) {

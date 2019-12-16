@@ -35,7 +35,7 @@ func (dip *inode) lookupName(txn *txn, name Filename3) (inum, uint64) {
 	return NULLINUM, 0
 }
 
-func (dip *inode) addName(txn *txn, inum uint64, name Filename3) bool {
+func (dip *inode) addName(txn *txn, inum inum, name Filename3) bool {
 	var off uint64 = 0
 
 	if dip.kind != NF3DIR || len(name) >= MAXNAMELEN {

@@ -136,21 +136,21 @@ func lockInodes(txn *txn, inums []inum) []*inode {
 	copy(sorted, inums)
 	sort.Slice(sorted, func(i, j int) bool { return inums[i] < inums[j] })
 	var inodes = make([]*inode, len(inums))
-	for _, inum := range sorted {
-		ip := getInodeInum(txn, inum)
+	for _, inm := range sorted {
+		ip := getInodeInum(txn, inm)
 		if ip == nil {
 			txn.abort(inodes)
 			return nil
 		}
 		// put in same position as in inums
-		pos := func(inum uint64) int {
+		pos := func(inm inum) int {
 			for i, v := range inums {
-				if v == inum {
+				if v == inm {
 					return i
 				}
 			}
 			panic("func")
-		}(inum)
+		}(inm)
 		inodes[pos] = ip
 	}
 	return inodes

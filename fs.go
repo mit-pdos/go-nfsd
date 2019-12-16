@@ -52,12 +52,12 @@ func (fs *fsSuper) block2addr(blkno uint64) addr {
 	return mkaddr(blkno, 0, NBITBLOCK)
 }
 
-func (fs *fsSuper) nInode() uint64 {
-	return fs.nInodeBlk * INODEBLK
+func (fs *fsSuper) nInode() inum {
+	return inum(fs.nInodeBlk * INODEBLK)
 }
 
 func (fs *fsSuper) inum2addr(inum inum) addr {
-	return mkaddr(fs.inodeStart()+inum/INODEBLK, (inum%INODEBLK)*INODESZ*8, INODESZ*8)
+	return mkaddr(fs.inodeStart()+uint64(inum)/INODEBLK, (uint64(inum)%INODEBLK)*INODESZ*8, INODESZ*8)
 }
 
 //
