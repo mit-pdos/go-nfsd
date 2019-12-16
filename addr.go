@@ -82,11 +82,12 @@ func (amap *AddrMap) LookupAdd(addr Addr, buf *Buf) bool {
 	b := amap.LookupInternal(addr)
 	if b == nil {
 		amap.AddInternal(buf)
-	} else {
-		DPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
+		amap.mu.Unlock()
+		return true
 	}
+	DPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
 	amap.mu.Unlock()
-	return b == nil
+	return false
 }
 
 func (amap *AddrMap) LookupBufs(blkno uint64) []*Buf {
@@ -103,20 +104,22 @@ func (amap *AddrMap) Add(buf *Buf) {
 }
 
 func (amap *AddrMap) Del(addr Addr) {
-	var index int = -1
+	var index uint64
+	var found bool
 
 	amap.mu.Lock()
 	blkno := addr.blkno
-	bs, ok := amap.bufs[blkno]
-	if !ok {
+	bs, found := amap.bufs[blkno]
+	if !found {
 		panic("Del")
 	}
 	for i, b := range bs {
 		if b.addr.Eq(addr) {
-			index = i
+			index = uint64(i)
+			found = true
 		}
 	}
-	if index == -1 {
+	if !found {
 		panic("Del")
 	}
 	bufs := append(bs[0:index], bs[index+1:]...)
@@ -130,7 +133,7 @@ func (amap *AddrMap) Dirty() uint64 {
 	for _, bs := range amap.bufs {
 		for _, b := range bs {
 			if b.dirty {
-				n += 1
+				n = n + 1
 			}
 		}
 	}
