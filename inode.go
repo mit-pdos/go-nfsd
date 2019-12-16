@@ -90,7 +90,14 @@ func (ip *inode) encode(buf *buf) {
 }
 
 func decode(buf *buf, inum inum) *inode {
-	ip := &inode{}
+	ip := &inode{
+		inum:  0,
+		kind:  0,
+		nlink: 0,
+		gen:   0,
+		size:  0,
+		blks:  nil,
+	}
 	dec := newDec(buf.blk)
 	ip.inum = inum
 	ip.kind = Ftype3(dec.getInt32())
@@ -275,7 +282,7 @@ func (ip *inode) resize(txn *txn, sz uint64) {
 	if sz < ip.size {
 		dPrintf(1, "start shrink thread\n")
 		txn.nfs.nthread = txn.nfs.nthread + 1
-		go shrink(txn.nfs, ip.inum, ip.size)
+		machine.Spawn(func() { shrink(txn.nfs, ip.inum, ip.size) })
 	}
 	ip.size = sz
 	ip.writeInode(txn)
@@ -302,7 +309,7 @@ func (ip *inode) bmap(txn *txn, bn uint64) (uint64, bool) {
 		}
 		return ip.blks[bn], alloc
 	} else {
-		off := bn - NDIRECT
+		var off = bn - NDIRECT
 		if off < NBLKBLK {
 			blkno, newroot := ip.indbmap(txn, ip.blks[INDIRECT], 1, off, grow)
 			if newroot != 0 {
@@ -310,7 +317,7 @@ func (ip *inode) bmap(txn *txn, bn uint64) (uint64, bool) {
 			}
 			return blkno, newroot != 0
 		} else {
-			off = off - NBLKBLK
+			off -= NBLKBLK
 			blkno, newroot := ip.indbmap(txn, ip.blks[DINDIRECT], 2, off, grow)
 			if newroot != 0 {
 				ip.blks[DINDIRECT] = newroot
@@ -321,22 +328,22 @@ func (ip *inode) bmap(txn *txn, bn uint64) (uint64, bool) {
 }
 
 // Returns number of bytes read and eof
-func (ip *inode) read(txn *txn, offset uint64, count uint64) ([]byte, bool) {
+func (ip *inode) read(txn *txn, offset uint64, bytesToRead uint64) ([]byte,
+	bool) {
 	var n uint64 = uint64(0)
 
 	if offset >= ip.size {
 		return nil, true
 	}
+	var count uint64 = bytesToRead
 	if count >= offset+ip.size {
 		count = ip.size - offset
 	}
-	data := make([]byte, 0)
-	for boff := offset / disk.BlockSize; n < count; boff++ {
-		byteoff := offset % disk.BlockSize
-		nbytes := disk.BlockSize - byteoff
-		if count-n < nbytes {
-			nbytes = count - n
-		}
+	var data = make([]byte, 0)
+	var off = offset
+	for boff := off / disk.BlockSize; n < count; boff++ {
+		byteoff := off % disk.BlockSize
+		nbytes := min(disk.BlockSize-byteoff, count-n)
 		blkno, alloc := ip.bmap(txn, boff)
 		if blkno == 0 {
 			return data, false
@@ -349,24 +356,27 @@ func (ip *inode) read(txn *txn, offset uint64, count uint64) ([]byte, bool) {
 		for b := uint64(0); b < nbytes; b++ {
 			data = append(data, buf.blk[byteoff+b])
 		}
-		n = n + nbytes
-		offset = offset + nbytes
+		n += nbytes
+		off += nbytes
 	}
 	return data, false
 }
 
 // Returns number of bytes written and error
-func (ip *inode) write(txn *txn, offset uint64, count uint64, data []byte) (uint64, bool) {
+func (ip *inode) write(txn *txn, offset uint64,
+	count uint64,
+	dataBuf []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
 	var ok bool = true
 	var alloc bool = false
-	n := count
+	var n = count
+	var data = dataBuf
 
 	if offset+count > maxFileSize() {
 		return 0, false
 	}
-	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
+	for boff := off / disk.BlockSize; n > uint64(0); boff++ {
 		blkno, new := ip.bmap(txn, boff)
 		if blkno == 0 {
 			ok = false
@@ -376,8 +386,8 @@ func (ip *inode) write(txn *txn, offset uint64, count uint64, data []byte) (uint
 			alloc = true
 		}
 		buf := txn.readBlock(blkno)
-		byteoff := offset % disk.BlockSize
-		nbytes := disk.BlockSize - byteoff
+		byteoff := off % disk.BlockSize
+		var nbytes = disk.BlockSize - byteoff
 		if n < nbytes {
 			nbytes = n
 		}
@@ -385,10 +395,10 @@ func (ip *inode) write(txn *txn, offset uint64, count uint64, data []byte) (uint
 			buf.blk[byteoff+b] = data[b]
 		}
 		buf.setDirty()
-		n = n - nbytes
+		n -= nbytes
 		data = data[nbytes:]
-		offset = offset + nbytes
-		cnt = cnt + nbytes
+		off += nbytes
+		cnt += nbytes
 	}
 	if alloc || cnt > 0 {
 		if off+cnt > ip.size {
@@ -435,8 +445,14 @@ func (ip *inode) indshrink(txn *txn, root uint64, level uint64, bn uint64) uint6
 	}
 }
 
+func singletonTxn(ip *inode) []*inode {
+	ipTxn := make([]*inode, 1)
+	ipTxn[0] = ip
+	return ipTxn
+}
+
 func shrink(nfs *Nfs, inum inum, oldsz uint64) {
-	bn := roundUp(oldsz, disk.BlockSize)
+	var bn = roundUp(oldsz, disk.BlockSize)
 	dPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
 	for {
 		txn := begin(nfs)
@@ -445,7 +461,7 @@ func shrink(nfs *Nfs, inum inum, oldsz uint64) {
 			panic("shrink")
 		}
 		if ip.size >= oldsz { // file has grown again or resize didn't commit
-			ok := txn.commit([]*inode{ip})
+			ok := txn.commit(singletonTxn(ip))
 			if !ok {
 				panic("shrink")
 			}
@@ -460,7 +476,7 @@ func shrink(nfs *Nfs, inum inum, oldsz uint64) {
 				txn.freeBlock(ip.blks[bn])
 				ip.blks[bn] = 0
 			} else {
-				off := bn - NDIRECT
+				var off = bn - NDIRECT
 				if off < NBLKBLK {
 					freeroot := ip.indshrink(txn, ip.blks[INDIRECT], 1, off)
 					if freeroot != 0 {
@@ -478,7 +494,7 @@ func shrink(nfs *Nfs, inum inum, oldsz uint64) {
 			}
 		}
 		ip.writeInode(txn)
-		ok := txn.commit([]*inode{ip})
+		ok := txn.commit(singletonTxn(ip))
 		if !ok {
 			panic("shrink")
 		}

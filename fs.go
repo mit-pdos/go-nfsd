@@ -93,7 +93,7 @@ func (fs *fsSuper) markAlloc(n uint64, m uint64) {
 	for bn := uint64(0); bn < n; bn++ {
 		byte := bn / 8
 		bit := bn % 8
-		blk[byte] |= 1 << bit
+		blk[byte] = blk[byte] | 1<<bit
 	}
 	disk.Write(fs.bitmapBlockStart(), blk)
 
@@ -102,13 +102,13 @@ func (fs *fsSuper) markAlloc(n uint64, m uint64) {
 	for bn := m % disk.BlockSize; bn < NBITBLOCK; bn++ {
 		byte := bn / 8
 		bit := bn % 8
-		blk1[byte] |= 1 << bit
+		blk1[byte] = blk1[byte] | 1<<bit
 	}
 	disk.Write(blkno, blk1)
 
 	// mark inode 0 and 1 as allocated
 	blk2 := make(disk.Block, disk.BlockSize)
-	blk2[0] |= (1 << 0)
-	blk2[0] |= (1 << 1)
+	blk2[0] = blk2[0] | 1<<0
+	blk2[0] = blk2[0] | 1<<1
 	disk.Write(fs.bitmapInodeStart(), blk2)
 }

@@ -82,7 +82,10 @@ func encodeDirEnt(de *dirEnt) []byte {
 }
 
 func decodeDirEnt(d []byte) *dirEnt {
-	de := &dirEnt{}
+	de := &dirEnt{
+		inum: 0,
+		name: "",
+	}
 	de.inum = inum(machine.UInt64Get(d[:8]))
 	l := machine.UInt64Get(d[8:16])
 	de.name = string(d[16 : 16+l])

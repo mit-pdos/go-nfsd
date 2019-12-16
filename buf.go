@@ -75,8 +75,9 @@ func copyBits(src []byte, dst []byte, dstoff uint64, nbit uint64) {
 		bit := dstoff % 8
 		nbit := min(8-bit, n)
 		srcbyte := src[0]
-		dstbyte := dst[dstbyte]
-		dst[dstbyte] = installBits(srcbyte, dstbyte, bit, nbit)
+		// TODO: which of these should be dstbyte vs dstbyte2?
+		dstbyte2 := dst[dstbyte]
+		dst[dstbyte2] = installBits(srcbyte, dstbyte2, bit, nbit)
 		off += 8
 		dstbyte += 1
 		n -= nbit

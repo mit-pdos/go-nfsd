@@ -1,6 +1,6 @@
 package goose_nfs
 
-const DIRENTSZ = 32
+const DIRENTSZ uint64 = 32
 const MAXNAMELEN = DIRENTSZ - 8
 
 type dirEnt struct {
@@ -9,7 +9,7 @@ type dirEnt struct {
 }
 
 func illegalName(name Filename3) bool {
-	n := string(name)
+	n := name
 	return n == "." || n == ".."
 }
 
@@ -17,42 +17,43 @@ func (dip *inode) lookupName(txn *txn, name Filename3) (inum, uint64) {
 	if dip.kind != NF3DIR {
 		return NULLINUM, 0
 	}
-	for off := uint64(0); off < dip.size; {
+	var inum = NULLINUM
+	var finalOffset uint64 = 0
+	for off := uint64(0); off < dip.size; off += DIRENTSZ {
 		data, _ := dip.read(txn, off, DIRENTSZ)
-		if len(data) != DIRENTSZ {
-			return NULLINUM, 0
+		if uint64(len(data)) != DIRENTSZ {
+			break
 		}
 		de := decodeDirEnt(data)
 		if de.inum == NULLINUM {
-			off = off + DIRENTSZ
 			continue
 		}
 		if de.name == string(name) {
-			return de.inum, off
+			inum = de.inum
+			finalOffset = off
+			break
 		}
-		off = off + DIRENTSZ
 	}
-	return NULLINUM, 0
+	return inum, finalOffset
 }
 
 func (dip *inode) addName(txn *txn, inum inum, name Filename3) bool {
-	var off uint64 = 0
+	var finalOff uint64 = 0
 
-	if dip.kind != NF3DIR || len(name) >= MAXNAMELEN {
+	if dip.kind != NF3DIR || uint64(len(name)) >= MAXNAMELEN {
 		return false
 	}
-	for off = uint64(0); off < dip.size; {
+	for off := uint64(0); off < dip.size; off += DIRENTSZ {
 		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.inum == NULLINUM {
+			finalOff = off
 			break
 		}
-		off = off + DIRENTSZ
-		continue
 	}
 	de := &dirEnt{inum: inum, name: string(name)}
 	ent := encodeDirEnt(de)
-	n, _ := dip.write(txn, off, DIRENTSZ, ent)
+	n, _ := dip.write(txn, finalOff, DIRENTSZ, ent)
 	return n == DIRENTSZ
 }
 
@@ -104,7 +105,7 @@ func (dip *inode) ls3(txn *txn, start Cookie3, dircount Count3) Dirlistplus3 {
 	var last *Entryplus3
 	var eof bool = true
 	var ip *inode
-	begin := uint64(start)
+	var begin = uint64(start)
 	if begin != 0 {
 		begin += DIRENTSZ
 	}

@@ -57,12 +57,12 @@ func (c *cache) printCache() {
 
 func (c *cache) evict() uint64 {
 	var addr uint64 = 0
+	var done = false
 	for a, entry := range c.entries {
-		if entry.ref == 0 && entry.pin == 0 {
+		if !done && entry.ref == 0 && entry.pin == 0 {
 			addr = a
-			break
+			done = true
 		}
-		continue
 	}
 	if addr != 0 {
 		dPrintf(5, "evict: %d\n", addr)
