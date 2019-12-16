@@ -3,9 +3,9 @@ package goose_nfs
 const DIRENTSZ = 32
 const MAXNAMELEN = DIRENTSZ - 8
 
-type DirEnt struct {
-	Inum Inum
-	Name string // <= MAXNAMELEN
+type dirEnt struct {
+	inum inum
+	name string // <= MAXNAMELEN
 }
 
 func illegalName(name Filename3) bool {
@@ -13,7 +13,7 @@ func illegalName(name Filename3) bool {
 	return n == "." || n == ".."
 }
 
-func (dip *Inode) lookupName(txn *Txn, name Filename3) (Inum, uint64) {
+func (dip *inode) lookupName(txn *txn, name Filename3) (inum, uint64) {
 	if dip.kind != NF3DIR {
 		return NULLINUM, 0
 	}
@@ -23,19 +23,19 @@ func (dip *Inode) lookupName(txn *Txn, name Filename3) (Inum, uint64) {
 			return NULLINUM, 0
 		}
 		de := decodeDirEnt(data)
-		if de.Inum == NULLINUM {
+		if de.inum == NULLINUM {
 			off = off + DIRENTSZ
 			continue
 		}
-		if de.Name == string(name) {
-			return de.Inum, off
+		if de.name == string(name) {
+			return de.inum, off
 		}
 		off = off + DIRENTSZ
 	}
 	return NULLINUM, 0
 }
 
-func (dip *Inode) addName(txn *Txn, inum uint64, name Filename3) bool {
+func (dip *inode) addName(txn *txn, inum uint64, name Filename3) bool {
 	var off uint64 = 0
 
 	if dip.kind != NF3DIR || len(name) >= MAXNAMELEN {
@@ -44,37 +44,37 @@ func (dip *Inode) addName(txn *Txn, inum uint64, name Filename3) bool {
 	for off = uint64(0); off < dip.size; {
 		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
-		if de.Inum == NULLINUM {
+		if de.inum == NULLINUM {
 			break
 		}
 		off = off + DIRENTSZ
 		continue
 	}
-	de := &DirEnt{Inum: inum, Name: string(name)}
+	de := &dirEnt{inum: inum, name: string(name)}
 	ent := encodeDirEnt(de)
 	n, _ := dip.write(txn, off, DIRENTSZ, ent)
 	return n == DIRENTSZ
 }
 
-func (dip *Inode) remName(txn *Txn, name Filename3) bool {
+func (dip *inode) remName(txn *txn, name Filename3) bool {
 	inum, off := dip.lookupName(txn, name)
 	if inum == NULLINUM {
 		return true
 	}
-	de := &DirEnt{Inum: NULLINUM, Name: ""}
+	de := &dirEnt{inum: NULLINUM, name: ""}
 	ent := encodeDirEnt(de)
 	n, _ := dip.write(txn, off, DIRENTSZ, ent)
 	return n == DIRENTSZ
 }
 
-func (dip *Inode) isDirEmpty(txn *Txn) bool {
+func (dip *inode) isDirEmpty(txn *txn) bool {
 	var empty bool = true
 
 	// check all entries after . and ..
 	for off := uint64(2 * DIRENTSZ); off < dip.size; {
 		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
-		if de.Inum == NULLINUM {
+		if de.inum == NULLINUM {
 			off = off + DIRENTSZ
 			continue
 		}
@@ -84,14 +84,14 @@ func (dip *Inode) isDirEmpty(txn *Txn) bool {
 	return empty
 }
 
-func (dip *Inode) initDir(txn *Txn, parent Inum) bool {
+func (dip *inode) initDir(txn *txn, parent inum) bool {
 	if !dip.addName(txn, dip.inum, ".") {
 		return false
 	}
 	return dip.addName(txn, parent, "..")
 }
 
-func (dip *Inode) mkRootDir(txn *Txn) bool {
+func (dip *inode) mkRootDir(txn *txn) bool {
 	if !dip.addName(txn, dip.inum, ".") {
 		return false
 	}
@@ -99,11 +99,11 @@ func (dip *Inode) mkRootDir(txn *Txn) bool {
 }
 
 // XXX inode locking order violated
-func (dip *Inode) ls3(txn *Txn, start Cookie3, dircount Count3) Dirlistplus3 {
+func (dip *inode) ls3(txn *txn, start Cookie3, dircount Count3) Dirlistplus3 {
 	var lst *Entryplus3
 	var last *Entryplus3
 	var eof bool = true
-	var ip *Inode
+	var ip *inode
 	begin := uint64(start)
 	if begin != 0 {
 		begin += DIRENTSZ
@@ -111,28 +111,28 @@ func (dip *Inode) ls3(txn *Txn, start Cookie3, dircount Count3) Dirlistplus3 {
 	for off := begin; off < dip.size; {
 		data, _ := dip.read(txn, off, DIRENTSZ)
 		de := decodeDirEnt(data)
-		if de.Inum == NULLINUM {
+		if de.inum == NULLINUM {
 			off = off + DIRENTSZ
 			continue
 		}
-		if de.Inum != dip.inum {
-			ip = getInodeInum(txn, de.Inum)
+		if de.inum != dip.inum {
+			ip = getInodeInum(txn, de.inum)
 		} else {
 			ip = dip
 		}
 		fattr := ip.mkFattr()
-		fh := &Fh{ino: ip.inum, gen: ip.gen}
+		fh := &fh{ino: ip.inum, gen: ip.gen}
 		ph := Post_op_fh3{Handle_follows: true, Handle: fh.makeFh3()}
 		pa := Post_op_attr{Attributes_follow: true, Attributes: fattr}
 
 		// XXX hack release inode and inode block
 		if ip != dip {
 			ip.put(txn)
-			ip.ReleaseInode(txn)
+			ip.releaseInode(txn)
 		}
 
-		e := &Entryplus3{Fileid: Fileid3(de.Inum),
-			Name:            Filename3(de.Name),
+		e := &Entryplus3{Fileid: Fileid3(de.inum),
+			Name:            Filename3(de.name),
 			Cookie:          Cookie3(off),
 			Name_attributes: pa,
 			Name_handle:     ph,

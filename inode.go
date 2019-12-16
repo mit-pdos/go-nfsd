@@ -19,7 +19,7 @@ const (
 	INODESZ   uint64 = 64                 // on-disk size
 )
 
-type Inode struct {
+type inode struct {
 	// in-memory info:
 	inum uint64
 	// the on-disk inode:
@@ -30,13 +30,13 @@ type Inode struct {
 	blks  []uint64
 }
 
-type Inum = uint64
+type inum = uint64
 
 const NULLINUM uint64 = 0
 const ROOTINUM uint64 = 1
 
-func mkNullInode() *Inode {
-	return &Inode{
+func mkNullInode() *inode {
+	return &inode{
 		inum:  NULLINUM,
 		kind:  NF3DIR,
 		nlink: uint32(1),
@@ -46,8 +46,8 @@ func mkNullInode() *Inode {
 	}
 }
 
-func mkRootInode() *Inode {
-	return &Inode{
+func mkRootInode() *inode {
+	return &inode{
 		inum:  ROOTINUM,
 		kind:  NF3DIR,
 		nlink: uint32(1),
@@ -57,11 +57,11 @@ func mkRootInode() *Inode {
 	}
 }
 
-func (ip *Inode) String() string {
+func (ip *inode) String() string {
 	return fmt.Sprintf("# %d k %d n %d g %d sz %d %v", ip.inum, ip.kind, ip.nlink, ip.gen, ip.size, ip.blks)
 }
 
-func (ip *Inode) mkFattr() Fattr3 {
+func (ip *inode) mkFattr() Fattr3 {
 	return Fattr3{
 		Ftype:  ip.kind,
 		Mode:   0777,
@@ -79,24 +79,24 @@ func (ip *Inode) mkFattr() Fattr3 {
 	}
 }
 
-func (ip *Inode) encode(buf *Buf) {
-	enc := NewEnc(buf.blk)
-	enc.PutInt32(uint32(ip.kind))
-	enc.PutInt32(ip.nlink)
-	enc.PutInt(ip.gen)
-	enc.PutInt(ip.size)
-	enc.PutInts(ip.blks)
+func (ip *inode) encode(buf *buf) {
+	enc := newEnc(buf.blk)
+	enc.putInt32(uint32(ip.kind))
+	enc.putInt32(ip.nlink)
+	enc.putInt(ip.gen)
+	enc.putInt(ip.size)
+	enc.putInts(ip.blks)
 }
 
-func decode(buf *Buf, inum uint64) *Inode {
-	ip := &Inode{}
-	dec := NewDec(buf.blk)
+func decode(buf *buf, inum uint64) *inode {
+	ip := &inode{}
+	dec := newDec(buf.blk)
 	ip.inum = inum
-	ip.kind = Ftype3(dec.GetInt32())
-	ip.nlink = dec.GetInt32()
-	ip.gen = dec.GetInt()
-	ip.size = dec.GetInt()
-	ip.blks = dec.GetInts(NBLKINO)
+	ip.kind = Ftype3(dec.getInt32())
+	ip.nlink = dec.getInt32()
+	ip.gen = dec.getInt()
+	ip.size = dec.getInt()
+	ip.blks = dec.getInts(NBLKINO)
 	return ip
 }
 
@@ -111,32 +111,32 @@ func pow(level uint64) uint64 {
 	return p
 }
 
-func MaxFileSize() uint64 {
+func maxFileSize() uint64 {
 	maxblks := pow(NINDLEVEL)
 	return (NDIRECT + maxblks) * disk.BlockSize
 }
 
-func getInodeLocked(txn *Txn, inum Inum) *Inode {
-	addr := txn.fs.Inum2Addr(inum)
-	buf := txn.ReadBufLocked(addr, INODE)
+func getInodeLocked(txn *txn, inum inum) *inode {
+	addr := txn.fs.inum2addr(inum)
+	buf := txn.readBufLocked(addr, INODE)
 	i := decode(buf, inum)
-	DPrintf(5, "getInodeLocked %v\n", i)
+	dPrintf(5, "getInodeLocked %v\n", i)
 	return i
 }
 
-func getInodeInumFree(txn *Txn, inum Inum) *Inode {
+func getInodeInumFree(txn *txn, inum inum) *inode {
 	ip := getInodeLocked(txn, inum)
 	return ip
 }
 
-func getInodeInum(txn *Txn, inum Inum) *Inode {
+func getInodeInum(txn *txn, inum inum) *inode {
 	ip := getInodeInumFree(txn, inum)
 	if ip == nil {
 		return nil
 	}
 	if ip.kind == NF3FREE {
 		ip.put(txn)
-		ip.ReleaseInode(txn)
+		ip.releaseInode(txn)
 		return nil
 	}
 	if ip.nlink == 0 {
@@ -145,7 +145,7 @@ func getInodeInum(txn *Txn, inum Inum) *Inode {
 	return ip
 }
 
-func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
+func getInode(txn *txn, fh3 Nfs_fh3) *inode {
 	fh := fh3.makeFh()
 	ip := getInodeInum(txn, fh.ino)
 	if ip == nil {
@@ -153,39 +153,39 @@ func getInode(txn *Txn, fh3 Nfs_fh3) *Inode {
 	}
 	if ip.gen != fh.gen {
 		ip.put(txn)
-		ip.ReleaseInode(txn)
+		ip.releaseInode(txn)
 		return nil
 	}
 	return ip
 }
 
-func (ip *Inode) ReleaseInode(txn *Txn) {
-	addr := txn.fs.Inum2Addr(ip.inum)
-	txn.ReleaseBuf(addr)
+func (ip *inode) releaseInode(txn *txn) {
+	addr := txn.fs.inum2addr(ip.inum)
+	txn.releaseBuf(addr)
 }
 
-func (ip *Inode) writeInode(txn *Txn) {
-	if ip.inum >= txn.fs.NInode() {
+func (ip *inode) writeInode(txn *txn) {
+	if ip.inum >= txn.fs.nInode() {
 		panic("writeInode")
 	}
-	buf := txn.ReadBufLocked(txn.fs.Inum2Addr(ip.inum), INODE)
-	DPrintf(5, "writeInode %v\n", ip)
+	buf := txn.readBufLocked(txn.fs.inum2addr(ip.inum), INODE)
+	dPrintf(5, "writeInode %v\n", ip)
 	ip.encode(buf)
-	buf.Dirty()
+	buf.setDirty()
 }
 
-func (txn *Txn) AllocInum() Inum {
-	n := txn.ialloc.AllocNum(txn)
-	DPrintf(5, "alloc inode %v\n", n)
+func (txn *txn) allocInum() inum {
+	n := txn.ialloc.allocNum(txn)
+	dPrintf(5, "alloc inode %v\n", n)
 	return n
 }
 
-func allocInode(txn *Txn, kind Ftype3) Inum {
-	inum := txn.AllocInum()
+func allocInode(txn *txn, kind Ftype3) inum {
+	inum := txn.allocInum()
 	if inum != 0 {
 		ip := getInodeLocked(txn, inum)
 		if ip.kind == NF3FREE {
-			DPrintf(5, "allocInode: allocate inode %d\n", inum)
+			dPrintf(5, "allocInode: allocate inode %d\n", inum)
 			ip.inum = inum
 			ip.kind = kind
 			ip.nlink = 1
@@ -199,14 +199,14 @@ func allocInode(txn *Txn, kind Ftype3) Inum {
 	return inum
 }
 
-func (ip *Inode) freeInode(txn *Txn) {
+func (ip *inode) freeInode(txn *txn) {
 	ip.kind = NF3FREE
 	ip.gen = ip.gen + 1
 	ip.writeInode(txn)
-	txn.ialloc.FreeNum(txn, ip.inum)
+	txn.ialloc.freeNum(txn, ip.inum)
 }
 
-func freeInum(txn *Txn, inum Inum) {
+func freeInum(txn *txn, inum inum) {
 	i := getInodeLocked(txn, inum)
 	if i.kind == NF3FREE {
 		panic("freeInode")
@@ -215,8 +215,8 @@ func freeInum(txn *Txn, inum Inum) {
 }
 
 // Done with ip and remove inode if nlink = 0.
-func (ip *Inode) put(txn *Txn) {
-	DPrintf(5, "put inode %d nlink %d\n", ip.inum, ip.nlink)
+func (ip *inode) put(txn *txn) {
+	dPrintf(5, "put inode %d nlink %d\n", ip.inum, ip.nlink)
 	// shrinker may put an FREE inode
 	if ip.nlink == 0 && ip.kind != NF3FREE {
 		ip.resize(txn, 0)
@@ -226,12 +226,12 @@ func (ip *Inode) put(txn *Txn) {
 
 // Returns blkno for indirect bn and newroot if root was allocated. If
 // blkno is 0, failure.
-func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow bool) (uint64, uint64) {
+func (ip *inode) indbmap(txn *txn, root uint64, level uint64, off uint64, grow bool) (uint64, uint64) {
 	var newroot uint64 = 0
 	var blkno uint64 = root
 
 	if blkno == 0 { // no root?
-		newroot = txn.AllocBlock()
+		newroot = txn.allocBlock()
 		if newroot == 0 {
 			return 0, 0
 		}
@@ -240,7 +240,7 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 
 	if level == 0 { // leaf?
 		if root != 0 && grow { // old leaf?
-			txn.ZeroBlock(blkno)
+			txn.zeroBlock(blkno)
 		}
 		return blkno, newroot
 	}
@@ -251,17 +251,17 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 	ind := off % divisor
 
 	if root != 0 && off == 0 && grow { // old root from previous file?
-		txn.ZeroBlock(blkno)
+		txn.zeroBlock(blkno)
 	}
 
-	buf := txn.ReadBlock(blkno)
+	buf := txn.readBlock(blkno)
 	nxtroot := machine.UInt64Get(buf.blk[bo : bo+8])
 	b, newroot1 := ip.indbmap(txn, nxtroot, level-1, ind, grow)
 	if newroot1 != 0 {
 		machine.UInt64Put(buf.blk[bo:bo+8], newroot1)
-		buf.Dirty()
+		buf.setDirty()
 	}
-	if b >= txn.fs.Size {
+	if b >= txn.fs.size {
 		panic("indbmap")
 	}
 	return b, newroot
@@ -269,10 +269,10 @@ func (ip *Inode) indbmap(txn *Txn, root uint64, level uint64, off uint64, grow b
 
 // Lazily resize file. Bmap allocates/zeros blocks on demand.  Create
 // a new thread to free blocks in a separate transaction.
-func (ip *Inode) resize(txn *Txn, sz uint64) {
-	DPrintf(5, "resize %v to sz %d\n", ip, sz)
+func (ip *inode) resize(txn *txn, sz uint64) {
+	dPrintf(5, "resize %v to sz %d\n", ip, sz)
 	if sz < ip.size {
-		DPrintf(1, "start shrink thread\n")
+		dPrintf(1, "start shrink thread\n")
 		txn.nfs.nthread = txn.nfs.nthread + 1
 		go shrink(txn.nfs, ip.inum, ip.size)
 	}
@@ -283,16 +283,16 @@ func (ip *Inode) resize(txn *Txn, sz uint64) {
 // Map logical block number bn to a physical block number, allocating
 // blocks if no block exists for bn. Reuse block from previous
 // versions of this inode, but zero them.
-func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
+func (ip *inode) bmap(txn *txn, bn uint64) (uint64, bool) {
 	var alloc bool = false
-	sz := RoundUp(ip.size, disk.BlockSize)
+	sz := roundUp(ip.size, disk.BlockSize)
 	grow := bn > sz
 	if bn < NDIRECT {
 		if ip.blks[bn] != 0 && grow {
-			txn.ZeroBlock(ip.blks[bn])
+			txn.zeroBlock(ip.blks[bn])
 		}
 		if ip.blks[bn] == 0 {
-			blkno := txn.AllocBlock()
+			blkno := txn.allocBlock()
 			if blkno == 0 {
 				return 0, false
 			}
@@ -320,7 +320,7 @@ func (ip *Inode) bmap(txn *Txn, bn uint64) (uint64, bool) {
 }
 
 // Returns number of bytes read and eof
-func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
+func (ip *inode) read(txn *txn, offset uint64, count uint64) ([]byte, bool) {
 	var n uint64 = uint64(0)
 
 	if offset >= ip.size {
@@ -343,7 +343,7 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 		if alloc { // fill in a hole
 			ip.writeInode(txn)
 		}
-		buf := txn.ReadBlock(blkno)
+		buf := txn.readBlock(blkno)
 
 		for b := uint64(0); b < nbytes; b++ {
 			data = append(data, buf.blk[byteoff+b])
@@ -355,14 +355,14 @@ func (ip *Inode) read(txn *Txn, offset uint64, count uint64) ([]byte, bool) {
 }
 
 // Returns number of bytes written and error
-func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint64, bool) {
+func (ip *inode) write(txn *txn, offset uint64, count uint64, data []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
 	var ok bool = true
 	var alloc bool = false
 	n := count
 
-	if offset+count > MaxFileSize() {
+	if offset+count > maxFileSize() {
 		return 0, false
 	}
 	for boff := offset / disk.BlockSize; n > uint64(0); boff++ {
@@ -374,7 +374,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		if new {
 			alloc = true
 		}
-		buf := txn.ReadBlock(blkno)
+		buf := txn.readBlock(blkno)
 		byteoff := offset % disk.BlockSize
 		nbytes := disk.BlockSize - byteoff
 		if n < nbytes {
@@ -383,7 +383,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 		for b := uint64(0); b < nbytes; b++ {
 			buf.blk[byteoff+b] = data[b]
 		}
-		buf.Dirty()
+		buf.setDirty()
 		n = n - nbytes
 		data = data[nbytes:]
 		offset = offset + nbytes
@@ -398,7 +398,7 @@ func (ip *Inode) write(txn *Txn, offset uint64, count uint64, data []byte) (uint
 	return cnt, ok
 }
 
-func (ip *Inode) decLink(txn *Txn) {
+func (ip *inode) decLink(txn *txn) {
 	ip.nlink = ip.nlink - 1
 	ip.writeInode(txn)
 }
@@ -409,7 +409,7 @@ func (ip *Inode) decLink(txn *Txn) {
 
 // Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn
 // have been cleared
-func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint64 {
+func (ip *inode) indshrink(txn *txn, root uint64, level uint64, bn uint64) uint64 {
 	if level == 0 {
 		return root
 	}
@@ -417,14 +417,14 @@ func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint6
 	off := (bn / divisor)
 	ind := bn % divisor
 	boff := off * 8
-	buf := txn.ReadBlock(root)
+	buf := txn.readBlock(root)
 	nxtroot := machine.UInt64Get(buf.blk[boff : boff+8])
 	if nxtroot != 0 {
 		freeroot := ip.indshrink(txn, nxtroot, level-1, ind)
 		if freeroot != 0 {
 			machine.UInt64Put(buf.blk[boff:boff+8], 0)
-			buf.Dirty()
-			txn.FreeBlock(freeroot)
+			buf.setDirty()
+			txn.freeBlock(freeroot)
 		}
 	}
 	if off == 0 && ind == 0 {
@@ -434,50 +434,50 @@ func (ip *Inode) indshrink(txn *Txn, root uint64, level uint64, bn uint64) uint6
 	}
 }
 
-func shrink(nfs *Nfs, inum Inum, oldsz uint64) {
-	bn := RoundUp(oldsz, disk.BlockSize)
-	DPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
+func shrink(nfs *Nfs, inum inum, oldsz uint64) {
+	bn := roundUp(oldsz, disk.BlockSize)
+	dPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
 	for {
-		txn := Begin(nfs)
+		txn := begin(nfs)
 		ip := getInodeInumFree(txn, inum)
 		if ip == nil {
 			panic("shrink")
 		}
 		if ip.size >= oldsz { // file has grown again or resize didn't commit
-			ok := txn.Commit([]*Inode{ip})
+			ok := txn.commit([]*inode{ip})
 			if !ok {
 				panic("shrink")
 			}
 			break
 		}
-		cursz := RoundUp(ip.size, disk.BlockSize)
-		DPrintf(5, "shrink: bn %d cursz %d\n", bn, cursz)
+		cursz := roundUp(ip.size, disk.BlockSize)
+		dPrintf(5, "shrink: bn %d cursz %d\n", bn, cursz)
 		// 4: inode block, 2xbitmap block, indirect block, double indirect
 		for bn > cursz && txn.numberDirty()+4 < txn.log.logSz {
 			bn = bn - 1
 			if bn < NDIRECT {
-				txn.FreeBlock(ip.blks[bn])
+				txn.freeBlock(ip.blks[bn])
 				ip.blks[bn] = 0
 			} else {
 				off := bn - NDIRECT
 				if off < NBLKBLK {
 					freeroot := ip.indshrink(txn, ip.blks[INDIRECT], 1, off)
 					if freeroot != 0 {
-						txn.FreeBlock(ip.blks[INDIRECT])
+						txn.freeBlock(ip.blks[INDIRECT])
 						ip.blks[INDIRECT] = 0
 					}
 				} else {
 					off = off - NBLKBLK
 					freeroot := ip.indshrink(txn, ip.blks[DINDIRECT], 2, off)
 					if freeroot != 0 {
-						txn.FreeBlock(ip.blks[DINDIRECT])
+						txn.freeBlock(ip.blks[DINDIRECT])
 						ip.blks[DINDIRECT] = 0
 					}
 				}
 			}
 		}
 		ip.writeInode(txn)
-		ok := txn.Commit([]*Inode{ip})
+		ok := txn.commit([]*inode{ip})
 		if !ok {
 			panic("shrink")
 		}
@@ -485,7 +485,7 @@ func shrink(nfs *Nfs, inum Inum, oldsz uint64) {
 			break
 		}
 	}
-	DPrintf(1, "Shrinker: done shrinking %d to bn %d\n", inum, bn)
+	dPrintf(1, "Shrinker: done shrinking %d to bn %d\n", inum, bn)
 	nfs.mu.Lock()
 	nfs.nthread = nfs.nthread - 1
 	nfs.mu.Unlock()

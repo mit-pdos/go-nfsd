@@ -4,18 +4,18 @@ import (
 	"github.com/tchajed/goose/machine"
 )
 
-type Fh struct {
+type fh struct {
 	ino uint64
 	gen uint64
 }
 
-func (fh3 Nfs_fh3) makeFh() Fh {
+func (fh3 Nfs_fh3) makeFh() fh {
 	i := machine.UInt64Get(fh3.Data[0:8])
 	g := machine.UInt64Get(fh3.Data[8:])
-	return Fh{ino: i, gen: g}
+	return fh{ino: i, gen: g}
 }
 
-func (fh Fh) makeFh3() Nfs_fh3 {
+func (fh fh) makeFh3() Nfs_fh3 {
 	fh3 := Nfs_fh3{Data: make([]byte, 16)}
 	machine.UInt64Put(fh3.Data[0:8], fh.ino)
 	machine.UInt64Put(fh3.Data[8:], fh.gen)

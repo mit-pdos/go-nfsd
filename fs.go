@@ -10,83 +10,83 @@ const (
 	NINODEBITMAP uint64 = 1
 )
 
-type FsSuper struct {
-	Size         uint64
-	NLog         uint64 // including commit block
-	NBlockBitmap uint64
-	NInodeBitmap uint64
-	NInodeBlk    uint64
-	MaxAddr      uint64
+type fsSuper struct {
+	size         uint64
+	nLog         uint64 // including commit block
+	nBlockBitmap uint64
+	nInodeBitmap uint64
+	nInodeBlk    uint64
+	maxaddr      uint64
 }
 
-func mkFsSuper() *FsSuper {
+func mkFsSuper() *fsSuper {
 	sz := uint64(10 * 10000)
 	nblockbitmap := (sz / NBITBLOCK) + 1
 	disk.Init(disk.NewMemDisk(sz))
-	return &FsSuper{
-		Size:         sz,
-		NLog:         LOGSIZE,
-		NBlockBitmap: nblockbitmap,
-		NInodeBitmap: NINODEBITMAP,
-		NInodeBlk:    (NINODEBITMAP * NBITBLOCK * INODESZ) / disk.BlockSize,
-		MaxAddr:      sz}
+	return &fsSuper{
+		size:         sz,
+		nLog:         LOGSIZE,
+		nBlockBitmap: nblockbitmap,
+		nInodeBitmap: NINODEBITMAP,
+		nInodeBlk:    (NINODEBITMAP * NBITBLOCK * INODESZ) / disk.BlockSize,
+		maxaddr:      sz}
 }
 
-func (fs *FsSuper) bitmapBlockStart() uint64 {
-	return fs.NLog
+func (fs *fsSuper) bitmapBlockStart() uint64 {
+	return fs.nLog
 }
 
-func (fs *FsSuper) bitmapInodeStart() uint64 {
-	return fs.bitmapBlockStart() + fs.NBlockBitmap
+func (fs *fsSuper) bitmapInodeStart() uint64 {
+	return fs.bitmapBlockStart() + fs.nBlockBitmap
 }
 
-func (fs *FsSuper) inodeStart() uint64 {
-	return fs.bitmapInodeStart() + fs.NInodeBitmap
+func (fs *fsSuper) inodeStart() uint64 {
+	return fs.bitmapInodeStart() + fs.nInodeBitmap
 }
 
-func (fs *FsSuper) dataStart() uint64 {
-	return fs.inodeStart() + fs.NInodeBlk
+func (fs *fsSuper) dataStart() uint64 {
+	return fs.inodeStart() + fs.nInodeBlk
 }
 
-func (fs *FsSuper) Block2Addr(blkno uint64) Addr {
-	return mkAddr(blkno, 0, NBITBLOCK)
+func (fs *fsSuper) block2addr(blkno uint64) addr {
+	return mkaddr(blkno, 0, NBITBLOCK)
 }
 
-func (fs *FsSuper) NInode() uint64 {
-	return fs.NInodeBlk * INODEBLK
+func (fs *fsSuper) nInode() uint64 {
+	return fs.nInodeBlk * INODEBLK
 }
 
-func (fs *FsSuper) Inum2Addr(inum Inum) Addr {
-	return mkAddr(fs.inodeStart()+inum/INODEBLK, (inum%INODEBLK)*INODESZ*8, INODESZ*8)
+func (fs *fsSuper) inum2addr(inum inum) addr {
+	return mkaddr(fs.inodeStart()+inum/INODEBLK, (inum%INODEBLK)*INODESZ*8, INODESZ*8)
 }
 
 //
 // mkfs
 //
 
-func (fs *FsSuper) initFs() {
+func (fs *fsSuper) initFs() {
 	// inum = 0 is reserved
 	nulli := mkNullInode()
-	naddr := fs.Inum2Addr(NULLINUM)
+	naddr := fs.inum2addr(NULLINUM)
 	nullblk := make(disk.Block, INODESZ)
 	buf := mkBuf(naddr, 0, nullblk, nil)
 	nulli.encode(buf)
-	buf.WriteDirect()
+	buf.writeDirect()
 
 	root := mkRootInode()
-	DPrintf(5, "root %v\n", root)
-	raddr := fs.Inum2Addr(ROOTINUM)
+	dPrintf(5, "root %v\n", root)
+	raddr := fs.inum2addr(ROOTINUM)
 	rootblk := make(disk.Block, INODESZ)
 	rootbuf := mkBuf(raddr, 0, rootblk, nil)
 	root.encode(rootbuf)
-	rootbuf.WriteDirect()
+	rootbuf.writeDirect()
 
-	fs.markAlloc(fs.dataStart(), fs.MaxAddr)
+	fs.markAlloc(fs.dataStart(), fs.maxaddr)
 }
 
-func (fs *FsSuper) markAlloc(n uint64, m uint64) {
-	DPrintf(1, "markAlloc: [0, %d) and [%d,%d)\n", n, m, fs.NBlockBitmap*NBITBLOCK)
-	if n >= NBITBLOCK || m >= NBITBLOCK*fs.NBlockBitmap || m < NBITBLOCK {
+func (fs *fsSuper) markAlloc(n uint64, m uint64) {
+	dPrintf(1, "markAlloc: [0, %d) and [%d,%d)\n", n, m, fs.nBlockBitmap*NBITBLOCK)
+	if n >= NBITBLOCK || m >= NBITBLOCK*fs.nBlockBitmap || m < NBITBLOCK {
 		panic("markAlloc")
 	}
 	blk := make(disk.Block, disk.BlockSize)
@@ -113,11 +113,11 @@ func (fs *FsSuper) markAlloc(n uint64, m uint64) {
 	disk.Write(fs.bitmapInodeStart(), blk2)
 }
 
-func (fs *FsSuper) putBlkDirect(inum uint64, blk disk.Block) bool {
-	if inum >= fs.NInode() {
+func (fs *fsSuper) putBlkDirect(inum uint64, blk disk.Block) bool {
+	if inum >= fs.nInode() {
 		return false
 	}
-	DPrintf(10, "write blk direct %d\n", fs.inodeStart()+inum)
+	dPrintf(10, "write blk direct %d\n", fs.inodeStart()+inum)
 	disk.Write(fs.inodeStart()+inum, blk)
 	return true
 }

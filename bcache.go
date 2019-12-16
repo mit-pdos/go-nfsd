@@ -5,7 +5,7 @@ import (
 )
 
 // Returns a block
-func loadBlock(slot *Cslot, a uint64) disk.Block {
+func loadBlock(slot *cslot, a uint64) disk.Block {
 	slot.lock()
 	if slot.obj == nil {
 		// blk hasn't been read yet from disk; read it and put
@@ -21,18 +21,18 @@ func loadBlock(slot *Cslot, a uint64) disk.Block {
 // If Read cannot find a cache slot, wait until installer unpins
 // blocks from cache: flush memlog, which may contain unstable writes,
 // and signal installer.
-func (txn *Txn) ReadBlockCache(addr uint64) disk.Block {
-	if addr >= txn.fs.Size {
+func (txn *txn) readBlockCache(addr uint64) disk.Block {
+	if addr >= txn.fs.size {
 		panic("Read")
 	}
-	var slot *Cslot
+	var slot *cslot
 	slot = txn.bc.lookupSlot(addr)
 	for slot == nil {
-		DPrintf(5, "ReadBlock: miss on %d WaitFlushMemLog and signal installer\n",
+		dPrintf(5, "ReadBlock: miss on %d waitFlushMemLog and signal installer\n",
 			addr)
-		txn.log.WaitFlushMemLog()
-		txn.log.SignalInstaller()
-		if txn.amap.Len() >= txn.log.logSz {
+		txn.log.waitFlushMemLog()
+		txn.log.signalInstaller()
+		if txn.amap.len() >= txn.log.logSz {
 			panic("readBlock")
 		}
 		// Try again; a slot should free up eventually.
@@ -43,6 +43,6 @@ func (txn *Txn) ReadBlockCache(addr uint64) disk.Block {
 	return blk
 }
 
-func (txn *Txn) releaseBlock(blkno uint64) {
+func (txn *txn) releaseBlock(blkno uint64) {
 	txn.bc.freeSlot(blkno)
 }

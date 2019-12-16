@@ -13,35 +13,35 @@ import (
 // for the slot.  When a reference counter for slot is 0, the cache
 // can evict that slot, if it needs space for other objects.
 
-type Cslot struct {
+type cslot struct {
 	mu  *sync.RWMutex // mutex protecting obj in this slot
 	obj interface{}
 }
 
-func (slot *Cslot) lock() {
+func (slot *cslot) lock() {
 	slot.mu.Lock()
 }
 
-func (slot *Cslot) unlock() {
+func (slot *cslot) unlock() {
 	slot.mu.Unlock()
 }
 
 type entry struct {
 	ref  uint32 // the slot's reference count
-	pin  TxnNum // is the slot pinned until transaction pin?
-	slot Cslot
+	pin  txnNum // is the slot pinned until transaction pin?
+	slot cslot
 }
 
-type Cache struct {
+type cache struct {
 	mu      *sync.RWMutex
 	entries map[uint64]*entry
 	sz      uint64
 	cnt     uint64
 }
 
-func mkCache(sz uint64) *Cache {
+func mkCache(sz uint64) *cache {
 	entries := make(map[uint64]*entry, sz)
-	return &Cache{
+	return &cache{
 		mu:      new(sync.RWMutex),
 		entries: entries,
 		cnt:     0,
@@ -49,13 +49,13 @@ func mkCache(sz uint64) *Cache {
 	}
 }
 
-func (c *Cache) printCache() {
+func (c *cache) printCache() {
 	for k, v := range c.entries {
-		DPrintf(0, "Entry %v: %v\n", k, v)
+		dPrintf(0, "Entry %v: %v\n", k, v)
 	}
 }
 
-func (c *Cache) evict() uint64 {
+func (c *cache) evict() uint64 {
 	var addr uint64 = 0
 	for a, entry := range c.entries {
 		if entry.ref == 0 && entry.pin == 0 {
@@ -65,7 +65,7 @@ func (c *Cache) evict() uint64 {
 		continue
 	}
 	if addr != 0 {
-		DPrintf(5, "evict: %d\n", addr)
+		dPrintf(5, "evict: %d\n", addr)
 		delete(c.entries, addr)
 		c.cnt = c.cnt - 1
 	}
@@ -75,7 +75,7 @@ func (c *Cache) evict() uint64 {
 // Lookup the cache slot for id.  Create the slot if id isn't in the
 // cache and if there is space in the cache. If no space, return
 // nil to indicate the caller to evict entries.
-func (c *Cache) lookupSlot(id uint64) *Cslot {
+func (c *cache) lookupSlot(id uint64) *cslot {
 	c.mu.Lock()
 	e := c.entries[id]
 	if e != nil {
@@ -91,7 +91,7 @@ func (c *Cache) lookupSlot(id uint64) *Cslot {
 			return nil
 		}
 	}
-	s := Cslot{mu: new(sync.RWMutex), obj: nil}
+	s := cslot{mu: new(sync.RWMutex), obj: nil}
 	enew := &entry{ref: 1, pin: 0, slot: s}
 	c.entries[id] = enew
 	c.cnt = c.cnt + 1
@@ -101,7 +101,7 @@ func (c *Cache) lookupSlot(id uint64) *Cslot {
 
 // Decrease ref count of the cache slot for id so that entry.obj maybe
 // deleted by evict
-func (c *Cache) freeSlot(id uint64) {
+func (c *cache) freeSlot(id uint64) {
 	c.mu.Lock()
 	entry := c.entries[id]
 	if entry != nil {
@@ -115,7 +115,7 @@ func (c *Cache) freeSlot(id uint64) {
 
 // Decrease ref count of the cache slot for id. The caller should hold
 // the locked obj in the slot.
-func (c *Cache) delSlot(id uint64) {
+func (c *cache) delSlot(id uint64) {
 	c.mu.Lock()
 	entry := c.entries[id]
 	if entry != nil {
@@ -128,9 +128,9 @@ func (c *Cache) delSlot(id uint64) {
 }
 
 // Pin ids until txn < nexttxn have committed
-func (c *Cache) Pin(ids []uint64, nxttxn TxnNum) {
+func (c *cache) pin(ids []uint64, nxttxn txnNum) {
 	c.mu.Lock()
-	DPrintf(5, "Pin till nxttxn %d %v\n", nxttxn, ids)
+	dPrintf(5, "Pin till nxttxn %d %v\n", nxttxn, ids)
 	for _, id := range ids {
 		e := c.entries[id]
 		if e == nil {
@@ -142,9 +142,9 @@ func (c *Cache) Pin(ids []uint64, nxttxn TxnNum) {
 }
 
 // Unpin ids through nxttxn
-func (c *Cache) UnPin(ids []uint64, nxttxn TxnNum) {
+func (c *cache) unPin(ids []uint64, nxttxn txnNum) {
 	c.mu.Lock()
-	DPrintf(5, "Unpin through %d %v\n", nxttxn, ids)
+	dPrintf(5, "Unpin through %d %v\n", nxttxn, ids)
 	for _, id := range ids {
 		entry := c.entries[id]
 		if entry == nil {
@@ -153,7 +153,7 @@ func (c *Cache) UnPin(ids []uint64, nxttxn TxnNum) {
 		if nxttxn >= entry.pin {
 			entry.pin = 0
 		} else {
-			DPrintf(10, "Unpin: keep %d pinned at %d\n", id, entry.pin)
+			dPrintf(10, "Unpin: keep %d pinned at %d\n", id, entry.pin)
 		}
 	}
 	c.mu.Unlock()

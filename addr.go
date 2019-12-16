@@ -6,17 +6,17 @@ import (
 	"sync"
 )
 
-type Addr struct {
+type addr struct {
 	blkno uint64
 	off   uint64 // offset in bits
 	sz    uint64 // sz in bits
 }
 
-func (a *Addr) Eq(b Addr) bool {
+func (a *addr) eq(b addr) bool {
 	return a.blkno == b.blkno && a.off == b.off && a.sz == b.sz
 }
 
-func (a *Addr) Inc(start uint64, len uint64) {
+func (a *addr) inc(start uint64, len uint64) {
 	a.off = a.off + 1
 	if a.off >= disk.BlockSize {
 		a.off = 0
@@ -27,36 +27,36 @@ func (a *Addr) Inc(start uint64, len uint64) {
 	}
 }
 
-func mkAddr(blkno uint64, off uint64, sz uint64) Addr {
-	return Addr{blkno: blkno, off: off, sz: sz}
+func mkaddr(blkno uint64, off uint64, sz uint64) addr {
+	return addr{blkno: blkno, off: off, sz: sz}
 }
 
-type AddrMap struct {
+type addrMap struct {
 	mu   *sync.RWMutex
-	bufs map[uint64][]*Buf
+	bufs map[uint64][]*buf
 }
 
-func mkAddrMap() *AddrMap {
-	a := &AddrMap{
+func mkaddrMap() *addrMap {
+	a := &addrMap{
 		mu:   new(sync.RWMutex),
-		bufs: make(map[uint64][]*Buf),
+		bufs: make(map[uint64][]*buf),
 	}
 	return a
 }
 
-func (amap *AddrMap) Len() uint64 {
+func (amap *addrMap) len() uint64 {
 	amap.mu.Lock()
 	l := uint64(len(amap.bufs))
 	amap.mu.Unlock()
 	return l
 }
 
-func (amap *AddrMap) LookupInternal(addr Addr) *Buf {
-	var buf *Buf
+func (amap *addrMap) lookupInternal(addr addr) *buf {
+	var buf *buf
 	bs, ok := amap.bufs[addr.blkno]
 	if ok {
 		for _, b := range bs {
-			if addr.Eq(b.addr) {
+			if addr.eq(b.addr) {
 				buf = b
 				break
 			}
@@ -65,45 +65,47 @@ func (amap *AddrMap) LookupInternal(addr Addr) *Buf {
 	return buf
 }
 
-func (amap *AddrMap) AddInternal(buf *Buf) {
+func (amap *addrMap) addInternal(buf *buf) {
 	blkno := buf.addr.blkno
 	amap.bufs[blkno] = append(amap.bufs[blkno], buf)
 }
 
-func (amap *AddrMap) Lookup(addr Addr) *Buf {
+func (amap *addrMap) lookup(addr addr) *buf {
 	amap.mu.Lock()
-	buf := amap.LookupInternal(addr)
+	buf := amap.lookupInternal(addr)
 	amap.mu.Unlock()
 	return buf
 }
 
-func (amap *AddrMap) LookupAdd(addr Addr, buf *Buf) bool {
+func (amap *addrMap) lookupAdd(addr addr, buf *buf) bool {
 	amap.mu.Lock()
-	b := amap.LookupInternal(addr)
+	b := amap.lookupInternal(addr)
 	if b == nil {
-		amap.AddInternal(buf)
+		amap.addInternal(buf)
 		amap.mu.Unlock()
 		return true
+	} else {
+		dPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
 	}
-	DPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
+	dPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
 	amap.mu.Unlock()
 	return false
 }
 
-func (amap *AddrMap) LookupBufs(blkno uint64) []*Buf {
+func (amap *addrMap) lookupBufs(blkno uint64) []*buf {
 	amap.mu.Lock()
 	bs, _ := amap.bufs[blkno]
 	amap.mu.Unlock()
 	return bs
 }
 
-func (amap *AddrMap) Add(buf *Buf) {
+func (amap *addrMap) add(buf *buf) {
 	amap.mu.Lock()
-	amap.AddInternal(buf)
+	amap.addInternal(buf)
 	amap.mu.Unlock()
 }
 
-func (amap *AddrMap) Del(addr Addr) {
+func (amap *addrMap) del(addr addr) {
 	var index uint64
 	var found bool
 
@@ -114,7 +116,7 @@ func (amap *AddrMap) Del(addr Addr) {
 		panic("Del")
 	}
 	for i, b := range bs {
-		if b.addr.Eq(addr) {
+		if b.addr.eq(addr) {
 			index = uint64(i)
 			found = true
 		}
@@ -127,7 +129,7 @@ func (amap *AddrMap) Del(addr Addr) {
 	amap.mu.Unlock()
 }
 
-func (amap *AddrMap) Dirty() uint64 {
+func (amap *addrMap) dirty() uint64 {
 	var n uint64 = 0
 	amap.mu.Lock()
 	for _, bs := range amap.bufs {

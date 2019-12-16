@@ -1,25 +1,25 @@
 package goose_nfs
 
-func (txn *Txn) AllocBlock() uint64 {
-	n := txn.balloc.AllocNum(txn)
-	DPrintf(5, "alloc block %v\n", n)
+func (txn *txn) allocBlock() uint64 {
+	n := txn.balloc.allocNum(txn)
+	dPrintf(5, "alloc block %v\n", n)
 	return n
 }
 
-func (txn *Txn) FreeBlock(blkno uint64) {
-	DPrintf(5, "free block %v\n", blkno)
-	txn.balloc.FreeNum(txn, blkno)
+func (txn *txn) freeBlock(blkno uint64) {
+	dPrintf(5, "free block %v\n", blkno)
+	txn.balloc.freeNum(txn, blkno)
 }
 
-func (txn *Txn) ReadBlock(blkno uint64) *Buf {
-	DPrintf(10, "ReadBlock %d\n", blkno)
-	addr := txn.fs.Block2Addr(blkno)
-	return txn.ReadBufLocked(addr, BLOCK)
+func (txn *txn) readBlock(blkno uint64) *buf {
+	dPrintf(10, "ReadBlock %d\n", blkno)
+	addr := txn.fs.block2addr(blkno)
+	return txn.readBufLocked(addr, BLOCK)
 }
 
-func (txn *Txn) ZeroBlock(blkno uint64) {
-	DPrintf(5, "zero block %d\n", blkno)
-	buf := txn.ReadBlock(blkno)
+func (txn *txn) zeroBlock(blkno uint64) {
+	dPrintf(5, "zero block %d\n", blkno)
+	buf := txn.readBlock(blkno)
 	for i, _ := range buf.blk {
 		buf.blk[i] = 0
 	}

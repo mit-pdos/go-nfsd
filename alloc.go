@@ -6,16 +6,16 @@ import (
 
 // Allocator uses a bit map to allocate and free numbers. Bit 0
 // corresponds to number 1, bit 1 to 1, and so on.
-type Alloc struct {
+type alloc struct {
 	lock  *sync.RWMutex // protects next
 	start uint64
 	len   uint64
 	next  uint64 // first number to try
-	kind  Kind
+	kind  kind
 }
 
-func mkAlloc(start uint64, len uint64, kind Kind) *Alloc {
-	a := &Alloc{
+func mkAlloc(start uint64, len uint64, kind kind) *alloc {
+	a := &alloc{
 		lock:  new(sync.RWMutex),
 		start: start,
 		len:   len,
@@ -26,7 +26,7 @@ func mkAlloc(start uint64, len uint64, kind Kind) *Alloc {
 }
 
 // Free bit bn in buf
-func freeBit(buf *Buf, bn uint64) {
+func freeBit(buf *buf, bn uint64) {
 	if bn != buf.addr.off {
 		panic("freeBit")
 	}
@@ -34,7 +34,7 @@ func freeBit(buf *Buf, bn uint64) {
 	buf.blk[0] = buf.blk[0] & ^(1 << bit)
 }
 
-func (a *Alloc) IncNext(inc uint64) uint64 {
+func (a *alloc) incNext(inc uint64) uint64 {
 	a.lock.Lock()
 	a.next = a.next + inc // inc bits
 	if a.next >= a.len*NBITBLOCK {
@@ -46,23 +46,23 @@ func (a *Alloc) IncNext(inc uint64) uint64 {
 }
 
 // Returns a locked region in the bitmap with some free bits.
-func (a *Alloc) FindFreeRegion(txn *Txn) *Buf {
-	var buf *Buf
+func (a *alloc) findFreeRegion(txn *txn) *buf {
+	var buf *buf
 	var num uint64
-	num = a.IncNext(1)
+	num = a.incNext(1)
 	start := num
 	for {
-		b := a.LockRegion(txn, num, 1)
+		b := a.lockRegion(txn, num, 1)
 		bit := num % 8
-		DPrintf(15, "findregion: %v %d 0x%x\n", b, num, b.blk[0])
+		dPrintf(15, "findregion: %v %d 0x%x\n", b, num, b.blk[0])
 		if b.blk[0]&(1<<bit) == 0 {
 			b.blk[0] |= (1 << bit)
 			buf = b
 			break
 		}
-		a.UnlockRegion(txn, b)
-		txn.ReleaseBuf(b.addr)
-		num = a.IncNext(1)
+		a.unlockRegion(txn, b)
+		txn.releaseBuf(b.addr)
+		num = a.incNext(1)
 		if num == start {
 			panic("wrap around?")
 		}
@@ -72,22 +72,22 @@ func (a *Alloc) FindFreeRegion(txn *Txn) *Buf {
 }
 
 // Lock the region in the bitmap that contains n
-func (a *Alloc) LockRegion(txn *Txn, n uint64, bits uint64) *Buf {
-	var buf *Buf
+func (a *alloc) lockRegion(txn *txn, n uint64, bits uint64) *buf {
+	var buf *buf
 	i := n / NBITBLOCK
 	bit := n % NBITBLOCK
-	addr := mkAddr(a.start+i, bit, bits)
-	buf = txn.ReadBufLocked(addr, a.kind)
-	DPrintf(15, "LockRegion: %v\n", buf)
+	addr := mkaddr(a.start+i, bit, bits)
+	buf = txn.readBufLocked(addr, a.kind)
+	dPrintf(15, "LockRegion: %v\n", buf)
 	return buf
 }
 
-func (a *Alloc) UnlockRegion(txn *Txn, buf *Buf) {
-	DPrintf(15, "UnlockRegion: %v\n", buf)
-	txn.locked.Del(buf.addr)
+func (a *alloc) unlockRegion(txn *txn, buf *buf) {
+	dPrintf(15, "UnlockRegion: %v\n", buf)
+	txn.locked.del(buf.addr)
 }
 
-func (a *Alloc) Free(buf *Buf, n uint64) {
+func (a *alloc) free(buf *buf, n uint64) {
 	i := n / NBITBLOCK
 	if i >= a.len {
 		panic("freeBlock")
@@ -98,21 +98,21 @@ func (a *Alloc) Free(buf *Buf, n uint64) {
 	freeBit(buf, n%NBITBLOCK)
 }
 
-func (a *Alloc) AllocNum(txn *Txn) uint64 {
+func (a *alloc) allocNum(txn *txn) uint64 {
 	var num uint64 = 0
-	b := a.FindFreeRegion(txn)
+	b := a.findFreeRegion(txn)
 	if b != nil {
-		b.Dirty()
+		b.setDirty()
 		num = (b.addr.blkno-a.start)*NBITBLOCK + b.addr.off
 	}
 	return num
 }
 
-func (a *Alloc) FreeNum(txn *Txn, num uint64) {
+func (a *alloc) freeNum(txn *txn, num uint64) {
 	if num == 0 {
 		panic("FreeNum")
 	}
-	buf := a.LockRegion(txn, num, 1)
-	a.Free(buf, num)
-	buf.Dirty()
+	buf := a.lockRegion(txn, num, 1)
+	a.free(buf, num)
+	buf.setDirty()
 }

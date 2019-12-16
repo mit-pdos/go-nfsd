@@ -6,26 +6,26 @@ import (
 	"fmt"
 )
 
-type Kind uint64
+type kind uint64
 
 // Type of disk objects:
 const (
-	BLOCK Kind = 1
-	INODE Kind = 2
-	IBMAP Kind = 3
-	BBMAP Kind = 4
+	BLOCK kind = 1
+	INODE kind = 2
+	IBMAP kind = 3
+	BBMAP kind = 4
 )
 
-type Buf struct {
-	kind  Kind
-	addr  Addr
+type buf struct {
+	kind  kind
+	addr  addr
 	blk   disk.Block
 	dirty bool // has this block been written to?
-	txn   *Txn
+	txn   *txn
 }
 
-func mkBuf(addr Addr, kind Kind, blk disk.Block, txn *Txn) *Buf {
-	b := &Buf{
+func mkBuf(addr addr, kind kind, blk disk.Block, txn *txn) *buf {
+	b := &buf{
 		addr:  addr,
 		kind:  kind,
 		blk:   blk,
@@ -35,18 +35,18 @@ func mkBuf(addr Addr, kind Kind, blk disk.Block, txn *Txn) *Buf {
 	return b
 }
 
-func mkBufData(addr Addr, kind Kind, txn *Txn) *Buf {
+func mkBufData(addr addr, kind kind, txn *txn) *buf {
 	data := make([]byte, addr.sz)
 	buf := mkBuf(addr, kind, data, txn)
 	return buf
 }
 
-func (buf *Buf) String() string {
+func (buf *buf) String() string {
 	return fmt.Sprintf("%v %v %p", buf.addr, buf.dirty, buf.txn)
 }
 
 func installBits(src byte, dst byte, bit uint64, nbit uint64) byte {
-	DPrintf(20, "installBits: src 0x%x dst 0x%x %d sz %d\n", src, dst, bit, nbit)
+	dPrintf(20, "installBits: src 0x%x dst 0x%x %d sz %d\n", src, dst, bit, nbit)
 	var new byte = dst
 	for i := bit; i < bit+nbit; i++ {
 		if src&(1<<i) == dst&(1<<i) {
@@ -60,7 +60,7 @@ func installBits(src byte, dst byte, bit uint64, nbit uint64) byte {
 			new = new | (1 << bit)
 		}
 	}
-	DPrintf(20, "installBits -> 0x%x\n", new)
+	dPrintf(20, "installBits -> 0x%x\n", new)
 	return new
 }
 
@@ -73,7 +73,7 @@ func copyBits(src []byte, dst []byte, dstoff uint64, nbit uint64) {
 	// copy few last bits in first byte, if not byte aligned
 	if dstoff%8 != 0 {
 		bit := dstoff % 8
-		nbit := Min(8-bit, n)
+		nbit := min(8-bit, n)
 		srcbyte := src[0]
 		dstbyte := dst[dstbyte]
 		dst[dstbyte] = installBits(srcbyte, dstbyte, bit, nbit)
@@ -101,24 +101,24 @@ func copyBits(src []byte, dst []byte, dstoff uint64, nbit uint64) {
 }
 
 // Install the bits from buf into blk, if buf has been modified
-func (buf *Buf) Install(blk disk.Block) bool {
+func (buf *buf) install(blk disk.Block) bool {
 	if buf.dirty {
 		copyBits(buf.blk, blk, buf.addr.off, buf.addr.sz)
 	}
 	return buf.dirty
 }
 
-func (buf *Buf) WriteDirect() {
-	buf.Dirty()
+func (buf *buf) writeDirect() {
+	buf.setDirty()
 	if buf.addr.sz == disk.BlockSize {
 		disk.Write(buf.addr.blkno, buf.blk)
 	} else {
 		blk := disk.Read(buf.addr.blkno)
-		buf.Install(blk)
+		buf.install(blk)
 		disk.Write(buf.addr.blkno, blk)
 	}
 }
 
-func (buf *Buf) Dirty() {
+func (buf *buf) setDirty() {
 	buf.dirty = true
 }
