@@ -181,8 +181,9 @@ func (txn *txn) doCommit(abort bool) (uint64, bool) {
 		txn.com.lock()
 
 		bufs := txn.computeBlks()
-		if uint64(len(bufs)) >= txn.log.logSz {
-			break
+		if uint64(len(bufs)) > txn.log.logSz {
+			txn.com.unlock()
+			return 0, false
 		}
 
 		dPrintf(3, "doCommit: bufs %v\n", bufs)
