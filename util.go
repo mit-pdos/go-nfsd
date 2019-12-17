@@ -2,9 +2,9 @@ package goose_nfs
 
 import "log"
 
-const Debug = 0
+const Debug uint64 = 0
 
-func dPrintf(level int, format string, a ...interface{}) {
+func dPrintf(level uint64, format string, a ...interface{}) {
 	if level <= Debug {
 		log.Printf(format, a...)
 	}

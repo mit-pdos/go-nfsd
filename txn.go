@@ -56,7 +56,9 @@ func begin(nfs *Nfs) *txn {
 func (txn *txn) installCache(buf *buf, n txnNum) {
 	blk := buf.txn.readBlockCache(buf.addr.blkno)
 	buf.install(blk)
-	txn.bc.pin([]uint64{buf.addr.blkno}, n)
+	ids := make([]uint64, 1)
+	ids[0] = buf.addr.blkno
+	txn.bc.pin(ids, n)
 	buf.txn.releaseBlock(buf.addr.blkno)
 }
 
@@ -121,7 +123,7 @@ func (txn *txn) numberDirty() uint64 {
 // The update in buf may only partially its block. Assume caller holds
 // cache lock.
 func (txn *txn) computeBlks() []*buf {
-	bufs := make([]*buf, 0)
+	var bufs = make([]*buf, 0)
 	for blkno, bs := range txn.amap.bufs {
 		var dirty bool = false
 		dPrintf(5, "computeBlks %d %v\n", blkno, bs)
@@ -276,7 +278,7 @@ func installer(fs *fsSuper, bc *cache, l *walog) {
 		blknos, txn := l.logInstall()
 		// Make space in cache by unpinning buffers that have
 		// been installed, but filter out bitmap blocks.
-		bs := make([]uint64, 0)
+		var bs = make([]uint64, 0)
 		for _, bn := range blknos {
 			if bn >= fs.inodeStart() {
 				bs = append(bs, bn)

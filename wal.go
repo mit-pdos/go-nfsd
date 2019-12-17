@@ -62,8 +62,13 @@ type hdr struct {
 	addrs     []uint64
 }
 
-func decodeHdr(blk disk.Block) hdr {
-	hdr := hdr{}
+func decodeHdr(blk disk.Block) *hdr {
+	hdr := &hdr{
+		head:      0,
+		tail:      0,
+		logTxnNxt: 0,
+		addrs:     nil,
+	}
 	dec := newDec(blk)
 	hdr.head = dec.getInt()
 	hdr.tail = dec.getInt()
@@ -103,7 +108,7 @@ func (l *walog) writeHdr(head uint64, tail uint64, dsktxnnxt txnNum, bufs []buf)
 	disk.Write(LOGHDR, blk)
 }
 
-func (l *walog) readHdr() hdr {
+func (l *walog) readHdr() *hdr {
 	blk := disk.Read(LOGHDR)
 	hdr := decodeHdr(blk)
 	return hdr
@@ -256,7 +261,7 @@ func (l *walog) logInstall() ([]uint64, txnNum) {
 	//dPrintf("logInstall diskhead %d disktail %d\n", hdr.head, hdr.tail)
 	l.installBlocks(hdr.addrs, blks)
 	hdr.tail = hdr.head
-	l.writeHdr(hdr.head, hdr.tail, hdr.logTxnNxt, []buf{})
+	l.writeHdr(hdr.head, hdr.tail, hdr.logTxnNxt, nil)
 	l.memLock.Lock()
 
 	if hdr.tail < l.memTail {
