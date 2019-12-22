@@ -33,10 +33,12 @@ func (fh3 Nfs_fh3) equal(h Nfs_fh3) bool {
 	if len(fh3.Data) != len(h.Data) {
 		return false
 	}
+	var equal = true
 	for i, x := range fh3.Data {
 		if x != h.Data[i] {
-			return false
+			equal = false
+			break
 		}
 	}
-	return true
+	return equal
 }

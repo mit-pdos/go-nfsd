@@ -145,14 +145,13 @@ func (txn *txn) computeBlks() []*buf {
 }
 
 func (txn *txn) unlockBuf(b *buf) {
-	switch b.kind {
-	case BLOCK:
+	if b.kind == BLOCK {
 		txn.locked.del(b.addr)
-	case INODE:
+	} else if b.kind == INODE {
 		txn.locked.del(b.addr)
-	case IBMAP:
+	} else if b.kind == IBMAP {
 		txn.ialloc.unlockRegion(txn, b)
-	case BBMAP:
+	} else if b.kind == BBMAP {
 		txn.balloc.unlockRegion(txn, b)
 	}
 }

@@ -3,6 +3,8 @@ package goose_nfs
 import (
 	"sort"
 	"sync"
+
+	"github.com/tchajed/goose/machine"
 )
 
 const ICACHESZ uint64 = 20            // XXX resurrect icache
@@ -35,8 +37,10 @@ func MkNfs() *Nfs {
 	fs.initFs()
 	bc := mkCache(BCACHESZ)
 
-	go l.logger()
-	go installer(fs, bc, l)
+	// TODO: do we still need to use machine.Spawn,
+	//  or can we just use go statements?
+	machine.Spawn(func() { l.logger() })
+	machine.Spawn(func() { installer(fs, bc, l) })
 
 	mu := new(sync.RWMutex)
 	nfs := &Nfs{
@@ -155,15 +159,19 @@ func lockInodes(txn *txn, inums []inum) []*inode {
 	return inodes
 }
 
+func twoInums(inum1, inum2 inum) []inum {
+	inums := make([]inum, 2)
+	inums[0] = inum1
+	inums[1] = inum2
+	return inums
+}
+
 // First lookup inode up for child, then for parent, because parent
 // inum > child inum and then revalidate that child is still in parent
 // directory.
 func (nfs *Nfs) lookupOrdered(txn *txn, name Filename3, parent fh, inm inum) []*inode {
 	dPrintf(5, "NFS lookupOrdered child %d parent %v\n", inm, parent)
-	inums := make([]inum, 2)
-	inums[0] = inm
-	inums[1] = parent.ino
-	inodes := lockInodes(txn, inums)
+	inodes := lockInodes(txn, twoInums(inm, parent.ino))
 	if inodes == nil {
 		return nil
 	}
@@ -526,6 +534,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) RENAME3res {
 	var frominum inum
 	var toinum inum
 	var success bool = false
+	var done bool = false
 
 	for !success {
 		txn = begin(nfs)
@@ -536,22 +545,25 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) RENAME3res {
 
 		if illegalName(args.From.Name) {
 			errRet(txn, &reply.Status, NFS3ERR_INVAL, nil)
-			return reply
+			done = true
+			break
 		}
 
 		if args.From.Dir.equal(args.To.Dir) {
 			dipfrom = getInode(txn, args.From.Dir)
 			if dipfrom == nil {
 				errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-				return reply
+				done = true
+				break
 			}
 			dipto = dipfrom
 			inodes = []*inode{dipfrom}
 		} else {
-			inodes = lockInodes(txn, []inum{fromh.ino, toh.ino})
+			inodes = lockInodes(txn, twoInums(fromh.ino, toh.ino))
 			if inodes == nil {
 				errRet(txn, &reply.Status, NFS3ERR_STALE, inodes)
-				return reply
+				done = true
+				break
 			}
 			dipfrom = inodes[0]
 			dipto = inodes[1]
@@ -559,13 +571,16 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) RENAME3res {
 
 		dPrintf(5, "from %v to %v\n", dipfrom, dipto)
 
-		frominum, _ = dipfrom.lookupName(txn, args.From.Name)
+		frominumLookup, _ := dipfrom.lookupName(txn, args.From.Name)
+		frominum = frominumLookup
 		if frominum == NULLINUM {
 			errRet(txn, &reply.Status, NFS3ERR_NOENT, inodes)
-			return reply
+			done = true
+			break
 		}
 
-		toinum, _ = dipto.lookupName(txn, args.To.Name)
+		toInumLookup, _ := dipto.lookupName(txn, args.To.Name)
+		toinum = toInumLookup
 
 		dPrintf(5, "frominum %d toinum %d\n", frominum, toinum)
 
@@ -573,7 +588,8 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) RENAME3res {
 		if dipto == dipfrom && toinum == frominum {
 			reply.Status = NFS3_OK
 			txn.commit(inodes)
-			return reply
+			done = true
+			break
 		}
 
 		// does to exist?
@@ -584,14 +600,22 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) RENAME3res {
 			txn.abort(inodes)
 			txn = begin(nfs)
 			if dipto != dipfrom {
-				inodes = lockInodes(txn, []inum{dipfrom.inum, dipto.inum,
-					frominum, toinum})
+				inums := make([]inum, 4)
+				inums[0] = dipfrom.inum
+				inums[1] = dipto.inum
+				inums[2] = frominum
+				inums[3] = toinum
+				inodes = lockInodes(txn, inums)
 				dipfrom = inodes[0]
 				dipto = inodes[1]
 				from = inodes[2]
 				to = inodes[3]
 			} else {
-				inodes = lockInodes(txn, []inum{dipfrom.inum, frominum, toinum})
+				inums := make([]inum, 3)
+				inums[0] = dipfrom.inum
+				inums[1] = frominum
+				inums[2] = toinum
+				inodes = lockInodes(txn, inums)
 				dipfrom = inodes[0]
 				dipto = inodes[0]
 				from = inodes[1]
@@ -602,16 +626,19 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) RENAME3res {
 				args.From.Name, args.To.Name) {
 				if to.kind != from.kind {
 					errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
-					return reply
+					done = true
+					break
 				}
 				if to.kind == NF3DIR && !to.isDirEmpty(txn) {
 					errRet(txn, &reply.Status, NFS3ERR_NOTEMPTY, inodes)
-					return reply
+					done = true
+					break
 				}
 				ok := dipto.remName(txn, args.To.Name)
 				if !ok {
 					errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
-					return reply
+					done = true
+					break
 				}
 				to.decLink(txn)
 				success = true
@@ -621,6 +648,9 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) RENAME3res {
 		} else {
 			success = true
 		}
+	}
+	if done {
+		return reply
 	}
 	ok := dipfrom.remName(txn, args.From.Name)
 	if !ok {
