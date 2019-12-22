@@ -95,37 +95,39 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 }
 
 // XXX factor out lookup ip, test, and maybe fail pattern
-func (nfs *Nfs) NFSPROC3_GETATTR(args GETATTR3args) (reply GETATTR3res) {
+func (nfs *Nfs) NFSPROC3_GETATTR(args GETATTR3args) GETATTR3res {
+	var reply GETATTR3res
 	dPrintf(1, "NFS GetAttr %v\n", args)
 	txn := begin(nfs)
 	ip := getInode(txn, args.Object)
 	if ip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-		return
+		return reply
 	} else {
 		reply.Resok.Obj_attributes = ip.mkFattr()
 		commitReply(txn, &reply.Status, []*inode{ip})
 	}
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_SETATTR(args SETATTR3args) (reply SETATTR3res) {
+func (nfs *Nfs) NFSPROC3_SETATTR(args SETATTR3args) SETATTR3res {
+	var reply SETATTR3res
 	dPrintf(1, "NFS SetAttr %v\n", args)
 	txn := begin(nfs)
 	ip := getInode(txn, args.Object)
 	if ip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-		return
+		return reply
 	} else {
 		if args.New_attributes.Size.Set_it {
 			ip.resize(txn, uint64(args.New_attributes.Size.Size))
 			commitReply(txn, &reply.Status, []*inode{ip})
 		} else {
 			errRet(txn, &reply.Status, NFS3ERR_NOTSUPP, []*inode{ip})
-			return
+			return reply
 		}
 	}
-	return
+	return reply
 }
 
 // Lock inodes in sorted order, but return the pointers in the same order as in inums
@@ -180,7 +182,8 @@ func (nfs *Nfs) lookupOrdered(txn *txn, name Filename3, parent fh, inm inum) []*
 
 // Lookup must lock child inode to find gen number, but child maybe a
 // directory. We must lock directories in ascending inum order.
-func (nfs *Nfs) NFSPROC3_LOOKUP(args LOOKUP3args) (reply LOOKUP3res) {
+func (nfs *Nfs) NFSPROC3_LOOKUP(args LOOKUP3args) LOOKUP3res {
+	var reply LOOKUP3res
 	var ip *inode
 	var inodes []*inode
 	var txn *txn
@@ -190,12 +193,12 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args LOOKUP3args) (reply LOOKUP3res) {
 		dip := getInode(txn, args.What.Dir)
 		if dip == nil {
 			errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-			return
+			return reply
 		}
 		inum, _ := dip.lookupName(txn, args.What.Name)
 		if inum == NULLINUM {
 			errRet(txn, &reply.Status, NFS3ERR_NOENT, []*inode{dip})
-			return
+			return reply
 		}
 		inodes = []*inode{dip}
 		if inum == dip.inum {
@@ -222,44 +225,48 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args LOOKUP3args) (reply LOOKUP3res) {
 	fh := fh{ino: ip.inum, gen: ip.gen}
 	reply.Resok.Object = fh.makeFh3()
 	commitReply(txn, &reply.Status, inodes)
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_ACCESS(args ACCESS3args) (reply ACCESS3res) {
+func (nfs *Nfs) NFSPROC3_ACCESS(args ACCESS3args) ACCESS3res {
+	var reply ACCESS3res
 	dPrintf(1, "NFS Access %v\n", args)
 	reply.Status = NFS3_OK
 	reply.Resok.Access = Uint32(ACCESS3_READ | ACCESS3_LOOKUP | ACCESS3_MODIFY | ACCESS3_EXTEND | ACCESS3_DELETE | ACCESS3_EXECUTE)
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_READLINK(args READLINK3args) (reply READLINK3res) {
+func (nfs *Nfs) NFSPROC3_READLINK(args READLINK3args) READLINK3res {
+	var reply READLINK3res
 	dPrintf(1, "NFS ReadLink %v\n", args)
 	reply.Status = NFS3ERR_NOTSUPP
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_READ(args READ3args) (reply READ3res) {
+func (nfs *Nfs) NFSPROC3_READ(args READ3args) READ3res {
+	var reply READ3res
 	txn := begin(nfs)
 	dPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
 	ip := getInode(txn, args.File)
 	if ip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-		return
+		return reply
 	}
 	if ip.kind != NF3REG {
 		errRet(txn, &reply.Status, NFS3ERR_INVAL, []*inode{ip})
-		return
+		return reply
 	}
 	data, eof := ip.read(txn, uint64(args.Offset), uint64(args.Count))
 	reply.Resok.Count = Count3(len(data))
 	reply.Resok.Data = data
 	reply.Resok.Eof = eof
 	commitReply(txn, &reply.Status, []*inode{ip})
-	return
+	return reply
 }
 
 // XXX Mtime
-func (nfs *Nfs) NFSPROC3_WRITE(args WRITE3args) (reply WRITE3res) {
+func (nfs *Nfs) NFSPROC3_WRITE(args WRITE3args) WRITE3res {
+	var reply WRITE3res
 	txn := begin(nfs)
 	dPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
@@ -267,20 +274,20 @@ func (nfs *Nfs) NFSPROC3_WRITE(args WRITE3args) (reply WRITE3res) {
 	fh := args.File.makeFh()
 	if ip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-		return
+		return reply
 	}
 	if ip.kind != NF3REG {
 		errRet(txn, &reply.Status, NFS3ERR_INVAL, []*inode{ip})
-		return
+		return reply
 	}
 	if uint64(args.Count) >= maxLogSize() {
 		errRet(txn, &reply.Status, NFS3ERR_INVAL, []*inode{ip})
-		return
+		return reply
 	}
 	count, ok := ip.write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
 	if !ok {
 		errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*inode{ip})
-		return
+		return reply
 	} else {
 		var ok bool = true
 		if args.Stable == FILE_SYNC {
@@ -317,88 +324,93 @@ func (nfs *Nfs) NFSPROC3_WRITE(args WRITE3args) (reply WRITE3res) {
 			reply.Status = NFS3ERR_SERVERFAULT
 		}
 	}
-	return
+	return reply
 }
 
 // XXX deal with how
-func (nfs *Nfs) NFSPROC3_CREATE(args CREATE3args) (reply CREATE3res) {
+func (nfs *Nfs) NFSPROC3_CREATE(args CREATE3args) CREATE3res {
+	var reply CREATE3res
 	txn := begin(nfs)
 	dPrintf(1, "NFS Create %v\n", args)
 	dip := getInode(txn, args.Where.Dir)
 	if dip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-		return
+		return reply
 	}
 	inum1, _ := dip.lookupName(txn, args.Where.Name)
 	if inum1 != NULLINUM {
 		errRet(txn, &reply.Status, NFS3ERR_EXIST, []*inode{dip})
-		return
+		return reply
 	}
 	inum := allocInode(txn, NF3REG)
 	if inum == NULLINUM {
 		errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*inode{dip})
-		return
+		return reply
 	}
 	ok := dip.addName(txn, inum, args.Where.Name)
 	if !ok {
 		freeInum(txn, inum)
 		errRet(txn, &reply.Status, NFS3ERR_IO, []*inode{dip})
-		return
+		return reply
 	}
 	commitReply(txn, &reply.Status, []*inode{dip})
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_MKDIR(args MKDIR3args) (reply MKDIR3res) {
+func (nfs *Nfs) NFSPROC3_MKDIR(args MKDIR3args) MKDIR3res {
+	var reply MKDIR3res
 	txn := begin(nfs)
 	dPrintf(1, "NFS MakeDir %v\n", args)
 	dip := getInode(txn, args.Where.Dir)
 	if dip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-		return
+		return reply
 	}
 	inum1, _ := dip.lookupName(txn, args.Where.Name)
 	if inum1 != NULLINUM {
 		errRet(txn, &reply.Status, NFS3ERR_EXIST, []*inode{dip})
-		return
+		return reply
 	}
 	inum := allocInode(txn, NF3DIR)
 	if inum == NULLINUM {
 		errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*inode{dip})
-		return
+		return reply
 	}
 	ip := getInodeLocked(txn, inum)
 	ok := ip.initDir(txn, dip.inum)
 	if !ok {
 		ip.decLink(txn)
 		errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*inode{dip, ip})
-		return
+		return reply
 	}
 	ok1 := dip.addName(txn, inum, args.Where.Name)
 	if !ok1 {
 		ip.decLink(txn)
 		errRet(txn, &reply.Status, NFS3ERR_IO, []*inode{dip, ip})
-		return
+		return reply
 	}
 	dip.nlink = dip.nlink + 1 // for ..
 	dip.writeInode(txn)
 	commitReply(txn, &reply.Status, []*inode{dip, ip})
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_SYMLINK(args SYMLINK3args) (reply SYMLINK3res) {
+func (nfs *Nfs) NFSPROC3_SYMLINK(args SYMLINK3args) SYMLINK3res {
+	var reply SYMLINK3res
 	dPrintf(1, "NFS MakeDir %v\n", args)
 	reply.Status = NFS3ERR_NOTSUPP
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_MKNOD(args MKNOD3args) (reply MKNOD3res) {
+func (nfs *Nfs) NFSPROC3_MKNOD(args MKNOD3args) MKNOD3res {
+	var reply MKNOD3res
 	dPrintf(1, "NFS MakeNod %v\n", args)
 	reply.Status = NFS3ERR_NOTSUPP
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_REMOVE(args REMOVE3args) (reply REMOVE3res) {
+func (nfs *Nfs) NFSPROC3_REMOVE(args REMOVE3args) REMOVE3res {
+	var reply REMOVE3res
 	var ip *inode
 	var dip *inode
 	var inodes []*inode
@@ -409,16 +421,16 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args REMOVE3args) (reply REMOVE3res) {
 		dip = getInode(txn, args.Object.Dir)
 		if dip == nil {
 			errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-			return
+			return reply
 		}
 		if illegalName(args.Object.Name) {
 			errRet(txn, &reply.Status, NFS3ERR_INVAL, []*inode{dip})
-			return
+			return reply
 		}
 		inum, _ := dip.lookupName(txn, args.Object.Name)
 		if inum == NULLINUM {
 			errRet(txn, &reply.Status, NFS3ERR_NOENT, []*inode{dip})
-			return
+			return reply
 		}
 		if inum < dip.inum {
 			// Abort. Try to lock inodes in order
@@ -435,22 +447,23 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args REMOVE3args) (reply REMOVE3res) {
 	}
 	if ip.kind != NF3REG {
 		errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
-		return
+		return reply
 	}
 	ok := dip.remName(txn, args.Object.Name)
 	if !ok {
 		errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
-		return
+		return reply
 	}
 	ip.decLink(txn)
 	commitReply(txn, &reply.Status, inodes)
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_RMDIR(args RMDIR3args) (reply RMDIR3res) {
+func (nfs *Nfs) NFSPROC3_RMDIR(args RMDIR3args) RMDIR3res {
+	var reply RMDIR3res
 	dPrintf(1, "NFS RmDir %v\n", args)
 	reply.Status = NFS3ERR_NOTSUPP
-	return
+	return reply
 }
 
 func validateRename(txn *txn, inodes []*inode, fromfh fh, tofh fh,
@@ -484,7 +497,8 @@ func validateRename(txn *txn, inodes []*inode, fromfh fh, tofh fh,
 	return true
 }
 
-func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) (reply RENAME3res) {
+func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) RENAME3res {
+	var reply RENAME3res
 	var dipto *inode
 	var dipfrom *inode
 	var txn *txn
@@ -502,14 +516,14 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) (reply RENAME3res) {
 
 		if illegalName(args.From.Name) {
 			errRet(txn, &reply.Status, NFS3ERR_INVAL, nil)
-			return
+			return reply
 		}
 
 		if args.From.Dir.equal(args.To.Dir) {
 			dipfrom = getInode(txn, args.From.Dir)
 			if dipfrom == nil {
 				errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-				return
+				return reply
 			}
 			dipto = dipfrom
 			inodes = []*inode{dipfrom}
@@ -517,7 +531,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) (reply RENAME3res) {
 			inodes = lockInodes(txn, []inum{fromh.ino, toh.ino})
 			if inodes == nil {
 				errRet(txn, &reply.Status, NFS3ERR_STALE, inodes)
-				return
+				return reply
 			}
 			dipfrom = inodes[0]
 			dipto = inodes[1]
@@ -528,7 +542,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) (reply RENAME3res) {
 		frominum, _ = dipfrom.lookupName(txn, args.From.Name)
 		if frominum == NULLINUM {
 			errRet(txn, &reply.Status, NFS3ERR_NOENT, inodes)
-			return
+			return reply
 		}
 
 		toinum, _ = dipto.lookupName(txn, args.To.Name)
@@ -539,7 +553,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) (reply RENAME3res) {
 		if dipto == dipfrom && toinum == frominum {
 			reply.Status = NFS3_OK
 			txn.commit(inodes)
-			return
+			return reply
 		}
 
 		// does to exist?
@@ -568,16 +582,16 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) (reply RENAME3res) {
 				args.From.Name, args.To.Name) {
 				if to.kind != from.kind {
 					errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
-					return
+					return reply
 				}
 				if to.kind == NF3DIR && !to.isDirEmpty(txn) {
 					errRet(txn, &reply.Status, NFS3ERR_NOTEMPTY, inodes)
-					return
+					return reply
 				}
 				ok := dipto.remName(txn, args.To.Name)
 				if !ok {
 					errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
-					return
+					return reply
 				}
 				to.decLink(txn)
 				success = true
@@ -591,95 +605,102 @@ func (nfs *Nfs) NFSPROC3_RENAME(args RENAME3args) (reply RENAME3res) {
 	ok := dipfrom.remName(txn, args.From.Name)
 	if !ok {
 		errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
-		return
+		return reply
 	}
 	ok1 := dipto.addName(txn, frominum, args.To.Name)
 	if !ok1 {
 		errRet(txn, &reply.Status, NFS3ERR_IO, inodes)
-		return
+		return reply
 	}
 	commitReply(txn, &reply.Status, inodes)
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_LINK(args LINK3args) (reply LINK3res) {
+func (nfs *Nfs) NFSPROC3_LINK(args LINK3args) LINK3res {
+	var reply LINK3res
 	dPrintf(1, "NFS Link %v\n", args)
 	reply.Status = NFS3ERR_NOTSUPP
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_READDIR(args READDIR3args) (reply READDIR3res) {
+func (nfs *Nfs) NFSPROC3_READDIR(args READDIR3args) READDIR3res {
+	var reply READDIR3res
 	dPrintf(1, "NFS Link %v\n", args)
 	reply.Status = NFS3ERR_NOTSUPP
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_READDIRPLUS(args READDIRPLUS3args) (reply READDIRPLUS3res) {
+func (nfs *Nfs) NFSPROC3_READDIRPLUS(args READDIRPLUS3args) READDIRPLUS3res {
+	var reply READDIRPLUS3res
 	dPrintf(1, "NFS ReadDirPlus %v\n", args)
 	txn := begin(nfs)
 	ip := getInode(txn, args.Dir)
 	if ip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-		return
+		return reply
 	}
 	inodes := []*inode{ip}
 	if ip.kind != NF3DIR {
 		errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
-		return
+		return reply
 	}
 	dirlist := ip.ls3(txn, args.Cookie, args.Dircount)
 	reply.Resok.Reply = dirlist
 	commitReply(txn, &reply.Status, inodes)
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_FSSTAT(args FSSTAT3args) (reply FSSTAT3res) {
+func (nfs *Nfs) NFSPROC3_FSSTAT(args FSSTAT3args) FSSTAT3res {
+	var reply FSSTAT3res
 	dPrintf(1, "NFS FsStat %v\n", args)
 	reply.Status = NFS3ERR_NOTSUPP
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_FSINFO(args FSINFO3args) (reply FSINFO3res) {
+func (nfs *Nfs) NFSPROC3_FSINFO(args FSINFO3args) FSINFO3res {
+	var reply FSINFO3res
 	dPrintf(1, "NFS FsInfo %v\n", args)
 	reply.Status = NFS3_OK
 	reply.Resok.Wtmax = Uint32(maxLogSize())
 	reply.Resok.Maxfilesize = Size3(maxFileSize())
 	// XXX maybe set wtpref, wtmult, and rdmult
-	return
+	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_PATHCONF(args PATHCONF3args) (reply PATHCONF3res) {
+func (nfs *Nfs) NFSPROC3_PATHCONF(args PATHCONF3args) PATHCONF3res {
+	var reply PATHCONF3res
 	dPrintf(1, "NFS PathConf %v\n", args)
 	reply.Status = NFS3ERR_NOTSUPP
-	return
+	return reply
 }
 
 // RFC: forces or flushes data to stable storage that was previously
 // written with a WRITE procedure call with the stable field set to
 // UNSTABLE.
-func (nfs *Nfs) NFSPROC3_COMMIT(args COMMIT3args) (reply COMMIT3res) {
+func (nfs *Nfs) NFSPROC3_COMMIT(args COMMIT3args) COMMIT3res {
+	var reply COMMIT3res
 	dPrintf(1, "NFS Commit %v\n", args)
 	txn := begin(nfs)
 	ip := getInode(txn, args.File)
 	fh := args.File.makeFh()
 	if ip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-		return
+		return reply
 	}
 	if ip.kind != NF3REG {
 		errRet(txn, &reply.Status, NFS3ERR_INVAL, []*inode{ip})
-		return
+		return reply
 	}
 	if uint64(args.Offset)+uint64(args.Count) > ip.size {
 		errRet(txn, &reply.Status, NFS3ERR_INVAL, []*inode{ip})
-		return
+		return reply
 	}
 	ok := txn.commitFh(fh, []*inode{ip})
 	if ok {
 		reply.Status = NFS3_OK
 	} else {
 		errRet(txn, &reply.Status, NFS3ERR_IO, []*inode{ip})
-		return
+		return reply
 	}
-	return
+	return reply
 }
