@@ -19,7 +19,7 @@ type Nfs struct {
 	locked   *addrMap
 
 	commit  *commit
-	nthread int
+	nthread uint32
 }
 
 // XXX call recovery, once nfs uses persistent storage
