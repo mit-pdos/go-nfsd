@@ -446,9 +446,7 @@ func (ip *inode) indshrink(txn *txn, root uint64, level uint64, bn uint64) uint6
 }
 
 func singletonTxn(ip *inode) []*inode {
-	ipTxn := make([]*inode, 1)
-	ipTxn[0] = ip
-	return ipTxn
+	return []*inode{ip}
 }
 
 func shrink(nfs *Nfs, inum inum, oldsz uint64) {

@@ -56,9 +56,7 @@ func begin(nfs *Nfs) *txn {
 func (txn *txn) installCache(buf *buf, n txnNum) {
 	blk := buf.txn.readBlockCache(buf.addr.blkno)
 	buf.install(blk)
-	ids := make([]uint64, 1)
-	ids[0] = buf.addr.blkno
-	txn.bc.pin(ids, n)
+	txn.bc.pin([]uint64{buf.addr.blkno}, n)
 	buf.txn.releaseBlock(buf.addr.blkno)
 }
 
