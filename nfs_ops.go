@@ -103,10 +103,9 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args GETATTR3args) GETATTR3res {
 	if ip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 		return reply
-	} else {
-		reply.Resok.Obj_attributes = ip.mkFattr()
-		commitReply(txn, &reply.Status, []*inode{ip})
 	}
+	reply.Resok.Obj_attributes = ip.mkFattr()
+	commitReply(txn, &reply.Status, []*inode{ip})
 	return reply
 }
 
@@ -118,14 +117,12 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args SETATTR3args) SETATTR3res {
 	if ip == nil {
 		errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
 		return reply
+	}
+	if args.New_attributes.Size.Set_it {
+		ip.resize(txn, uint64(args.New_attributes.Size.Size))
+		commitReply(txn, &reply.Status, []*inode{ip})
 	} else {
-		if args.New_attributes.Size.Set_it {
-			ip.resize(txn, uint64(args.New_attributes.Size.Size))
-			commitReply(txn, &reply.Status, []*inode{ip})
-		} else {
-			errRet(txn, &reply.Status, NFS3ERR_NOTSUPP, []*inode{ip})
-			return reply
-		}
+		errRet(txn, &reply.Status, NFS3ERR_NOTSUPP, []*inode{ip})
 	}
 	return reply
 }
@@ -163,7 +160,10 @@ func lockInodes(txn *txn, inums []inum) []*inode {
 // directory.
 func (nfs *Nfs) lookupOrdered(txn *txn, name Filename3, parent fh, inm inum) []*inode {
 	dPrintf(5, "NFS lookupOrdered child %d parent %v\n", inm, parent)
-	inodes := lockInodes(txn, []inum{inm, parent.ino})
+	inums := make([]inum, 2)
+	inums[0] = inm
+	inums[1] = parent.ino
+	inodes := lockInodes(txn, inums)
 	if inodes == nil {
 		return nil
 	}
@@ -187,18 +187,21 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args LOOKUP3args) LOOKUP3res {
 	var ip *inode
 	var inodes []*inode
 	var txn *txn
+	var done bool = false
 	for ip == nil {
 		txn = begin(nfs)
 		dPrintf(1, "NFS Lookup %v\n", args)
 		dip := getInode(txn, args.What.Dir)
 		if dip == nil {
 			errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-			return reply
+			done = true
+			break
 		}
 		inum, _ := dip.lookupName(txn, args.What.Name)
 		if inum == NULLINUM {
 			errRet(txn, &reply.Status, NFS3ERR_NOENT, []*inode{dip})
-			return reply
+			done = true
+			break
 		}
 		inodes = []*inode{dip}
 		if inum == dip.inum {
@@ -218,9 +221,12 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args LOOKUP3args) LOOKUP3res {
 				}
 			} else {
 				ip = getInodeLocked(txn, inum)
-				inodes = []*inode{ip, dip}
+				inodes = twoInodes(ip, dip)
 			}
 		}
+	}
+	if done {
+		return reply
 	}
 	fh := fh{ino: ip.inum, gen: ip.gen}
 	reply.Resok.Object = fh.makeFh3()
@@ -284,45 +290,45 @@ func (nfs *Nfs) NFSPROC3_WRITE(args WRITE3args) WRITE3res {
 		errRet(txn, &reply.Status, NFS3ERR_INVAL, []*inode{ip})
 		return reply
 	}
-	count, ok := ip.write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
-	if !ok {
+	count, writeOk := ip.write(txn, uint64(args.Offset), uint64(args.Count),
+		args.Data)
+	if !writeOk {
 		errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*inode{ip})
 		return reply
+	}
+	var ok = true
+	if args.Stable == FILE_SYNC {
+		// RFC: "FILE_SYNC, the server must commit the
+		// data written plus all file system metadata
+		// to stable storage before returning results."
+		ok = txn.commit([]*inode{ip})
+	} else if args.Stable == DATA_SYNC {
+		// RFC: "DATA_SYNC, then the server must commit
+		// all of the data to stable storage and
+		// enough of the metadata to retrieve the data
+		// before returning."
+		ok = txn.commitData([]*inode{ip}, fh)
 	} else {
-		var ok bool = true
-		if args.Stable == FILE_SYNC {
-			// RFC: "FILE_SYNC, the server must commit the
-			// data written plus all file system metadata
-			// to stable storage before returning results."
-			ok = txn.commit([]*inode{ip})
-		} else if args.Stable == DATA_SYNC {
-			// RFC: "DATA_SYNC, then the server must commit
-			// all of the data to stable storage and
-			// enough of the metadata to retrieve the data
-			// before returning."
-			ok = txn.commitData([]*inode{ip}, fh)
-		} else {
-			// RFC:	"UNSTABLE, the server is free to commit
-			// any part of the data and the metadata to
-			// stable storage, including all or none,
-			// before returning a reply to the
-			// client. There is no guarantee whether or
-			// when any uncommitted data will subsequently
-			// be committed to stable storage. The only
-			// guarantees made by the server are that it
-			// will not destroy any data without changing
-			// the value of verf and that it will not
-			// commit the data and metadata at a level
-			// less than that requested by the client."
-			ok = txn.commitUnstable([]*inode{ip}, fh)
-		}
-		if ok {
-			reply.Status = NFS3_OK
-			reply.Resok.Count = Count3(count)
-			reply.Resok.Committed = args.Stable
-		} else {
-			reply.Status = NFS3ERR_SERVERFAULT
-		}
+		// RFC:	"UNSTABLE, the server is free to commit
+		// any part of the data and the metadata to
+		// stable storage, including all or none,
+		// before returning a reply to the
+		// client. There is no guarantee whether or
+		// when any uncommitted data will subsequently
+		// be committed to stable storage. The only
+		// guarantees made by the server are that it
+		// will not destroy any data without changing
+		// the value of verf and that it will not
+		// commit the data and metadata at a level
+		// less than that requested by the client."
+		ok = txn.commitUnstable([]*inode{ip}, fh)
+	}
+	if ok {
+		reply.Status = NFS3_OK
+		reply.Resok.Count = Count3(count)
+		reply.Resok.Committed = args.Stable
+	} else {
+		reply.Status = NFS3ERR_SERVERFAULT
 	}
 	return reply
 }
@@ -357,6 +363,13 @@ func (nfs *Nfs) NFSPROC3_CREATE(args CREATE3args) CREATE3res {
 	return reply
 }
 
+func twoInodes(ino1, ino2 *inode) []*inode {
+	inodes := make([]*inode, 2)
+	inodes[0] = ino1
+	inodes[1] = ino2
+	return inodes
+}
+
 func (nfs *Nfs) NFSPROC3_MKDIR(args MKDIR3args) MKDIR3res {
 	var reply MKDIR3res
 	txn := begin(nfs)
@@ -380,18 +393,18 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args MKDIR3args) MKDIR3res {
 	ok := ip.initDir(txn, dip.inum)
 	if !ok {
 		ip.decLink(txn)
-		errRet(txn, &reply.Status, NFS3ERR_NOSPC, []*inode{dip, ip})
+		errRet(txn, &reply.Status, NFS3ERR_NOSPC, twoInodes(dip, ip))
 		return reply
 	}
 	ok1 := dip.addName(txn, inum, args.Where.Name)
 	if !ok1 {
 		ip.decLink(txn)
-		errRet(txn, &reply.Status, NFS3ERR_IO, []*inode{dip, ip})
+		errRet(txn, &reply.Status, NFS3ERR_IO, twoInodes(dip, ip))
 		return reply
 	}
 	dip.nlink = dip.nlink + 1 // for ..
 	dip.writeInode(txn)
-	commitReply(txn, &reply.Status, []*inode{dip, ip})
+	commitReply(txn, &reply.Status, twoInodes(dip, ip))
 	return reply
 }
 
@@ -415,22 +428,26 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args REMOVE3args) REMOVE3res {
 	var dip *inode
 	var inodes []*inode
 	var txn *txn
+	var done bool = false
 	for ip == nil {
 		txn = begin(nfs)
 		dPrintf(1, "NFS Remove %v\n", args)
 		dip = getInode(txn, args.Object.Dir)
 		if dip == nil {
 			errRet(txn, &reply.Status, NFS3ERR_STALE, nil)
-			return reply
+			done = true
+			break
 		}
 		if illegalName(args.Object.Name) {
 			errRet(txn, &reply.Status, NFS3ERR_INVAL, []*inode{dip})
-			return reply
+			done = true
+			break
 		}
 		inum, _ := dip.lookupName(txn, args.Object.Name)
 		if inum == NULLINUM {
 			errRet(txn, &reply.Status, NFS3ERR_NOENT, []*inode{dip})
-			return reply
+			done = true
+			break
 		}
 		if inum < dip.inum {
 			// Abort. Try to lock inodes in order
@@ -442,8 +459,11 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args REMOVE3args) REMOVE3res {
 			dip = inodes[1]
 		} else {
 			ip = getInodeLocked(txn, inum)
-			inodes = []*inode{ip, dip}
+			inodes = twoInodes(ip, dip)
 		}
+	}
+	if done {
+		return reply
 	}
 	if ip.kind != NF3REG {
 		errRet(txn, &reply.Status, NFS3ERR_INVAL, inodes)
@@ -700,7 +720,6 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args COMMIT3args) COMMIT3res {
 		reply.Status = NFS3_OK
 	} else {
 		errRet(txn, &reply.Status, NFS3ERR_IO, []*inode{ip})
-		return reply
 	}
 	return reply
 }
