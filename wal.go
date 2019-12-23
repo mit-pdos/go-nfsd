@@ -124,11 +124,10 @@ func (l *walog) readLogBlocks(len uint64) []disk.Block {
 }
 
 func (l *walog) memWrite(bufs []*buf) {
-	n := uint64(len(bufs))
-	for i := uint64(0); i < n; i++ {
-		l.memLog = append(l.memLog, *(bufs[i]))
+	for _, buf := range bufs {
+		l.memLog = append(l.memLog, *buf)
 	}
-	l.memHead = l.memHead + n
+	l.memHead = l.memHead + uint64(len(bufs))
 }
 
 // Assumes caller holds memLock
@@ -160,13 +159,12 @@ func (l *walog) readtxnNxt() txnNum {
 
 // Append to in-memory log. Returns false, if bufs don't fit
 func (l *walog) memAppend(bufs []*buf) (txnNum, bool) {
-	var txn txnNum = 0
 	l.memLock.Lock()
 	if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {
 		l.memLock.Unlock()
-		return txn, false
+		return 0, false
 	}
-	txn = l.doMemAppend(bufs)
+	txn := l.doMemAppend(bufs)
 	l.memLock.Unlock()
 	return txn, true
 }
