@@ -47,12 +47,14 @@ func MkNfs() *Nfs {
 		mu:       mu,
 		condShut: sync.NewCond(mu),
 		log:      l,
-		bc:       bc,
 		fs:       fs,
+		bc:       bc,
 		balloc:   mkAlloc(fs.bitmapBlockStart(), fs.nBlockBitmap, BBMAP),
 		ialloc:   mkAlloc(fs.bitmapInodeStart(), fs.nInodeBitmap, IBMAP),
+		locked:   mkaddrMap(),
 		commit:   mkcommit(),
-		locked:   mkaddrMap()}
+		nthread:  0,
+	}
 	nfs.makeRootDir()
 	return nfs
 }
