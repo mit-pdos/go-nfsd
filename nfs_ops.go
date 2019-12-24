@@ -11,7 +11,7 @@ const ICACHESZ uint64 = 20            // XXX resurrect icache
 const BCACHESZ uint64 = HDRADDRS + 10 // At least as big as log
 
 type Nfs struct {
-	mu       *sync.RWMutex
+	mu       *sync.Mutex
 	condShut *sync.Cond
 	log      *walog
 	fs       *fsSuper
@@ -42,7 +42,7 @@ func MkNfs() *Nfs {
 	machine.Spawn(func() { l.logger() })
 	machine.Spawn(func() { installer(fs, bc, l) })
 
-	mu := new(sync.RWMutex)
+	mu := new(sync.Mutex)
 	nfs := &Nfs{
 		mu:       mu,
 		condShut: sync.NewCond(mu),

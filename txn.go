@@ -8,12 +8,12 @@ import (
 
 // The lock serializing transaction commit
 type commit struct {
-	mu *sync.RWMutex
+	mu *sync.Mutex
 }
 
 func mkcommit() *commit {
 	c := &commit{
-		mu: new(sync.RWMutex),
+		mu: new(sync.Mutex),
 	}
 	return c
 }

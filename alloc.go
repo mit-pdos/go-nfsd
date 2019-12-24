@@ -7,7 +7,7 @@ import (
 // Allocator uses a bit map to allocate and free numbers. Bit 0
 // corresponds to number 1, bit 1 to 1, and so on.
 type alloc struct {
-	lock  *sync.RWMutex // protects next
+	lock  *sync.Mutex // protects next
 	start uint64
 	len   uint64
 	next  uint64 // first number to try
@@ -16,7 +16,7 @@ type alloc struct {
 
 func mkAlloc(start uint64, len uint64, kind kind) *alloc {
 	a := &alloc{
-		lock:  new(sync.RWMutex),
+		lock:  new(sync.Mutex),
 		start: start,
 		len:   len,
 		next:  0,

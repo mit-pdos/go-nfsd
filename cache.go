@@ -14,7 +14,7 @@ import (
 // can evict that slot, if it needs space for other objects.
 
 type cslot struct {
-	mu  *sync.RWMutex // mutex protecting obj in this slot
+	mu  *sync.Mutex // mutex protecting obj in this slot
 	obj interface{}
 }
 
@@ -33,7 +33,7 @@ type entry struct {
 }
 
 type cache struct {
-	mu      *sync.RWMutex
+	mu      *sync.Mutex
 	entries map[uint64]*entry
 	sz      uint64
 	cnt     uint64
@@ -42,7 +42,7 @@ type cache struct {
 func mkCache(sz uint64) *cache {
 	entries := make(map[uint64]*entry, sz)
 	return &cache{
-		mu:      new(sync.RWMutex),
+		mu:      new(sync.Mutex),
 		entries: entries,
 		cnt:     0,
 		sz:      sz,
@@ -91,7 +91,7 @@ func (c *cache) lookupSlot(id uint64) *cslot {
 			return nil
 		}
 	}
-	s := cslot{mu: new(sync.RWMutex), obj: nil}
+	s := cslot{mu: new(sync.Mutex), obj: nil}
 	enew := &entry{ref: 1, pin: 0, slot: s}
 	c.entries[id] = enew
 	c.cnt = c.cnt + 1

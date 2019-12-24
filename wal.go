@@ -13,7 +13,7 @@ const LOGSTART = uint64(1)
 
 type walog struct {
 	// Protects in-memory-related log state
-	memLock   *sync.RWMutex
+	memLock   *sync.Mutex
 	logSz     uint64
 	memLog    []buf  // in-memory log [memTail,memHead)
 	memHead   uint64 // head of in-memory log
@@ -23,7 +23,7 @@ type walog struct {
 
 	// Protects disk-related log state, incl. header, logtxnNxt,
 	// shutdown
-	logLock     *sync.RWMutex
+	logLock     *sync.Mutex
 	condLogger  *sync.Cond
 	condInstall *sync.Cond
 	logtxnNxt   txnNum // next transaction number to log
@@ -35,9 +35,9 @@ const HDRADDRS = (disk.BlockSize - HDRMETA) / 8
 const LOGSIZE = HDRADDRS + 1 // 1 for log header
 
 func mkLog() *walog {
-	ll := new(sync.RWMutex)
+	ll := new(sync.Mutex)
 	l := &walog{
-		memLock:     new(sync.RWMutex),
+		memLock:     new(sync.Mutex),
 		logLock:     ll,
 		condLogger:  sync.NewCond(ll),
 		condInstall: sync.NewCond(ll),

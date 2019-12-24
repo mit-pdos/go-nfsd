@@ -19,13 +19,13 @@ func mkaddr(blkno uint64, off uint64, sz uint64) addr {
 }
 
 type addrMap struct {
-	mu   *sync.RWMutex
+	mu   *sync.Mutex
 	bufs map[uint64][]*buf
 }
 
 func mkaddrMap() *addrMap {
 	a := &addrMap{
-		mu:   new(sync.RWMutex),
+		mu:   new(sync.Mutex),
 		bufs: make(map[uint64][]*buf),
 	}
 	return a

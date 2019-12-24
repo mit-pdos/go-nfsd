@@ -20,7 +20,7 @@ func (txn *txn) readBlock(blkno uint64) *buf {
 func (txn *txn) zeroBlock(blkno uint64) {
 	dPrintf(5, "zero block %d\n", blkno)
 	buf := txn.readBlock(blkno)
-	for i, _ := range buf.blk {
+	for i := range buf.blk {
 		buf.blk[i] = 0
 	}
 	buf.dirty = true
