@@ -62,11 +62,10 @@ func (txn *txn) load(buf *buf) {
 
 // ReadBufLocked acquires a lock on the address of a disk object
 // (i.e., inodes, chunks of allocator bitmaps, and blocks).  If it
-// successfully acquires the lock, it reads a disk object from the
-// shared block cache into a private buffer.  Commit releases locks
-// after installing the modified disk objects into disk cache.
+// successfully acquires the lock, it reads the disk object from the
+// into a private buffer.  Commit releases locks after installing the
+// modified disk objects.
 func (txn *txn) readBufLocked(addr addr, kind kind) *buf {
-
 	// is addr already locked by this transaction?
 	locked := txn.locks.isLocked(addr, txn)
 	if !locked {
@@ -97,8 +96,9 @@ func (txn *txn) numberDirty() uint64 {
 	return txn.bufs.ndirty()
 }
 
-// Install the txn's bufs into their blocks.  A buf may only partially
-// update a disk block. Assume caller holds commit lock.
+// Installs the txn's bufs into their blocks and returns the blocks.
+// A buf may only partially update a disk block. Assume caller holds
+// commit lock.
 func (txn *txn) installBufs() []*buf {
 	var blks = make([]*buf, 0)
 
@@ -131,44 +131,24 @@ func (txn *txn) installBufs() []*buf {
 	return blks
 }
 
-// doCommit grabs the commit log, appends to the in-memory log and
-// installs changes into the cache.  Then, releases commit log, and
-// locked disk objects. If it cannot commit because in-memory log is
-// full, it signals the logger and installer to log and and install
-// log entries, which frees up space in the in-memory log.
+// Acquires the commit log, installs the txn's buffers into their
+// blocks, and appends the blocks to the in-memory log.
 func (txn *txn) doCommit(abort bool) (txnNum, bool) {
-	var n txnNum = 0
-	var ok bool = false
+	txn.com.lock()
 
-	for !ok {
-		// the following steps must be committed atomically,
-		// so we hold the commit lock
-		txn.com.lock()
+	bufs := txn.installBufs()
 
-		bufs := txn.installBufs()
-		if uint64(len(bufs)) > txn.log.logSz {
-			txn.com.unlock()
-			return 0, false
-		}
+	dPrintf(3, "doCommit: bufs %v\n", bufs)
 
-		dPrintf(3, "doCommit: bufs %v\n", bufs)
+	n, ok := txn.log.memAppend(bufs)
 
-		n, ok = txn.log.memAppend(bufs)
+	txn.com.unlock()
 
-		txn.com.unlock()
-
-		if ok {
-			txn.locks.releaseTxn(txn)
-		} else {
-			dPrintf(5, "doCommit: log is full; wait")
-			txn.log.condLogger.Signal()
-			txn.log.condInstall.Signal()
-		}
-	}
-	return n, true
+	return n, ok
 }
 
-// commit blocks of the transaction into the log, and perhaps wait.
+// Commit blocks of the transaction into the log, and perhaps wait. In either
+// case, release the transaction's locks.
 func (txn *txn) commitWait(inodes []*inode, wait bool, abort bool) bool {
 
 	// may free an inode so must be done before commit
@@ -176,11 +156,12 @@ func (txn *txn) commitWait(inodes []*inode, wait bool, abort bool) bool {
 
 	n, ok := txn.doCommit(abort)
 	if !ok {
-		dPrintf(10, "memappend failed\n")
+		dPrintf(10, "memappend failed; log is too small\n")
 	} else {
 		if wait {
 			txn.log.logAppendWait(n)
 		}
+		txn.locks.releaseTxn(txn)
 	}
 	return ok
 }

@@ -148,7 +148,8 @@ func (l *walog) readtxnNxt() txnNum {
 //  For clients of WAL
 //
 
-// Scan log for blkno. if not present, read from disk
+// Scan log for blkno. If not present, read from disk
+// XXX use map
 func (l *walog) read(blkno uint64) disk.Block {
 	var blk disk.Block
 
@@ -173,15 +174,30 @@ func (l *walog) read(blkno uint64) disk.Block {
 	return blk
 }
 
-// Append to in-memory log. Returns false, if bufs don't fit
+// Append to in-memory log. Returns false, if bufs don't fit.
+// Otherwise, returns the txn for this append.
 func (l *walog) memAppend(bufs []*buf) (txnNum, bool) {
 	l.memLock.Lock()
-	if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {
+	if uint64(len(bufs)) > l.logSz {
 		l.memLock.Unlock()
 		return 0, false
 	}
-	txn := l.doMemAppend(bufs)
 	l.memLock.Unlock()
+
+	var txn txnNum = 0
+	for {
+		l.memLock.Lock()
+		if l.index(l.memHead)+uint64(len(bufs)) >= l.logSz {
+			dPrintf(5, "memAppend: log is full; try again")
+			l.memLock.Unlock()
+			l.condLogger.Signal()
+			l.condInstall.Signal()
+			continue
+		}
+		txn = l.doMemAppend(bufs)
+		l.memLock.Unlock()
+		break
+	}
 	return txn, true
 }
 
@@ -203,10 +219,6 @@ func (l *walog) logAppendWait(txn txnNum) {
 func (l *walog) waitFlushMemLog() {
 	n := l.readtxnNxt() - 1
 	l.logAppendWait(n)
-}
-
-func (l *walog) signalInstaller() {
-	l.condInstall.Signal()
 }
 
 //
