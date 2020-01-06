@@ -123,3 +123,47 @@ func (buf *buf) writeDirect() {
 func (buf *buf) setDirty() {
 	buf.dirty = true
 }
+
+type bufMap struct {
+	addrs *addrMap
+}
+
+func mkBufMap() *bufMap {
+	a := &bufMap{
+		addrs: mkAddrMap(),
+	}
+	return a
+}
+
+func (bmap *bufMap) insert(buf *buf) {
+	bmap.addrs.insert(buf.addr, buf)
+}
+
+func (bmap *bufMap) lookup(addr addr) *buf {
+	e := bmap.addrs.lookup(addr)
+	return e.(*buf)
+}
+
+func (bmap *bufMap) del(addr addr) {
+	bmap.addrs.del(addr)
+}
+
+func (bmap *bufMap) ndirty() uint64 {
+	n := 0
+	bmap.addrs.apply(func(a addr, e interface{}) {
+		buf := e.(*buf)
+		if buf.dirty {
+			n += 1
+		}
+	})
+	return 0
+}
+
+func (bmap *bufMap) bufs() []*buf {
+	bufs := make([]*buf, 0)
+	bmap.addrs.apply(func(a addr, e interface{}) {
+		b := e.(*buf)
+		bufs = append(bufs, b)
+	})
+	return bufs
+}

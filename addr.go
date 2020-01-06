@@ -1,9 +1,5 @@
 package goose_nfs
 
-import (
-	"sync"
-)
-
 type addr struct {
 	blkno uint64
 	off   uint64 // offset in bits
@@ -18,105 +14,71 @@ func mkaddr(blkno uint64, off uint64, sz uint64) addr {
 	return addr{blkno: blkno, off: off, sz: sz}
 }
 
-type addrMap struct {
-	mu   *sync.Mutex
-	bufs map[uint64][]*buf
+//
+// a map from addr to an object
+//
+type aentry struct {
+	addr addr
+	obj  interface{}
 }
 
-func mkaddrMap() *addrMap {
+type addrMap struct {
+	addrs map[uint64][]*aentry
+}
+
+func mkAddrMap() *addrMap {
 	a := &addrMap{
-		mu:   new(sync.Mutex),
-		bufs: make(map[uint64][]*buf),
+		addrs: make(map[uint64][]*aentry),
 	}
 	return a
 }
 
-func (amap *addrMap) len() uint64 {
-	amap.mu.Lock()
-	l := uint64(len(amap.bufs))
-	amap.mu.Unlock()
-	return l
-}
-
-func (amap *addrMap) lookupInternal(addr addr) *buf {
-	var buf *buf
-	bs, ok := amap.bufs[addr.blkno]
+func (amap *addrMap) lookup(addr addr) interface{} {
+	var obj interface{}
+	addrs, ok := amap.addrs[addr.blkno]
 	if ok {
-		for _, b := range bs {
-			if addr.eq(b.addr) {
-				buf = b
+		for _, a := range addrs {
+			if addr.eq(a.addr) {
+				obj = a.obj
 				break
 			}
 		}
 	}
-	return buf
+	return obj
 }
 
-func (amap *addrMap) addInternal(buf *buf) {
-	blkno := buf.addr.blkno
-	amap.bufs[blkno] = append(amap.bufs[blkno], buf)
-}
-
-func (amap *addrMap) lookup(addr addr) *buf {
-	amap.mu.Lock()
-	buf := amap.lookupInternal(addr)
-	amap.mu.Unlock()
-	return buf
-}
-
-func (amap *addrMap) lookupAdd(addr addr, buf *buf) bool {
-	amap.mu.Lock()
-	b := amap.lookupInternal(addr)
-	if b == nil {
-		amap.addInternal(buf)
-		amap.mu.Unlock()
-		return true
-	}
-	dPrintf(5, "LookupAdd already locked %v %v\n", addr, b)
-	amap.mu.Unlock()
-	return false
-}
-
-func (amap *addrMap) add(buf *buf) {
-	amap.mu.Lock()
-	amap.addInternal(buf)
-	amap.mu.Unlock()
+func (amap *addrMap) insert(addr addr, obj interface{}) {
+	aentry := &aentry{addr: addr, obj: obj}
+	blkno := addr.blkno
+	amap.addrs[blkno] = append(amap.addrs[blkno], aentry)
 }
 
 func (amap *addrMap) del(addr addr) {
 	var index uint64
 	var found bool
 
-	amap.mu.Lock()
 	blkno := addr.blkno
-	bs, found := amap.bufs[blkno]
+	locks, found := amap.addrs[blkno]
 	if !found {
-		panic("Del")
+		panic("release")
 	}
-	for i, b := range bs {
-		if b.addr.eq(addr) {
+	for i, l := range locks {
+		if l.addr.eq(addr) {
 			index = uint64(i)
 			found = true
 		}
 	}
 	if !found {
-		panic("Del")
+		panic("release")
 	}
-	bufs := append(bs[0:index], bs[index+1:]...)
-	amap.bufs[blkno] = bufs
-	amap.mu.Unlock()
+	locks = append(locks[0:index], locks[index+1:]...)
+	amap.addrs[blkno] = locks
 }
 
-func (amap *addrMap) dirty() uint64 {
-	var n uint64 = 0
-	amap.mu.Lock()
-	for _, bs := range amap.bufs {
-		for _, b := range bs {
-			if b.dirty {
-				n = n + 1
-			}
+func (amap *addrMap) apply(f func(addr, interface{})) {
+	for _, addrs := range amap.addrs {
+		for _, a := range addrs {
+			f(a.addr, a.obj)
 		}
 	}
-	amap.mu.Unlock()
-	return n
 }

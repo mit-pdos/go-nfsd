@@ -114,15 +114,6 @@ func (l *walog) readHdr() *hdr {
 	return hdr
 }
 
-func (l *walog) readLogBlocks(len uint64) []disk.Block {
-	var blks = make([]disk.Block, len)
-	for i := uint64(0); i < len; i++ {
-		blk := disk.Read(LOGSTART + i)
-		blks[i] = blk
-	}
-	return blks
-}
-
 func (l *walog) memWrite(bufs []*buf) {
 	for _, buf := range bufs {
 		l.memLog = append(l.memLog, *buf)
@@ -156,6 +147,31 @@ func (l *walog) readtxnNxt() txnNum {
 //
 //  For clients of WAL
 //
+
+// Scan log for blkno. if not present, read from disk
+func (l *walog) read(blkno uint64) disk.Block {
+	var blk disk.Block
+
+	l.memLock.Lock()
+	if l.memHead > l.memTail {
+		for i := l.memHead - 1; ; i-- {
+			buf := l.memLog[l.index(i)]
+			if buf.addr.blkno == blkno {
+				blk = make([]byte, disk.BlockSize)
+				copy(blk, buf.blk)
+				break
+			}
+			if i <= l.memTail {
+				break
+			}
+		}
+	}
+	l.memLock.Unlock()
+	if blk == nil {
+		blk = disk.Read(blkno)
+	}
+	return blk
+}
 
 // Append to in-memory log. Returns false, if bufs don't fit
 func (l *walog) memAppend(bufs []*buf) (txnNum, bool) {
@@ -238,14 +254,27 @@ func (l *walog) logger() {
 }
 
 //
-// For installer
+// Installer
 //
 
-func (l *walog) installBlocks(addrs []uint64, blks []disk.Block) {
-	n := uint64(len(blks))
+// Install blocks in on-disk log to their home location.
+func (l *walog) installer() {
+	l.logLock.Lock()
+	for !l.shutdown {
+		blknos, txn := l.logInstall()
+		if len(blknos) > 0 {
+			dPrintf(5, "Installed till txn %d\n", txn)
+		}
+		l.condInstall.Wait()
+	}
+	l.logLock.Unlock()
+}
+
+func (l *walog) installBlocks(bufs []buf) {
+	n := uint64(len(bufs))
 	for i := uint64(0); i < n; i++ {
-		blkno := addrs[i]
-		blk := blks[i]
+		blkno := bufs[i].addr.blkno
+		blk := bufs[i].blk
 		dPrintf(5, "installBlocks: write log block %d to %d\n", i, blkno)
 		disk.Write(blkno, blk)
 	}
@@ -255,9 +284,9 @@ func (l *walog) installBlocks(addrs []uint64, blks []disk.Block) {
 // XXX absorp
 func (l *walog) logInstall() ([]uint64, txnNum) {
 	hdr := l.readHdr()
-	blks := l.readLogBlocks(hdr.head - hdr.tail)
-	//dPrintf("logInstall diskhead %d disktail %d\n", hdr.head, hdr.tail)
-	l.installBlocks(hdr.addrs, blks)
+	bufs := l.memLog[l.index(hdr.tail):l.index(hdr.head)]
+	dPrintf(1, "logInstall diskhead %d disktail %d\n", hdr.head, hdr.tail)
+	l.installBlocks(bufs)
 	hdr.tail = hdr.head
 	l.writeHdr(hdr.head, hdr.tail, hdr.logTxnNxt, nil)
 	l.memLock.Lock()

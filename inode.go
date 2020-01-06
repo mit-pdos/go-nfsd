@@ -169,7 +169,7 @@ func getInode(txn *txn, fh3 Nfs_fh3) *inode {
 
 func (ip *inode) releaseInode(txn *txn) {
 	addr := txn.fs.inum2addr(ip.inum)
-	txn.releaseBuf(addr)
+	txn.release(addr)
 }
 
 func (ip *inode) writeInode(txn *txn) {

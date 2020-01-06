@@ -3,6 +3,7 @@ package goose_nfs
 import (
 	"github.com/tchajed/goose/machine/disk"
 
+	"sort"
 	"sync"
 )
 
@@ -29,82 +30,61 @@ func (c *commit) unlock() {
 type txn struct {
 	nfs    *Nfs
 	log    *walog
-	bc     *cache   // a block cache shared between transactions
-	amap   *addrMap // the bufs that this transaction has exclusively
 	fs     *fsSuper
 	balloc *alloc
 	ialloc *alloc
 	com    *commit
-	locked *addrMap // shared map of locked addresses of disk objects
+	locks  *lockMap // shared map of locks for disk objects
+	bufs   *bufMap  // private map of bufs read/written by txn
 }
 
 func begin(nfs *Nfs) *txn {
 	txn := &txn{
 		nfs:    nfs,
 		log:    nfs.log,
-		bc:     nfs.bc,
-		amap:   mkaddrMap(),
 		fs:     nfs.fs,
 		balloc: nfs.balloc,
 		ialloc: nfs.ialloc,
 		com:    nfs.commit,
-		locked: nfs.locked,
+		locks:  nfs.locks,
+		bufs:   mkBufMap(),
 	}
 	return txn
 }
 
-func (txn *txn) installCache(buf *buf, n txnNum) {
-	blk := buf.txn.readBlockCache(buf.addr.blkno)
-	buf.install(blk)
-	txn.bc.pin([]uint64{buf.addr.blkno}, n)
-	buf.txn.releaseBlock(buf.addr.blkno)
-}
-
-func (txn *txn) loadCache(buf *buf) {
-	blk := txn.readBlockCache(buf.addr.blkno)
+func (txn *txn) load(buf *buf) {
+	blk := txn.log.read(buf.addr.blkno)
 	byte := buf.addr.off / 8
 	sz := roundUp(buf.addr.sz, 8)
 	copy(buf.blk, blk[byte:byte+sz])
 	dPrintf(15, "addr %v read %v %v = 0x%x\n", buf.addr, byte, sz, blk[byte:byte+1])
-	txn.releaseBlock(buf.addr.blkno)
 }
 
-// ReadBufLocked acquires a lock on the address of a disk object by
-// inserting the address into a shared locked map.  If it successfully
-// acquires the lock, it reads a disk object from the shared block
-// cache into a private buffer.  The disk objects include individual
-// inodes, chunks of allocator bitmaps, and blocks.  Commit the
-// release locks after installing the modified disk objects into disk
-// cache.
+// ReadBufLocked acquires a lock on the address of a disk object
+// (i.e., inodes, chunks of allocator bitmaps, and blocks).  If it
+// successfully acquires the lock, it reads a disk object from the
+// shared block cache into a private buffer.  Commit releases locks
+// after installing the modified disk objects into disk cache.
 func (txn *txn) readBufLocked(addr addr, kind kind) *buf {
-	var buf *buf
 
-	// is addr already locked for this transaction?
-	buf = txn.amap.lookup(addr)
-	if buf == nil {
-		b := mkBufData(addr, kind, txn)
-		for {
-			ok := txn.locked.lookupAdd(addr, b)
-			if ok {
-				buf = b
-				break
-			}
-			dPrintf(5, "%p: ReadBufLocked: try again\n", txn)
-			// XXX condition variable?
-			continue
-		}
-		txn.loadCache(buf)
-		txn.amap.add(buf)
-
+	// is addr already locked by this transaction?
+	locked := txn.locks.isLocked(addr, txn)
+	if !locked {
+		txn.locks.acquire(addr, txn)
+		buf := mkBufData(addr, kind, txn)
+		txn.load(buf)
+		txn.bufs.insert(buf)
 	}
+	buf := txn.bufs.lookup(addr)
 	dPrintf(10, "%p: Locked %v\n", txn, buf)
 	return buf
 }
 
 // Remove buffer from this transaction
-func (txn *txn) releaseBuf(addr addr) {
+func (txn *txn) release(addr addr) {
 	dPrintf(10, "%p: Unlock %v\n", txn, addr)
-	txn.amap.del(addr)
+	txn.locks.release(addr, txn)
+	txn.bufs.del(addr)
 }
 
 func (txn *txn) putInodes(inodes []*inode) {
@@ -114,55 +94,41 @@ func (txn *txn) putInodes(inodes []*inode) {
 }
 
 func (txn *txn) numberDirty() uint64 {
-	return txn.amap.dirty()
+	return txn.bufs.ndirty()
 }
 
-// Compute the update in buf to its corresponding block in the cache.
-// The update in buf may only partially its block. Assume caller holds
-// cache lock.
-func (txn *txn) computeBlks() []*buf {
-	var bufs = make([]*buf, 0)
-	for blkno, bs := range txn.amap.bufs {
-		var dirty bool = false
-		dPrintf(5, "computeBlks %d %v\n", blkno, bs)
-		blk := txn.readBlockCache(blkno)
+// Install the txn's bufs into their blocks.  A buf may only partially
+// update a disk block. Assume caller holds commit lock.
+func (txn *txn) installBufs() []*buf {
+	var blks = make([]*buf, 0)
+
+	// all bufs from this txn, sorted by blkno
+	bufs := txn.bufs.bufs()
+	sort.Slice(bufs, func(i, j int) bool {
+		return bufs[i].addr.blkno < bufs[j].addr.blkno
+	})
+	l := len(bufs)
+	for i := 0; i < l; {
+		blkno := bufs[i].addr.blkno
+		blk := txn.log.read(blkno)
 		data := make([]byte, disk.BlockSize)
 		copy(data, blk)
-		txn.releaseBlock(blkno)
-		for _, b := range bs {
-			if b.install(data) {
+		var dirty = false
+		// several bufs may contain data for different parts of the same block
+		for ; i < l && blkno == bufs[i].addr.blkno; i++ {
+			dPrintf(5, "computeBlks %d %v\n", blkno, bufs[i])
+			if bufs[i].install(data) {
 				dirty = true
 			}
 		}
 		if dirty {
 			// construct a buf that has all changes to blkno
-			buf := mkBuf(txn.fs.block2addr(blkno), 0, data, txn)
-			bufs = append(bufs, buf)
-			buf.setDirty()
+			b := mkBuf(txn.fs.block2addr(blkno), 0, data, txn)
+			blks = append(blks, b)
+			b.setDirty()
 		}
 	}
-	return bufs
-}
-
-func (txn *txn) unlockBuf(b *buf) {
-	if b.kind == BLOCK {
-		txn.locked.del(b.addr)
-	} else if b.kind == INODE {
-		txn.locked.del(b.addr)
-	} else if b.kind == IBMAP {
-		txn.ialloc.unlockRegion(txn, b)
-	} else if b.kind == BBMAP {
-		txn.balloc.unlockRegion(txn, b)
-	}
-}
-
-func (txn *txn) releaseBufs() {
-	for _, bs := range txn.amap.bufs {
-		for _, b := range bs {
-			dPrintf(5, "%p: unlock %v\n", txn, b)
-			txn.unlockBuf(b)
-		}
-	}
+	return blks
 }
 
 // doCommit grabs the commit log, appends to the in-memory log and
@@ -179,7 +145,7 @@ func (txn *txn) doCommit(abort bool) (txnNum, bool) {
 		// so we hold the commit lock
 		txn.com.lock()
 
-		bufs := txn.computeBlks()
+		bufs := txn.installBufs()
 		if uint64(len(bufs)) > txn.log.logSz {
 			txn.com.unlock()
 			return 0, false
@@ -187,21 +153,13 @@ func (txn *txn) doCommit(abort bool) (txnNum, bool) {
 
 		dPrintf(3, "doCommit: bufs %v\n", bufs)
 
-		// Append to the in-memory log and install+pin bufs (except
-		// bitmaps) into cache
 		n, ok = txn.log.memAppend(bufs)
-		if ok {
-			for _, b := range bufs {
-				txn.installCache(b, n+1)
-			}
-		}
 
 		txn.com.unlock()
 
 		if ok {
-			txn.releaseBufs()
-		}
-		if !ok {
+			txn.locks.releaseTxn(txn)
+		} else {
 			dPrintf(5, "doCommit: log is full; wait")
 			txn.log.condLogger.Signal()
 			txn.log.condInstall.Signal()
@@ -252,7 +210,7 @@ func (txn *txn) commitUnstable(inodes []*inode, fh fh) bool {
 // do log-by-pass writes.
 func (txn *txn) commitFh(fh fh, inodes []*inode) bool {
 	txn.log.waitFlushMemLog()
-	txn.releaseBufs()
+	txn.locks.releaseTxn(txn)
 	return true
 }
 
@@ -262,30 +220,4 @@ func (txn *txn) abort(inodes []*inode) bool {
 	// An an abort may free an inode, which results in dirty
 	// buffers that need to be written to log. So, call commit.
 	return txn.commitWait(inodes, true, true)
-}
-
-// Install blocks in on-disk log to their home location, and then
-// unpin those blocks from cache.
-// XXX would be nice to install from buffer cache, but blocks in
-// buffer cache may already have been updated since previous
-// transactions committed.  Maybe keep several versions
-func installer(fs *fsSuper, bc *cache, l *walog) {
-	l.logLock.Lock()
-	for !l.shutdown {
-		blknos, txn := l.logInstall()
-		// Make space in cache by unpinning buffers that have
-		// been installed, but filter out bitmap blocks.
-		var bs = make([]uint64, 0)
-		for _, bn := range blknos {
-			if bn >= fs.inodeStart() {
-				bs = append(bs, bn)
-			}
-		}
-		if len(blknos) > 0 {
-			dPrintf(5, "Installed till txn %d\n", txn)
-			bc.unPin(bs, txn)
-		}
-		l.condInstall.Wait()
-	}
-	l.logLock.Unlock()
 }

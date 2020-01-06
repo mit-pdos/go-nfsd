@@ -60,8 +60,7 @@ func (a *alloc) findFreeRegion(txn *txn) *buf {
 			buf = b
 			break
 		}
-		a.unlockRegion(txn, b)
-		txn.releaseBuf(b.addr)
+		txn.release(b.addr)
 		num = a.incNext(1)
 		if num == start {
 			panic("wrap around?")
@@ -80,11 +79,6 @@ func (a *alloc) lockRegion(txn *txn, n uint64, bits uint64) *buf {
 	buf = txn.readBufLocked(addr, a.kind)
 	dPrintf(15, "LockRegion: %v\n", buf)
 	return buf
-}
-
-func (a *alloc) unlockRegion(txn *txn, buf *buf) {
-	dPrintf(15, "UnlockRegion: %v\n", buf)
-	txn.locked.del(buf.addr)
 }
 
 func (a *alloc) free(buf *buf, n uint64) {

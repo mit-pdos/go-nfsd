@@ -1,3 +1,11 @@
+Factor & simplify txn layer (it has its fingers in everything)
+- remove pinning
+- lower and higher txn layer
+  higher understands types of blocks
+  locking?
+- cache below txn/logging layer
+- factor out allocations
+
 Txn layer knows about inodes, no need to pass them on commit. No need
 for iput()?
 

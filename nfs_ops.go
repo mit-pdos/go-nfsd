@@ -18,7 +18,8 @@ type Nfs struct {
 	bc       *cache
 	balloc   *alloc
 	ialloc   *alloc
-	locked   *addrMap
+	locks    *lockMap
+	// locked   *addrMap
 
 	commit  *commit
 	nthread uint32
@@ -40,7 +41,7 @@ func MkNfs() *Nfs {
 	// TODO: do we still need to use machine.Spawn,
 	//  or can we just use go statements?
 	machine.Spawn(func() { l.logger() })
-	machine.Spawn(func() { installer(fs, bc, l) })
+	machine.Spawn(func() { l.installer() })
 
 	mu := new(sync.Mutex)
 	nfs := &Nfs{
@@ -51,7 +52,7 @@ func MkNfs() *Nfs {
 		bc:       bc,
 		balloc:   mkAlloc(fs.bitmapBlockStart(), fs.nBlockBitmap, BBMAP),
 		ialloc:   mkAlloc(fs.bitmapInodeStart(), fs.nInodeBitmap, IBMAP),
-		locked:   mkaddrMap(),
+		locks:    mkLockMap(),
 		commit:   mkcommit(),
 		nthread:  0,
 	}

@@ -139,7 +139,7 @@ func (ts *TestState) Remove(name string) {
 		Object: what,
 	}
 	reply := ts.nfs.NFSPROC3_REMOVE(args)
-	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	assert.Equal(ts.t, NFS3_OK, reply.Status)
 }
 
 func (ts *TestState) MkDir(name string) {
