@@ -1,6 +1,8 @@
 package trans
 
 import (
+	"github.com/tchajed/goose/machine/disk"
+
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/txn"
@@ -49,6 +51,10 @@ func (trans *Trans) NumberDirty() uint64 {
 
 func (trans *Trans) LogSz() uint64 {
 	return trans.txn.LogSz()
+}
+
+func (trans *Trans) LogSzBytes() uint64 {
+	return trans.txn.LogSz() * disk.BlockSize
 }
 
 func (trans *Trans) AllocINum() fs.Inum {

@@ -1,15 +1,10 @@
 Factor & simplify txn layer (it has its fingers in everything)
-- remove pinning
-- lower and higher txn layer
+- separate lower and higher txn layer
   higher understands types of blocks
-  locking?
-- cache below txn/logging layer
+- add cache below txn/logging layer
 - factor out allocations
 
-Txn layer knows about inodes, no need to pass them on commit. No need
-for iput()?
-
-An icache, but simpler now
+Add an icache, but simpler now
 
 Test for reallocating inode before shrunk
 

@@ -328,7 +328,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args WRITE3args) WRITE3res {
 		errRet(trans, &reply.Status, NFS3ERR_INVAL, []*inode{ip})
 		return reply
 	}
-	if uint64(args.Count) >= wal.MaxLogSize() {
+	if uint64(args.Count) >= trans.LogSzBytes() {
 		errRet(trans, &reply.Status, NFS3ERR_INVAL, []*inode{ip})
 		return reply
 	}
@@ -744,10 +744,10 @@ func (nfs *Nfs) NFSPROC3_FSSTAT(args FSSTAT3args) FSSTAT3res {
 func (nfs *Nfs) NFSPROC3_FSINFO(args FSINFO3args) FSINFO3res {
 	var reply FSINFO3res
 	util.DPrintf(1, "NFS FsInfo %v\n", args)
-	reply.Status = NFS3_OK
-	reply.Resok.Wtmax = Uint32(wal.MaxLogSize())
+	trans := trans.Begin(nfs.fs, nfs.txn, nfs.balloc, nfs.ialloc)
+	reply.Resok.Wtmax = Uint32(trans.LogSzBytes())
 	reply.Resok.Maxfilesize = Size3(maxFileSize())
-	// XXX maybe set wtpref, wtmult, and rdmult
+	commitReply(trans, &reply.Status, []*inode{})
 	return reply
 }
 
