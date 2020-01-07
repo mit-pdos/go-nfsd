@@ -10,6 +10,8 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/fs"
+
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -572,7 +574,7 @@ func TestBigWrite(t *testing.T) {
 	defer ts.Close()
 
 	ts.Create("x")
-	sz := uint64(4096 * (HDRADDRS / 2))
+	sz := uint64(4096 * (fs.HDRADDRS / 2))
 	x := ts.Lookup("x", true)
 	data := mkdataval(byte(0), sz)
 	ts.Write(x, data, UNSTABLE)
@@ -580,7 +582,7 @@ func TestBigWrite(t *testing.T) {
 
 	// Too big
 	ts.Create("y")
-	sz = uint64(4096 * (HDRADDRS + 10))
+	sz = uint64(4096 * (fs.HDRADDRS + 10))
 	y := ts.Lookup("y", true)
 	data = mkdataval(byte(0), sz)
 	ts.WriteErr(y, data, UNSTABLE, NFS3ERR_INVAL)

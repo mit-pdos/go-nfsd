@@ -1,41 +1,28 @@
-package goose_nfs
-
-type addr struct {
-	blkno uint64
-	off   uint64 // offset in bits
-	sz    uint64 // sz in bits
-}
-
-func (a *addr) eq(b addr) bool {
-	return a.blkno == b.blkno && a.off == b.off && a.sz == b.sz
-}
-
-func mkaddr(blkno uint64, off uint64, sz uint64) addr {
-	return addr{blkno: blkno, off: off, sz: sz}
-}
+package buf
 
 //
 // a map from addr to an object
 //
+
 type aentry struct {
-	addr addr
+	addr Addr
 	obj  interface{}
 }
 
-type addrMap struct {
+type AddrMap struct {
 	addrs map[uint64][]*aentry
 }
 
-func mkAddrMap() *addrMap {
-	a := &addrMap{
+func MkAddrMap() *AddrMap {
+	a := &AddrMap{
 		addrs: make(map[uint64][]*aentry),
 	}
 	return a
 }
 
-func (amap *addrMap) lookup(addr addr) interface{} {
+func (amap *AddrMap) Lookup(addr Addr) interface{} {
 	var obj interface{}
-	addrs, ok := amap.addrs[addr.blkno]
+	addrs, ok := amap.addrs[addr.Blkno]
 	if ok {
 		for _, a := range addrs {
 			if addr.eq(a.addr) {
@@ -47,17 +34,17 @@ func (amap *addrMap) lookup(addr addr) interface{} {
 	return obj
 }
 
-func (amap *addrMap) insert(addr addr, obj interface{}) {
+func (amap *AddrMap) Insert(addr Addr, obj interface{}) {
 	aentry := &aentry{addr: addr, obj: obj}
-	blkno := addr.blkno
+	blkno := addr.Blkno
 	amap.addrs[blkno] = append(amap.addrs[blkno], aentry)
 }
 
-func (amap *addrMap) del(addr addr) {
+func (amap *AddrMap) Del(addr Addr) {
 	var index uint64
 	var found bool
 
-	blkno := addr.blkno
+	blkno := addr.Blkno
 	locks, found := amap.addrs[blkno]
 	if !found {
 		panic("release")
@@ -75,7 +62,7 @@ func (amap *addrMap) del(addr addr) {
 	amap.addrs[blkno] = locks
 }
 
-func (amap *addrMap) apply(f func(addr, interface{})) {
+func (amap *AddrMap) Apply(f func(Addr, interface{})) {
 	for _, addrs := range amap.addrs {
 		for _, a := range addrs {
 			f(a.addr, a.obj)

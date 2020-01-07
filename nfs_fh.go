@@ -1,18 +1,19 @@
 package goose_nfs
 
 import (
+	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/tchajed/goose/machine"
 )
 
 type fh struct {
-	ino inum
+	ino fs.Inum
 	gen uint64
 }
 
 func (fh3 Nfs_fh3) makeFh() fh {
 	i := machine.UInt64Get(fh3.Data[0:8])
 	g := machine.UInt64Get(fh3.Data[8:])
-	return fh{ino: inum(i), gen: g}
+	return fh{ino: fs.Inum(i), gen: g}
 }
 
 func (fh fh) makeFh3() Nfs_fh3 {
