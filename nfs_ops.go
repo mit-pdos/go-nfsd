@@ -72,11 +72,11 @@ func (nfs *Nfs) ShutdownNfs() {
 		nfs.condShut.Wait()
 	}
 	nfs.mu.Unlock()
-	nfs.txn.DoShutdown()
+	nfs.txn.Shutdown()
 }
 
 func commitWait(trans *trans.Trans, inodes []*inode, wait bool, abort bool) bool {
-	// may free an inode so must be done before commit
+	// putInodes may free an inode so must be done before commit
 	putInodes(trans, inodes)
 	return trans.CommitWait(wait, abort)
 }
@@ -85,13 +85,13 @@ func commit(trans *trans.Trans, inodes []*inode) bool {
 	return commitWait(trans, inodes, true, false)
 }
 
-// XXX don't write inode if mtime is only change
+// Commit data, but will also commit everything else, since we don't
+// support log-by-pass writes.
 func commitData(trans *trans.Trans, inodes []*inode, fh fh) bool {
 	return commitWait(trans, inodes, true, false)
 }
 
-// Append to in-memory log, but don't wait for the logger to complete
-// diskAppend.
+// Commit transaction, but don't write to stable storage
 func commitUnstable(trans *trans.Trans, inodes []*inode, fh fh) bool {
 	util.DPrintf(5, "commitUnstable\n")
 	if len(inodes) > 1 {
@@ -100,17 +100,16 @@ func commitUnstable(trans *trans.Trans, inodes []*inode, fh fh) bool {
 	return commitWait(trans, inodes, false, false)
 }
 
-// XXX Don't have to flush all data, but that is only an option if we
-// do log-by-pass writes.
+// Flush log. We don't have to flush data from other file handles, but
+// that is only an option if we do log-by-pass writes.
 func commitFh(trans *trans.Trans, fh fh, inodes []*inode) bool {
 	return trans.Flush()
 }
 
+// An aborted transaction may free an inode, which results in dirty
+// buffers that need to be written to log. So, call commit.
 func abort(trans *trans.Trans, inodes []*inode) bool {
 	util.DPrintf(5, "Abort\n")
-
-	// An an abort may free an inode, which results in dirty
-	// buffers that need to be written to log. So, call commit.
 	return commitWait(trans, inodes, true, true)
 }
 
