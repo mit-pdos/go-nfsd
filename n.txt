@@ -20,11 +20,13 @@ mtime
 
 performance measurements
 
-implement recovery
-
-test recovery
+end-to-end tests for recovery
 
 goosify
 
 log-by-pass writes
+
+
+[goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile  /mnt/nfs/
+657 files per 1002243 usec
 

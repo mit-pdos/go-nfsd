@@ -8,6 +8,7 @@ import (
 	"github.com/zeldovich/go-rpcgen/xdr"
 
 	goose_nfs "github.com/mit-pdos/goose-nfsd"
+	nfstypes "github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 
 func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
@@ -51,26 +52,26 @@ func main() {
 	}
 	port := uint32(listener.Addr().(*net.TCPAddr).Port)
 
-	pmap_set_unset(goose_nfs.MOUNT_PROGRAM, goose_nfs.MOUNT_V3, 0, false)
-	ok := pmap_set_unset(goose_nfs.MOUNT_PROGRAM, goose_nfs.MOUNT_V3, port, true)
+	pmap_set_unset(nfstypes.MOUNT_PROGRAM, nfstypes.MOUNT_V3, 0, false)
+	ok := pmap_set_unset(nfstypes.MOUNT_PROGRAM, nfstypes.MOUNT_V3, port, true)
 	if !ok {
 		panic("Could not set pmap mapping for mount")
 	}
-	defer pmap_set_unset(goose_nfs.MOUNT_PROGRAM, goose_nfs.MOUNT_V3, port, false)
+	defer pmap_set_unset(nfstypes.MOUNT_PROGRAM, nfstypes.MOUNT_V3, port, false)
 
-	pmap_set_unset(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3, 0, false)
-	ok = pmap_set_unset(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3, port, true)
+	pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, 0, false)
+	ok = pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, true)
 	if !ok {
 		panic("Could not set pmap mapping for NFS")
 	}
-	defer pmap_set_unset(goose_nfs.NFS_PROGRAM, goose_nfs.NFS_V3, port, false)
+	defer pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, false)
 
 	nfs := goose_nfs.MkNfs()
 	defer nfs.ShutdownNfs()
 
 	srv := rfc1057.MakeServer()
-	srv.RegisterMany(goose_nfs.MOUNT_PROGRAM_MOUNT_V3_regs(nfs))
-	srv.RegisterMany(goose_nfs.NFS_PROGRAM_NFS_V3_regs(nfs))
+	srv.RegisterMany(nfstypes.MOUNT_PROGRAM_MOUNT_V3_regs(nfs))
+	srv.RegisterMany(nfstypes.NFS_PROGRAM_NFS_V3_regs(nfs))
 
 	// srv.RegisterMany(goose_nfs.NFS_PROGRAM_NFS_V3_regs(nfs))
 
