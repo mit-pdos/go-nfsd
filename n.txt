@@ -1,8 +1,4 @@
-Factor & simplify txn layer (it has its fingers in everything)
-- separate lower and higher txn layer
-  higher understands types of blocks
-- add cache below txn/logging layer
-- factor out allocations
+Add cache below txn/logging layer
 
 Add an icache, but simpler now
 
