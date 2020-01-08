@@ -1,4 +1,4 @@
-package goose_nfs
+package nfstypes
 
 const PROGRAM uint32 = 100003
 const VERSION uint32 = 3

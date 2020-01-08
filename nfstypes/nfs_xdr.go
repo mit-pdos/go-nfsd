@@ -1,4 +1,4 @@
-package goose_nfs
+package nfstypes
 
 import "github.com/zeldovich/go-rpcgen/xdr"
 

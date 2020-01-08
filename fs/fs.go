@@ -20,6 +20,9 @@ const (
 
 type Inum uint64
 
+const NULLINUM Inum = 0
+const ROOTINUM Inum = 1
+
 type FsSuper struct {
 	Size         uint64
 	nLog         uint64 // including commit block

@@ -6,6 +6,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/fs"
+	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -15,19 +16,19 @@ import (
 
 func initFs(super *fs.FsSuper) {
 	// inum = 0 is reserved
-	nulli := mkNullInode()
-	naddr := super.Inum2Addr(NULLINUM)
+	nulli := inode.MkNullInode()
+	naddr := super.Inum2Addr(fs.NULLINUM)
 	nullblk := make(disk.Block, fs.INODESZ)
 	b := buf.MkBuf(naddr, nullblk)
-	nulli.encode(b)
+	nulli.Encode(b)
 	b.WriteDirect()
 
-	root := mkRootInode()
+	root := inode.MkRootInode()
 	util.DPrintf(5, "root %v\n", root)
-	raddr := super.Inum2Addr(ROOTINUM)
+	raddr := super.Inum2Addr(fs.ROOTINUM)
 	rootblk := make(disk.Block, fs.INODESZ)
 	rootbuf := buf.MkBuf(raddr, rootblk)
-	root.encode(rootbuf)
+	root.Encode(rootbuf)
 	rootbuf.WriteDirect()
 
 	markAlloc(super, super.DataStart(), super.Maxaddr)

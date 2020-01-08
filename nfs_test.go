@@ -10,7 +10,10 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
+	"github.com/mit-pdos/goose-nfsd/inode"
+	"github.com/mit-pdos/goose-nfsd/nfstypes"
 
 	"testing"
 
@@ -31,176 +34,176 @@ type TestState struct {
 	nfs *Nfs
 }
 
-func (ts *TestState) CreateFh(fh Nfs_fh3, name string) {
-	where := Diropargs3{Dir: fh, Name: Filename3(name)}
-	how := Createhow3{}
-	args := CREATE3args{Where: where, How: how}
+func (ts *TestState) CreateFh(fh nfstypes.Nfs_fh3, name string) {
+	where := nfstypes.Diropargs3{Dir: fh, Name: nfstypes.Filename3(name)}
+	how := nfstypes.Createhow3{}
+	args := nfstypes.CREATE3args{Where: where, How: how}
 	attr := ts.nfs.NFSPROC3_CREATE(args)
-	assert.Equal(ts.t, NFS3_OK, attr.Status)
+	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
 }
 
 func (ts *TestState) Create(name string) {
-	ts.CreateFh(MkRootFh3(), name)
+	ts.CreateFh(fh.MkRootFh3(), name)
 }
 
-func (ts *TestState) LookupOp(fh Nfs_fh3, name string) *LOOKUP3res {
-	what := Diropargs3{Dir: fh, Name: Filename3(name)}
-	args := LOOKUP3args{What: what}
+func (ts *TestState) LookupOp(fh nfstypes.Nfs_fh3, name string) *nfstypes.LOOKUP3res {
+	what := nfstypes.Diropargs3{Dir: fh, Name: nfstypes.Filename3(name)}
+	args := nfstypes.LOOKUP3args{What: what}
 	reply := ts.nfs.NFSPROC3_LOOKUP(args)
 	return &reply
 }
 
-func (ts *TestState) LookupFh(fh Nfs_fh3, name string) Nfs_fh3 {
+func (ts *TestState) LookupFh(fh nfstypes.Nfs_fh3, name string) nfstypes.Nfs_fh3 {
 	reply := ts.LookupOp(fh, name)
-	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
 	return reply.Resok.Object
 }
 
-func (ts *TestState) Lookup(name string, succeed bool) Nfs_fh3 {
-	reply := ts.LookupOp(MkRootFh3(), name)
+func (ts *TestState) Lookup(name string, succeed bool) nfstypes.Nfs_fh3 {
+	reply := ts.LookupOp(fh.MkRootFh3(), name)
 	if succeed {
-		assert.Equal(ts.t, reply.Status, NFS3_OK)
+		assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
 	} else {
-		assert.NotEqual(ts.t, reply.Status, NFS3_OK)
+		assert.NotEqual(ts.t, reply.Status, nfstypes.NFS3_OK)
 	}
 	return reply.Resok.Object
 }
 
-func (ts *TestState) GetattrOp(fh Nfs_fh3) *GETATTR3res {
-	args := GETATTR3args{Object: fh}
+func (ts *TestState) GetattrOp(fh nfstypes.Nfs_fh3) *nfstypes.GETATTR3res {
+	args := nfstypes.GETATTR3args{Object: fh}
 	attr := ts.nfs.NFSPROC3_GETATTR(args)
 	return &attr
 }
 
-func (ts *TestState) Getattr(fh Nfs_fh3, sz uint64) {
+func (ts *TestState) Getattr(fh nfstypes.Nfs_fh3, sz uint64) {
 	attr := ts.GetattrOp(fh)
-	assert.Equal(ts.t, NFS3_OK, attr.Status)
-	assert.Equal(ts.t, NF3REG, attr.Resok.Obj_attributes.Ftype)
-	assert.Equal(ts.t, Size3(sz), attr.Resok.Obj_attributes.Size)
+	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
+	assert.Equal(ts.t, nfstypes.NF3REG, attr.Resok.Obj_attributes.Ftype)
+	assert.Equal(ts.t, nfstypes.Size3(sz), attr.Resok.Obj_attributes.Size)
 }
 
-func (ts *TestState) GetattrDir(fh Nfs_fh3) {
+func (ts *TestState) GetattrDir(fh nfstypes.Nfs_fh3) {
 	attr := ts.GetattrOp(fh)
-	assert.Equal(ts.t, NFS3_OK, attr.Status)
-	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, NF3DIR)
+	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
+	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, nfstypes.NF3DIR)
 }
 
-func (ts *TestState) GetattrFail(fh Nfs_fh3) {
+func (ts *TestState) GetattrFail(fh nfstypes.Nfs_fh3) {
 	attr := ts.GetattrOp(fh)
-	assert.Equal(ts.t, attr.Status, NFS3ERR_STALE)
+	assert.Equal(ts.t, attr.Status, nfstypes.NFS3ERR_STALE)
 }
 
-func (ts *TestState) Setattr(fh Nfs_fh3, sz uint64) {
-	size := Set_size3{Set_it: true, Size: Size3(sz)}
-	attr := Sattr3{Size: size}
-	args := SETATTR3args{Object: fh, New_attributes: attr}
+func (ts *TestState) Setattr(fh nfstypes.Nfs_fh3, sz uint64) {
+	size := nfstypes.Set_size3{Set_it: true, Size: nfstypes.Size3(sz)}
+	attr := nfstypes.Sattr3{Size: size}
+	args := nfstypes.SETATTR3args{Object: fh, New_attributes: attr}
 	reply := ts.nfs.NFSPROC3_SETATTR(args)
-	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
 }
 
-func (ts *TestState) WriteOp(fh Nfs_fh3, off uint64, data []byte, how Stable_how) *WRITE3res {
-	args := WRITE3args{
+func (ts *TestState) WriteOp(fh nfstypes.Nfs_fh3, off uint64, data []byte, how nfstypes.Stable_how) *nfstypes.WRITE3res {
+	args := nfstypes.WRITE3args{
 		File:   fh,
-		Offset: Offset3(off),
-		Count:  Count3(len(data)),
+		Offset: nfstypes.Offset3(off),
+		Count:  nfstypes.Count3(len(data)),
 		Stable: how,
 		Data:   data}
 	reply := ts.nfs.NFSPROC3_WRITE(args)
 	return &reply
 }
 
-func (ts *TestState) WriteOff(fh Nfs_fh3, off uint64, data []byte, how Stable_how) {
+func (ts *TestState) WriteOff(fh nfstypes.Nfs_fh3, off uint64, data []byte, how nfstypes.Stable_how) {
 	reply := ts.WriteOp(fh, off, data, how)
-	assert.Equal(ts.t, reply.Status, NFS3_OK)
-	assert.Equal(ts.t, reply.Resok.Count, Count3(len(data)))
+	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
+	assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(len(data)))
 }
 
-func (ts *TestState) WriteErr(fh Nfs_fh3, data []byte, how Stable_how, err Nfsstat3) {
+func (ts *TestState) WriteErr(fh nfstypes.Nfs_fh3, data []byte, how nfstypes.Stable_how, err nfstypes.Nfsstat3) {
 	reply := ts.WriteOp(fh, 0, data, how)
 	assert.Equal(ts.t, reply.Status, err)
 }
 
-func (ts *TestState) Write(fh Nfs_fh3, data []byte, how Stable_how) {
+func (ts *TestState) Write(fh nfstypes.Nfs_fh3, data []byte, how nfstypes.Stable_how) {
 	ts.WriteOff(fh, uint64(0), data, how)
 }
 
-func (ts *TestState) Read(fh Nfs_fh3, off uint64, sz uint64) []byte {
-	args := READ3args{
+func (ts *TestState) Read(fh nfstypes.Nfs_fh3, off uint64, sz uint64) []byte {
+	args := nfstypes.READ3args{
 		File:   fh,
-		Offset: Offset3(off),
-		Count:  Count3(sz)}
+		Offset: nfstypes.Offset3(off),
+		Count:  nfstypes.Count3(sz)}
 	reply := ts.nfs.NFSPROC3_READ(args)
-	assert.Equal(ts.t, reply.Status, NFS3_OK)
-	assert.Equal(ts.t, reply.Resok.Count, Count3(sz))
+	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
+	assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(sz))
 	return reply.Resok.Data
 }
 
 func (ts *TestState) Remove(name string) {
-	what := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
-	args := REMOVE3args{
+	what := nfstypes.Diropargs3{Dir: fh.MkRootFh3(), Name: nfstypes.Filename3(name)}
+	args := nfstypes.REMOVE3args{
 		Object: what,
 	}
 	reply := ts.nfs.NFSPROC3_REMOVE(args)
-	assert.Equal(ts.t, NFS3_OK, reply.Status)
+	assert.Equal(ts.t, nfstypes.NFS3_OK, reply.Status)
 }
 
 func (ts *TestState) MkDir(name string) {
-	where := Diropargs3{Dir: MkRootFh3(), Name: Filename3(name)}
-	sattr := Sattr3{}
-	args := MKDIR3args{Where: where, Attributes: sattr}
+	where := nfstypes.Diropargs3{Dir: fh.MkRootFh3(), Name: nfstypes.Filename3(name)}
+	sattr := nfstypes.Sattr3{}
+	args := nfstypes.MKDIR3args{Where: where, Attributes: sattr}
 	attr := ts.nfs.NFSPROC3_MKDIR(args)
-	assert.Equal(ts.t, NFS3_OK, attr.Status)
+	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
 }
 
-func (ts *TestState) ReadDirPlus() Dirlistplus3 {
-	args := READDIRPLUS3args{Dir: MkRootFh3(), Dircount: Count3(100), Maxcount: Count3(NDIRECT * disk.BlockSize)}
+func (ts *TestState) ReadDirPlus() nfstypes.Dirlistplus3 {
+	args := nfstypes.READDIRPLUS3args{Dir: fh.MkRootFh3(), Dircount: nfstypes.Count3(100), Maxcount: nfstypes.Count3(inode.NDIRECT * disk.BlockSize)}
 	reply := ts.nfs.NFSPROC3_READDIRPLUS(args)
-	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
 	return reply.Resok.Reply
 }
 
-func (ts *TestState) CommitOp(fh Nfs_fh3, cnt uint64) *COMMIT3res {
-	args := COMMIT3args{
+func (ts *TestState) CommitOp(fh nfstypes.Nfs_fh3, cnt uint64) *nfstypes.COMMIT3res {
+	args := nfstypes.COMMIT3args{
 		File:   fh,
-		Offset: Offset3(0),
-		Count:  Count3(cnt)}
+		Offset: nfstypes.Offset3(0),
+		Count:  nfstypes.Count3(cnt)}
 	reply := ts.nfs.NFSPROC3_COMMIT(args)
 	return &reply
 }
 
-func (ts *TestState) Commit(fh Nfs_fh3, cnt uint64) {
+func (ts *TestState) Commit(fh nfstypes.Nfs_fh3, cnt uint64) {
 	reply := ts.CommitOp(fh, cnt)
-	assert.Equal(ts.t, reply.Status, NFS3_OK)
+	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
 }
 
-func (ts *TestState) CommitErr(fh Nfs_fh3, cnt uint64, err Nfsstat3) {
+func (ts *TestState) CommitErr(fh nfstypes.Nfs_fh3, cnt uint64, err nfstypes.Nfsstat3) {
 	reply := ts.CommitOp(fh, cnt)
 	assert.Equal(ts.t, reply.Status, err)
 }
 
-func (ts *TestState) RenameOp(fhfrom Nfs_fh3, from string,
-	fhto Nfs_fh3, to string) Nfsstat3 {
-	args := RENAME3args{
-		From: Diropargs3{Dir: fhfrom, Name: Filename3(from)},
-		To:   Diropargs3{Dir: fhto, Name: Filename3(to)},
+func (ts *TestState) RenameOp(fhfrom nfstypes.Nfs_fh3, from string,
+	fhto nfstypes.Nfs_fh3, to string) nfstypes.Nfsstat3 {
+	args := nfstypes.RENAME3args{
+		From: nfstypes.Diropargs3{Dir: fhfrom, Name: nfstypes.Filename3(from)},
+		To:   nfstypes.Diropargs3{Dir: fhto, Name: nfstypes.Filename3(to)},
 	}
 	reply := ts.nfs.NFSPROC3_RENAME(args)
 	return reply.Status
 }
 
 func (ts *TestState) Rename(from string, to string) {
-	status := ts.RenameOp(MkRootFh3(), from, MkRootFh3(), to)
-	assert.Equal(ts.t, status, NFS3_OK)
+	status := ts.RenameOp(fh.MkRootFh3(), from, fh.MkRootFh3(), to)
+	assert.Equal(ts.t, status, nfstypes.NFS3_OK)
 }
 
-func (ts *TestState) RenameFhs(fhfrom Nfs_fh3, from string, fhto Nfs_fh3, to string) {
+func (ts *TestState) RenameFhs(fhfrom nfstypes.Nfs_fh3, from string, fhto nfstypes.Nfs_fh3, to string) {
 	status := ts.RenameOp(fhfrom, from, fhto, to)
-	assert.Equal(ts.t, status, NFS3_OK)
+	assert.Equal(ts.t, status, nfstypes.NFS3_OK)
 }
 
 func (ts *TestState) RenameFail(from string, to string) {
-	status := ts.RenameOp(MkRootFh3(), from, MkRootFh3(), to)
-	assert.Equal(ts.t, status, NFS3ERR_NOTEMPTY)
+	status := ts.RenameOp(fh.MkRootFh3(), from, fh.MkRootFh3(), to)
+	assert.Equal(ts.t, status, nfstypes.NFS3ERR_NOTEMPTY)
 }
 
 func mkdata(sz uint64) []byte {
@@ -219,7 +222,7 @@ func mkdataval(b byte, sz uint64) []byte {
 	return data
 }
 
-func (ts *TestState) readcheck(fh Nfs_fh3, off uint64, data []byte) {
+func (ts *TestState) readcheck(fh nfstypes.Nfs_fh3, off uint64, data []byte) {
 	d := ts.Read(fh, off, uint64(len(data)))
 	assert.Equal(ts.t, len(data), len(d))
 	for i := uint64(0); i < uint64(len(data)); i++ {
@@ -243,7 +246,7 @@ func TestRoot(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 
-	fh := MkRootFh3()
+	fh := fh.MkRootFh3()
 	ts.GetattrDir(fh)
 	fhdot := ts.LookupFh(fh, ".")
 	ts.GetattrDir(fhdot)
@@ -259,7 +262,7 @@ func TestReadDir(t *testing.T) {
 	dl3 := ts.ReadDirPlus()
 	ne3 := dl3.Entries
 	for ne3 != nil {
-		assert.Equal(t, ne3.Fileid, Fileid3(1))
+		assert.Equal(t, ne3.Fileid, nfstypes.Fileid3(1))
 		ne3 = ne3.Nextentry
 	}
 }
@@ -274,7 +277,7 @@ func TestOneFile(t *testing.T) {
 	data := mkdata(sz)
 	ts.Setattr(fh, sz)
 	ts.Getattr(fh, sz)
-	ts.Write(fh, data, FILE_SYNC)
+	ts.Write(fh, data, nfstypes.FILE_SYNC)
 	ts.readcheck(fh, 0, data)
 	ts.Remove("x")
 	_ = ts.Lookup("x", false)
@@ -290,7 +293,7 @@ func TestFile1(t *testing.T) {
 	ts.Create("x")
 	fh := ts.Lookup("x", true)
 	data := mkdata(uint64(sz))
-	ts.Write(fh, data, FILE_SYNC)
+	ts.Write(fh, data, nfstypes.FILE_SYNC)
 	ts.readcheck(fh, 0, data)
 }
 
@@ -392,12 +395,12 @@ func TestUnstable(t *testing.T) {
 
 	// This write will stay in memory log
 	data1 := mkdataval(1, sz)
-	ts.Write(x, data1, UNSTABLE)
+	ts.Write(x, data1, nfstypes.UNSTABLE)
 
-	ts.Write(y, data1, FILE_SYNC)
+	ts.Write(y, data1, nfstypes.FILE_SYNC)
 
 	data2 := mkdataval(2, sz)
-	ts.Write(x, data2, UNSTABLE)
+	ts.Write(x, data2, nfstypes.UNSTABLE)
 	ts.Commit(x, sz)
 
 	ts.readcheck(x, 0, data2)
@@ -415,10 +418,10 @@ func TestConcurWrite(t *testing.T) {
 		ts.Create(n)
 		fh := ts.Lookup(n, true)
 		wg.Add(1)
-		go func(fh Nfs_fh3, v byte) {
+		go func(fh nfstypes.Nfs_fh3, v byte) {
 			for i := uint64(0); i < N; i++ {
 				data := mkdataval(v, SZ)
-				ts.WriteOff(fh, i*SZ, data, FILE_SYNC)
+				ts.WriteOff(fh, i*SZ, data, nfstypes.FILE_SYNC)
 			}
 			wg.Done()
 		}(fh, byte(g))
@@ -502,7 +505,7 @@ func TestFileHole(t *testing.T) {
 	fh := ts.Lookup("x", true)
 
 	data := mkdata(uint64(sz))
-	ts.WriteOff(fh, 4096, data, FILE_SYNC)
+	ts.WriteOff(fh, 4096, data, nfstypes.FILE_SYNC)
 
 	null := mkdataval(0, 4096)
 	ts.readcheck(fh, 0, null)
@@ -519,7 +522,7 @@ func (ts *TestState) evict(names []string) {
 			x := ts.Lookup(n, true)
 			for i := uint64(0); i < N; i++ {
 				data1 := mkdataval(1, sz)
-				ts.WriteOff(x, i*sz, data1, UNSTABLE)
+				ts.WriteOff(x, i*sz, data1, nfstypes.UNSTABLE)
 			}
 			ts.Commit(x, sz*N)
 			wg.Done()
@@ -558,7 +561,7 @@ func TestLargeFile(t *testing.T) {
 	x := ts.Lookup("x", true)
 	for i := uint64(0); i < N; i++ {
 		data := mkdataval(byte(i), sz)
-		ts.WriteOff(x, i*sz, data, UNSTABLE)
+		ts.WriteOff(x, i*sz, data, nfstypes.UNSTABLE)
 	}
 	ts.Commit(x, sz*N)
 
@@ -577,7 +580,7 @@ func TestBigWrite(t *testing.T) {
 	sz := uint64(4096 * (fs.HDRADDRS / 2))
 	x := ts.Lookup("x", true)
 	data := mkdataval(byte(0), sz)
-	ts.Write(x, data, UNSTABLE)
+	ts.Write(x, data, nfstypes.UNSTABLE)
 	ts.Commit(x, sz)
 
 	// Too big
@@ -585,8 +588,8 @@ func TestBigWrite(t *testing.T) {
 	sz = uint64(4096 * (fs.HDRADDRS + 10))
 	y := ts.Lookup("y", true)
 	data = mkdataval(byte(0), sz)
-	ts.WriteErr(y, data, UNSTABLE, NFS3ERR_INVAL)
-	ts.CommitErr(y, sz, NFS3ERR_INVAL)
+	ts.WriteErr(y, data, nfstypes.UNSTABLE, nfstypes.NFS3ERR_INVAL)
+	ts.CommitErr(y, sz, nfstypes.NFS3ERR_INVAL)
 }
 
 func TestBigUnlink(t *testing.T) {
@@ -599,7 +602,7 @@ func TestBigUnlink(t *testing.T) {
 	x := ts.Lookup("x", true)
 	for i := uint64(0); i < N; i++ {
 		data := mkdataval(byte(i), sz)
-		ts.WriteOff(x, i*sz, data, UNSTABLE)
+		ts.WriteOff(x, i*sz, data, nfstypes.UNSTABLE)
 	}
 	ts.Commit(x, sz*N)
 
