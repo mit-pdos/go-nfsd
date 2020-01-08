@@ -24,7 +24,6 @@ type Nfs struct {
 	shrinker *inode.Shrinker
 }
 
-// XXX call recovery, once nfs uses persistent storage
 func MkNfs() *Nfs {
 	super := fs.MkFsSuper() // run first so that disk is initialized before mkLog
 	util.DPrintf(1, "Super: %v\n", super)
