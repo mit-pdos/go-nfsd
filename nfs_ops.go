@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/mit-pdos/goose-nfsd/alloc"
+	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
@@ -57,7 +58,7 @@ func (nfs *Nfs) makeRootDir() {
 	if ip == nil {
 		panic("makeRootDir")
 	}
-	ip.MkRootDir(op)
+	dir.MkRootDir(ip, op)
 	ok := inode.Commit(op, []*inode.Inode{ip})
 	if !ok {
 		panic("makeRootDir")
@@ -170,7 +171,7 @@ func (nfs *Nfs) lookupOrdered(op *fstxn.FsTxn, name nfstypes.Filename3, parent f
 		inode.Abort(op, inodes)
 		return nil
 	}
-	child, _ := dip.LookupName(op, name)
+	child, _ := dir.LookupName(dip, op, name)
 	if child == fs.NULLINUM || child != inm {
 		inode.Abort(op, inodes)
 		return nil
@@ -195,7 +196,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 			done = true
 			break
 		}
-		inum, _ := dip.LookupName(op, args.What.Name)
+		inum, _ := dir.LookupName(dip, op, args.What.Name)
 		if inum == fs.NULLINUM {
 			errRet(op, &reply.Status, nfstypes.NFS3ERR_NOENT, []*inode.Inode{dip})
 			done = true
@@ -341,7 +342,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
 		return reply
 	}
-	inum1, _ := dip.LookupName(op, args.Where.Name)
+	inum1, _ := dir.LookupName(dip, op, args.Where.Name)
 	if inum1 != fs.NULLINUM {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_EXIST, []*inode.Inode{dip})
 		return reply
@@ -351,7 +352,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, []*inode.Inode{dip})
 		return reply
 	}
-	ok := dip.AddName(op, inum, args.Where.Name)
+	ok := dir.AddName(dip, op, inum, args.Where.Name)
 	if !ok {
 		inode.FreeInum(op, inum)
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, []*inode.Inode{dip})
@@ -377,7 +378,7 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
 		return reply
 	}
-	inum1, _ := dip.LookupName(op, args.Where.Name)
+	inum1, _ := dir.LookupName(dip, op, args.Where.Name)
 	if inum1 != fs.NULLINUM {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_EXIST, []*inode.Inode{dip})
 		return reply
@@ -388,13 +389,13 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 		return reply
 	}
 	ip := inode.GetInodeLocked(op, inum)
-	ok := ip.InitDir(op, dip.Inum)
+	ok := dir.InitDir(ip, op, dip.Inum)
 	if !ok {
 		ip.DecLink(op)
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, twoInodes(dip, ip))
 		return reply
 	}
-	ok1 := dip.AddName(op, inum, args.Where.Name)
+	ok1 := dir.AddName(dip, op, inum, args.Where.Name)
 	if !ok1 {
 		ip.DecLink(op)
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, twoInodes(dip, ip))
@@ -436,12 +437,12 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 			done = true
 			break
 		}
-		if inode.IllegalName(args.Object.Name) {
+		if dir.IllegalName(args.Object.Name) {
 			errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, []*inode.Inode{dip})
 			done = true
 			break
 		}
-		inum, _ := dip.LookupName(op, args.Object.Name)
+		inum, _ := dir.LookupName(dip, op, args.Object.Name)
 		if inum == fs.NULLINUM {
 			errRet(op, &reply.Status, nfstypes.NFS3ERR_NOENT, []*inode.Inode{dip})
 			done = true
@@ -467,7 +468,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inodes)
 		return reply
 	}
-	ok := dip.RemName(op, args.Object.Name)
+	ok := dir.RemName(dip, op, args.Object.Name)
 	if !ok {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
 		return reply
@@ -506,8 +507,8 @@ func validateRename(op *fstxn.FsTxn, inodes []*inode.Inode, fromfh fh.Fh, tofh f
 		util.DPrintf(10, "revalidate ino failed\n")
 		return false
 	}
-	frominum, _ := dipfrom.LookupName(op, fromn)
-	toinum, _ := dipto.LookupName(op, ton)
+	frominum, _ := dir.LookupName(dipfrom, op, fromn)
+	toinum, _ := dir.LookupName(dipto, op, ton)
 	if from.Inum != frominum || toinum != to.Inum {
 		util.DPrintf(10, "revalidate inums failed\n")
 		return false
@@ -533,7 +534,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		toh := fh.MakeFh(args.To.Dir)
 		fromh := fh.MakeFh(args.From.Dir)
 
-		if inode.IllegalName(args.From.Name) {
+		if dir.IllegalName(args.From.Name) {
 			errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, nil)
 			done = true
 			break
@@ -561,7 +562,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 
 		util.DPrintf(5, "from %v to %v\n", dipfrom, dipto)
 
-		frominumLookup, _ := dipfrom.LookupName(op, args.From.Name)
+		frominumLookup, _ := dir.LookupName(dipfrom, op, args.From.Name)
 		frominum = frominumLookup
 		if frominum == fs.NULLINUM {
 			errRet(op, &reply.Status, nfstypes.NFS3ERR_NOENT, inodes)
@@ -569,7 +570,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 			break
 		}
 
-		toInumLookup, _ := dipto.LookupName(op, args.To.Name)
+		toInumLookup, _ := dir.LookupName(dipto, op, args.To.Name)
 		toinum = toInumLookup
 
 		util.DPrintf(5, "frominum %d toinum %d\n", frominum, toinum)
@@ -619,12 +620,12 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 					done = true
 					break
 				}
-				if to.Kind == nfstypes.NF3DIR && !to.IsDirEmpty(op) {
+				if to.Kind == nfstypes.NF3DIR && !dir.IsDirEmpty(to, op) {
 					errRet(op, &reply.Status, nfstypes.NFS3ERR_NOTEMPTY, inodes)
 					done = true
 					break
 				}
-				ok := dipto.RemName(op, args.To.Name)
+				ok := dir.RemName(dipto, op, args.To.Name)
 				if !ok {
 					errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
 					done = true
@@ -642,12 +643,12 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 	if done {
 		return reply
 	}
-	ok := dipfrom.RemName(op, args.From.Name)
+	ok := dir.RemName(dipfrom, op, args.From.Name)
 	if !ok {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
 		return reply
 	}
-	ok1 := dipto.AddName(op, frominum, args.To.Name)
+	ok1 := dir.AddName(dipto, op, frominum, args.To.Name)
 	if !ok1 {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
 		return reply
@@ -684,7 +685,7 @@ func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.RE
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inodes)
 		return reply
 	}
-	dirlist := ip.Ls3(op, args.Cookie, args.Dircount)
+	dirlist := dir.Ls3(ip, op, args.Cookie, args.Dircount)
 	reply.Resok.Reply = dirlist
 	commitReply(op, &reply.Status, inodes)
 	return reply

@@ -149,8 +149,8 @@ func GetInodeInum(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 		return nil
 	}
 	if ip.Kind == NF3FREE {
-		ip.put(op)
-		ip.releaseInode(op)
+		ip.Put(op)
+		ip.ReleaseInode(op)
 		return nil
 	}
 	if ip.Nlink == 0 {
@@ -166,14 +166,14 @@ func GetInode(op *fstxn.FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
 		return nil
 	}
 	if ip.Gen != fh.Gen {
-		ip.put(op)
-		ip.releaseInode(op)
+		ip.Put(op)
+		ip.ReleaseInode(op)
 		return nil
 	}
 	return ip
 }
 
-func (ip *Inode) releaseInode(op *fstxn.FsTxn) {
+func (ip *Inode) ReleaseInode(op *fstxn.FsTxn) {
 	addr := op.Fs.Inum2Addr(ip.Inum)
 	op.Release(addr)
 }
@@ -229,7 +229,7 @@ func FreeInum(op *fstxn.FsTxn, inum fs.Inum) {
 }
 
 // Done with ip and remove inode if Nlink = 0.
-func (ip *Inode) put(op *fstxn.FsTxn) {
+func (ip *Inode) Put(op *fstxn.FsTxn) {
 	util.DPrintf(5, "put inode %d Nlink %d\n", ip.Inum, ip.Nlink)
 	// shrinker may put an FREE inode
 	if ip.Nlink == 0 && ip.Kind != NF3FREE {
@@ -240,7 +240,7 @@ func (ip *Inode) put(op *fstxn.FsTxn) {
 
 func putInodes(op *fstxn.FsTxn, inodes []*Inode) {
 	for _, ip := range inodes {
-		ip.put(op)
+		ip.Put(op)
 	}
 }
 

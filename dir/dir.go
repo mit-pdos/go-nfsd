@@ -1,4 +1,4 @@
-package inode
+package dir
 
 import (
 	"github.com/tchajed/goose/machine"
@@ -6,12 +6,15 @@ import (
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
+	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/marshal"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 
 const DIRENTSZ uint64 = 32
 const MAXNAMELEN = DIRENTSZ - 8
+
+type dir inode.Inode
 
 type dirEnt struct {
 	inum fs.Inum
@@ -23,7 +26,7 @@ func IllegalName(name nfstypes.Filename3) bool {
 	return n == "." || n == ".."
 }
 
-func (dip *Inode) LookupName(op *fstxn.FsTxn, name nfstypes.Filename3) (fs.Inum, uint64) {
+func LookupName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (fs.Inum, uint64) {
 	if dip.Kind != nfstypes.NF3DIR {
 		return fs.NULLINUM, 0
 	}
@@ -47,7 +50,7 @@ func (dip *Inode) LookupName(op *fstxn.FsTxn, name nfstypes.Filename3) (fs.Inum,
 	return inum, finalOffset
 }
 
-func (dip *Inode) AddName(op *fstxn.FsTxn, inum fs.Inum, name nfstypes.Filename3) bool {
+func AddName(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum, name nfstypes.Filename3) bool {
 	var finalOff uint64 = 0
 
 	if dip.Kind != nfstypes.NF3DIR || uint64(len(name)) >= MAXNAMELEN {
@@ -67,8 +70,8 @@ func (dip *Inode) AddName(op *fstxn.FsTxn, inum fs.Inum, name nfstypes.Filename3
 	return n == DIRENTSZ
 }
 
-func (dip *Inode) RemName(op *fstxn.FsTxn, name nfstypes.Filename3) bool {
-	inum, off := dip.LookupName(op, name)
+func RemName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) bool {
+	inum, off := LookupName(dip, op, name)
 	if inum == fs.NULLINUM {
 		return true
 	}
@@ -78,7 +81,7 @@ func (dip *Inode) RemName(op *fstxn.FsTxn, name nfstypes.Filename3) bool {
 	return n == DIRENTSZ
 }
 
-func (dip *Inode) IsDirEmpty(op *fstxn.FsTxn) bool {
+func IsDirEmpty(dip *inode.Inode, op *fstxn.FsTxn) bool {
 	var empty bool = true
 
 	// check all entries after . and ..
@@ -95,26 +98,26 @@ func (dip *Inode) IsDirEmpty(op *fstxn.FsTxn) bool {
 	return empty
 }
 
-func (dip *Inode) InitDir(op *fstxn.FsTxn, parent fs.Inum) bool {
-	if !dip.AddName(op, dip.Inum, ".") {
+func InitDir(dip *inode.Inode, op *fstxn.FsTxn, parent fs.Inum) bool {
+	if !AddName(dip, op, dip.Inum, ".") {
 		return false
 	}
-	return dip.AddName(op, parent, "..")
+	return AddName(dip, op, parent, "..")
 }
 
-func (dip *Inode) MkRootDir(op *fstxn.FsTxn) bool {
-	if !dip.AddName(op, dip.Inum, ".") {
+func MkRootDir(dip *inode.Inode, op *fstxn.FsTxn) bool {
+	if !AddName(dip, op, dip.Inum, ".") {
 		return false
 	}
-	return dip.AddName(op, dip.Inum, "..")
+	return AddName(dip, op, dip.Inum, "..")
 }
 
 // XXX inode locking order violated
-func (dip *Inode) Ls3(op *fstxn.FsTxn, start nfstypes.Cookie3, dircount nfstypes.Count3) nfstypes.Dirlistplus3 {
+func Ls3(dip *inode.Inode, op *fstxn.FsTxn, start nfstypes.Cookie3, dircount nfstypes.Count3) nfstypes.Dirlistplus3 {
 	var lst *nfstypes.Entryplus3
 	var last *nfstypes.Entryplus3
 	var eof bool = true
-	var ip *Inode
+	var ip *inode.Inode
 	var begin = uint64(start)
 	if begin != 0 {
 		begin += DIRENTSZ
@@ -127,7 +130,7 @@ func (dip *Inode) Ls3(op *fstxn.FsTxn, start nfstypes.Cookie3, dircount nfstypes
 			continue
 		}
 		if de.inum != dip.Inum {
-			ip = GetInodeInum(op, de.inum)
+			ip = inode.GetInodeInum(op, de.inum)
 		} else {
 			ip = dip
 		}
@@ -138,8 +141,8 @@ func (dip *Inode) Ls3(op *fstxn.FsTxn, start nfstypes.Cookie3, dircount nfstypes
 
 		// XXX hack release inode and inode block
 		if ip != dip {
-			ip.put(op)
-			ip.releaseInode(op)
+			ip.Put(op)
+			ip.ReleaseInode(op)
 		}
 
 		e := &nfstypes.Entryplus3{Fileid: nfstypes.Fileid3(de.inum),
