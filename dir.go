@@ -4,8 +4,8 @@ import (
 	"github.com/tchajed/goose/machine"
 
 	"github.com/mit-pdos/goose-nfsd/fs"
+	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/marshal"
-	"github.com/mit-pdos/goose-nfsd/trans"
 )
 
 const DIRENTSZ uint64 = 32
@@ -21,14 +21,14 @@ func illegalName(name Filename3) bool {
 	return n == "." || n == ".."
 }
 
-func (dip *inode) lookupName(trans *trans.Trans, name Filename3) (fs.Inum, uint64) {
+func (dip *inode) lookupName(op *fstxn.FsTxn, name Filename3) (fs.Inum, uint64) {
 	if dip.kind != NF3DIR {
 		return NULLINUM, 0
 	}
 	var inum = NULLINUM
 	var finalOffset uint64 = 0
 	for off := uint64(0); off < dip.size; off += DIRENTSZ {
-		data, _ := dip.read(trans, off, DIRENTSZ)
+		data, _ := dip.read(op, off, DIRENTSZ)
 		if uint64(len(data)) != DIRENTSZ {
 			break
 		}
@@ -45,14 +45,14 @@ func (dip *inode) lookupName(trans *trans.Trans, name Filename3) (fs.Inum, uint6
 	return inum, finalOffset
 }
 
-func (dip *inode) addName(trans *trans.Trans, inum fs.Inum, name Filename3) bool {
+func (dip *inode) addName(op *fstxn.FsTxn, inum fs.Inum, name Filename3) bool {
 	var finalOff uint64 = 0
 
 	if dip.kind != NF3DIR || uint64(len(name)) >= MAXNAMELEN {
 		return false
 	}
 	for off := uint64(0); off < dip.size; off += DIRENTSZ {
-		data, _ := dip.read(trans, off, DIRENTSZ)
+		data, _ := dip.read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.inum == NULLINUM {
 			finalOff = off
@@ -61,27 +61,27 @@ func (dip *inode) addName(trans *trans.Trans, inum fs.Inum, name Filename3) bool
 	}
 	de := &dirEnt{inum: inum, name: string(name)}
 	ent := encodeDirEnt(de)
-	n, _ := dip.write(trans, finalOff, DIRENTSZ, ent)
+	n, _ := dip.write(op, finalOff, DIRENTSZ, ent)
 	return n == DIRENTSZ
 }
 
-func (dip *inode) remName(trans *trans.Trans, name Filename3) bool {
-	inum, off := dip.lookupName(trans, name)
+func (dip *inode) remName(op *fstxn.FsTxn, name Filename3) bool {
+	inum, off := dip.lookupName(op, name)
 	if inum == NULLINUM {
 		return true
 	}
 	de := &dirEnt{inum: NULLINUM, name: ""}
 	ent := encodeDirEnt(de)
-	n, _ := dip.write(trans, off, DIRENTSZ, ent)
+	n, _ := dip.write(op, off, DIRENTSZ, ent)
 	return n == DIRENTSZ
 }
 
-func (dip *inode) isDirEmpty(trans *trans.Trans) bool {
+func (dip *inode) isDirEmpty(op *fstxn.FsTxn) bool {
 	var empty bool = true
 
 	// check all entries after . and ..
 	for off := uint64(2 * DIRENTSZ); off < dip.size; {
-		data, _ := dip.read(trans, off, DIRENTSZ)
+		data, _ := dip.read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.inum == NULLINUM {
 			off = off + DIRENTSZ
@@ -93,22 +93,22 @@ func (dip *inode) isDirEmpty(trans *trans.Trans) bool {
 	return empty
 }
 
-func (dip *inode) initDir(trans *trans.Trans, parent fs.Inum) bool {
-	if !dip.addName(trans, dip.inum, ".") {
+func (dip *inode) initDir(op *fstxn.FsTxn, parent fs.Inum) bool {
+	if !dip.addName(op, dip.inum, ".") {
 		return false
 	}
-	return dip.addName(trans, parent, "..")
+	return dip.addName(op, parent, "..")
 }
 
-func (dip *inode) mkRootDir(trans *trans.Trans) bool {
-	if !dip.addName(trans, dip.inum, ".") {
+func (dip *inode) mkRootDir(op *fstxn.FsTxn) bool {
+	if !dip.addName(op, dip.inum, ".") {
 		return false
 	}
-	return dip.addName(trans, dip.inum, "..")
+	return dip.addName(op, dip.inum, "..")
 }
 
 // XXX inode locking order violated
-func (dip *inode) ls3(trans *trans.Trans, start Cookie3, dircount Count3) Dirlistplus3 {
+func (dip *inode) ls3(op *fstxn.FsTxn, start Cookie3, dircount Count3) Dirlistplus3 {
 	var lst *Entryplus3
 	var last *Entryplus3
 	var eof bool = true
@@ -118,14 +118,14 @@ func (dip *inode) ls3(trans *trans.Trans, start Cookie3, dircount Count3) Dirlis
 		begin += DIRENTSZ
 	}
 	for off := begin; off < dip.size; {
-		data, _ := dip.read(trans, off, DIRENTSZ)
+		data, _ := dip.read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.inum == NULLINUM {
 			off = off + DIRENTSZ
 			continue
 		}
 		if de.inum != dip.inum {
-			ip = getInodeInum(trans, de.inum)
+			ip = getInodeInum(op, de.inum)
 		} else {
 			ip = dip
 		}
@@ -136,8 +136,8 @@ func (dip *inode) ls3(trans *trans.Trans, start Cookie3, dircount Count3) Dirlis
 
 		// XXX hack release inode and inode block
 		if ip != dip {
-			ip.put(trans)
-			ip.releaseInode(trans)
+			ip.put(op)
+			ip.releaseInode(op)
 		}
 
 		e := &Entryplus3{Fileid: Fileid3(de.inum),

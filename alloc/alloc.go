@@ -1,4 +1,4 @@
-package trans
+package alloc
 
 import (
 	"sync"
@@ -6,6 +6,7 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/buf"
+	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -53,13 +54,13 @@ func (a *Alloc) incNext(inc uint64) uint64 {
 }
 
 // Returns a locked region in the bitmap with some free bits.
-func (a *Alloc) findFreeRegion(trans *Trans) *buf.Buf {
+func (a *Alloc) findFreeRegion(buftxn *buftxn.BufTxn) *buf.Buf {
 	var buf *buf.Buf
 	var num uint64
 	num = a.incNext(1)
 	start := num
 	for {
-		b := a.lockRegion(trans, num, 1)
+		b := a.lockRegion(buftxn, num, 1)
 		bit := num % 8
 		util.DPrintf(15, "findregion: %v %d 0x%x\n", b, num, b.Blk[0])
 		if b.Blk[0]&(1<<bit) == 0 {
@@ -67,7 +68,7 @@ func (a *Alloc) findFreeRegion(trans *Trans) *buf.Buf {
 			buf = b
 			break
 		}
-		trans.Release(b.Addr)
+		buftxn.Release(b.Addr)
 		num = a.incNext(1)
 		if num == start {
 			panic("wrap around?")
@@ -78,12 +79,12 @@ func (a *Alloc) findFreeRegion(trans *Trans) *buf.Buf {
 }
 
 // Lock the region in the bitmap that contains n
-func (a *Alloc) lockRegion(trans *Trans, n uint64, bits uint64) *buf.Buf {
+func (a *Alloc) lockRegion(buftxn *buftxn.BufTxn, n uint64, bits uint64) *buf.Buf {
 	var b *buf.Buf
 	i := n / NBITBLOCK
 	bit := n % NBITBLOCK
 	addr := buf.MkAddr(a.start+i, bit, bits)
-	b = trans.ReadBufLocked(addr)
+	b = buftxn.ReadBufLocked(addr)
 	util.DPrintf(15, "LockRegion: %v\n", b)
 	return b
 }
@@ -99,9 +100,9 @@ func (a *Alloc) free(buf *buf.Buf, n uint64) {
 	freeBit(buf, n%NBITBLOCK)
 }
 
-func (a *Alloc) AllocNum(trans *Trans) uint64 {
+func (a *Alloc) AllocNum(buftxn *buftxn.BufTxn) uint64 {
 	var num uint64 = 0
-	b := a.findFreeRegion(trans)
+	b := a.findFreeRegion(buftxn)
 	if b != nil {
 		b.SetDirty()
 		num = (b.Addr.Blkno-a.start)*NBITBLOCK + b.Addr.Off
@@ -109,11 +110,11 @@ func (a *Alloc) AllocNum(trans *Trans) uint64 {
 	return num
 }
 
-func (a *Alloc) FreeNum(trans *Trans, num uint64) {
+func (a *Alloc) FreeNum(buftxn *buftxn.BufTxn, num uint64) {
 	if num == 0 {
 		panic("FreeNum")
 	}
-	buf := a.lockRegion(trans, num, 1)
+	buf := a.lockRegion(buftxn, num, 1)
 	a.free(buf, num)
 	buf.SetDirty()
 }

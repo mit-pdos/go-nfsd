@@ -3,9 +3,9 @@ package goose_nfs
 import (
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/fs"
-	"github.com/mit-pdos/goose-nfsd/trans"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -35,8 +35,8 @@ func initFs(super *fs.FsSuper) {
 
 func markAlloc(super *fs.FsSuper, n uint64, m uint64) {
 	util.DPrintf(1, "markAlloc: [0, %d) and [%d,%d)\n", n, m,
-		super.NBlockBitmap*trans.NBITBLOCK)
-	if n >= trans.NBITBLOCK || m >= trans.NBITBLOCK*super.NBlockBitmap || m < trans.NBITBLOCK {
+		super.NBlockBitmap*alloc.NBITBLOCK)
+	if n >= alloc.NBITBLOCK || m >= alloc.NBITBLOCK*super.NBlockBitmap || m < alloc.NBITBLOCK {
 		panic("markAlloc")
 	}
 	blk := make(disk.Block, disk.BlockSize)
@@ -48,8 +48,8 @@ func markAlloc(super *fs.FsSuper, n uint64, m uint64) {
 	disk.Write(super.BitmapBlockStart(), blk)
 
 	blk1 := make(disk.Block, disk.BlockSize)
-	blkno := m/trans.NBITBLOCK + super.BitmapBlockStart()
-	for bn := m % disk.BlockSize; bn < trans.NBITBLOCK; bn++ {
+	blkno := m/alloc.NBITBLOCK + super.BitmapBlockStart()
+	for bn := m % disk.BlockSize; bn < alloc.NBITBLOCK; bn++ {
 		byte := bn / 8
 		bit := bn % 8
 		blk1[byte] = blk1[byte] | 1<<bit
