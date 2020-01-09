@@ -5,6 +5,7 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/buf"
+	"github.com/mit-pdos/goose-nfsd/dcache"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
@@ -28,7 +29,8 @@ const (
 
 type Inode struct {
 	// in-memory info:
-	Inum fs.Inum
+	Inum   fs.Inum
+	Dcache *dcache.Dcache
 
 	// the on-disk inode:
 	Kind  nfstypes.Ftype3
