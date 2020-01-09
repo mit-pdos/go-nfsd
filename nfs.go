@@ -9,7 +9,6 @@ import (
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
-	"github.com/mit-pdos/goose-nfsd/wal"
 )
 
 const ICACHESZ uint64 = 20               // XXX resurrect icache
@@ -23,11 +22,6 @@ type Nfs struct {
 func MkNfs() *Nfs {
 	super := fs.MkFsSuper() // run first so that disk is initialized before mkLog
 	util.DPrintf(1, "Super: %v\n", super)
-
-	l := wal.MkLog()
-	if l == nil {
-		panic("mkLog failed")
-	}
 
 	initFs(super)
 
