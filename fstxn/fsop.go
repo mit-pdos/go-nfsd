@@ -6,24 +6,46 @@ import (
 	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/buftxn"
+	"github.com/mit-pdos/goose-nfsd/cache"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
+type FsState struct {
+	Fs     *fs.FsSuper
+	Txn    *txn.Txn
+	Icache *cache.Cache
+	Balloc *alloc.Alloc
+	Ialloc *alloc.Alloc
+}
+
+func MkFsState(fs *fs.FsSuper, txn *txn.Txn, icache *cache.Cache, balloc *alloc.Alloc, ialloc *alloc.Alloc) *FsState {
+	st := &FsState{
+		Fs:     fs,
+		Txn:    txn,
+		Icache: icache,
+		Balloc: balloc,
+		Ialloc: ialloc,
+	}
+	return st
+}
+
 type FsTxn struct {
 	Fs     *fs.FsSuper
 	buftxn *buftxn.BufTxn
+	icache *cache.Cache
 	balloc *alloc.Alloc
 	ialloc *alloc.Alloc
 }
 
-func Begin(fs *fs.FsSuper, txn *txn.Txn, balloc *alloc.Alloc, ialloc *alloc.Alloc) *FsTxn {
+func Begin(opstate *FsState) *FsTxn {
 	op := &FsTxn{
-		Fs:     fs,
-		buftxn: buftxn.Begin(txn),
-		balloc: balloc,
-		ialloc: ialloc,
+		Fs:     opstate.Fs,
+		buftxn: buftxn.Begin(opstate.Txn),
+		icache: opstate.Icache,
+		balloc: opstate.Balloc,
+		ialloc: opstate.Ialloc,
 	}
 	return op
 }
@@ -53,8 +75,26 @@ func (op *FsTxn) Release(addr buf.Addr) {
 	op.buftxn.Release(addr)
 }
 
-func (op *FsTxn) ReadBufLocked(addr buf.Addr) *buf.Buf {
-	return op.buftxn.ReadBufLocked(addr)
+func (op *FsTxn) Acquire(addr buf.Addr) {
+	op.buftxn.Acquire(addr)
+}
+
+// assumes caller hold lock on addr
+func (op *FsTxn) ReadBuf(addr buf.Addr) *buf.Buf {
+	return op.buftxn.ReadBuf(addr)
+}
+
+// assumes caller hold lock on addr
+func (op *FsTxn) LookupBuf(addr buf.Addr) *buf.Buf {
+	return op.buftxn.LookupBuf(addr)
+}
+
+func (op *FsTxn) LookupSlot(inum fs.Inum) *cache.Cslot {
+	return op.icache.LookupSlot(uint64(inum))
+}
+
+func (op *FsTxn) FreeSlot(inum fs.Inum) {
+	op.icache.FreeSlot(uint64(inum))
 }
 
 func (op *FsTxn) AllocINum() fs.Inum {

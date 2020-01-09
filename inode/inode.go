@@ -134,8 +134,17 @@ func MaxFileSize() uint64 {
 
 func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	addr := op.Fs.Inum2Addr(inum)
-	buf := op.ReadBufLocked(addr)
-	i := decode(buf, inum)
+	op.Acquire(addr)
+	cslot := op.LookupSlot(inum)
+	if cslot == nil {
+		panic("GetInodeLocked")
+	}
+	if cslot.Obj == nil {
+		buf := op.ReadBuf(addr)
+		i := decode(buf, inum)
+		cslot.Obj = i
+	}
+	i := cslot.Obj.(*Inode)
 	util.DPrintf(5, "getInodeLocked %v\n", i)
 	return i
 }
@@ -184,10 +193,10 @@ func (ip *Inode) WriteInode(op *fstxn.FsTxn) {
 	if ip.Inum >= op.Fs.NInode() {
 		panic("WriteInode")
 	}
-	buf := op.ReadBufLocked(op.Fs.Inum2Addr(ip.Inum))
-	util.DPrintf(5, "WriteInode %v\n", ip)
+	buf := op.LookupBuf(op.Fs.Inum2Addr(ip.Inum))
 	ip.Encode(buf)
 	buf.SetDirty()
+	util.DPrintf(1, "WriteInode %v %v\n", ip, buf)
 }
 
 func allocInum(op *fstxn.FsTxn) fs.Inum {
@@ -210,7 +219,7 @@ func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) fs.Inum {
 			panic("allocInode")
 		}
 		ip.WriteInode(op)
-
+		ip.Put(op)
 	}
 	return inum
 }
@@ -238,6 +247,7 @@ func (ip *Inode) Put(op *fstxn.FsTxn) {
 		ip.Resize(op, 0)
 		ip.freeInode(op)
 	}
+	op.FreeSlot(ip.Inum)
 }
 
 func putInodes(op *fstxn.FsTxn, inodes []*Inode) {

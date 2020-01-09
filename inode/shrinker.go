@@ -5,10 +5,8 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
-	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -16,24 +14,18 @@ type Shrinker struct {
 	mu       *sync.Mutex
 	condShut *sync.Cond
 	nthread  uint32
-	txn      *txn.Txn
-	fs       *fs.FsSuper
-	balloc   *alloc.Alloc
-	ialloc   *alloc.Alloc
+	fsstate  *fstxn.FsState
 }
 
 var shrinker *Shrinker
 
-func MkShrinker(fs *fs.FsSuper, txn *txn.Txn, balloc *alloc.Alloc, ialloc *alloc.Alloc) *Shrinker {
+func MkShrinker(st *fstxn.FsState) *Shrinker {
 	mu := new(sync.Mutex)
 	shrinker = &Shrinker{
 		mu:       mu,
 		condShut: sync.NewCond(mu),
 		nthread:  0,
-		fs:       fs,
-		txn:      txn,
-		balloc:   balloc,
-		ialloc:   ialloc,
+		fsstate:  st,
 	}
 	return shrinker
 }
@@ -55,8 +47,7 @@ func shrink(inum fs.Inum, oldsz uint64) {
 	var bn = util.RoundUp(oldsz, disk.BlockSize)
 	util.DPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
 	for {
-		op := fstxn.Begin(shrinker.fs, shrinker.txn, shrinker.balloc,
-			shrinker.ialloc)
+		op := fstxn.Begin(shrinker.fsstate)
 		ip := getInodeInumFree(op, inum)
 		if ip == nil {
 			panic("shrink")
