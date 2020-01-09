@@ -34,11 +34,16 @@ type TestState struct {
 	nfs *Nfs
 }
 
-func (ts *TestState) CreateFh(fh nfstypes.Nfs_fh3, name string) {
+func (ts *TestState) CreateOp(fh nfstypes.Nfs_fh3, name string) nfstypes.CREATE3res {
 	where := nfstypes.Diropargs3{Dir: fh, Name: nfstypes.Filename3(name)}
 	how := nfstypes.Createhow3{}
 	args := nfstypes.CREATE3args{Where: where, How: how}
 	attr := ts.nfs.NFSPROC3_CREATE(args)
+	return attr
+}
+
+func (ts *TestState) CreateFh(fh nfstypes.Nfs_fh3, name string) {
+	attr := ts.CreateOp(fh, name)
 	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
 }
 
@@ -114,8 +119,10 @@ func (ts *TestState) WriteOp(fh nfstypes.Nfs_fh3, off uint64, data []byte, how n
 
 func (ts *TestState) WriteOff(fh nfstypes.Nfs_fh3, off uint64, data []byte, how nfstypes.Stable_how) {
 	reply := ts.WriteOp(fh, off, data, how)
-	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
-	assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(len(data)))
+	if ts.t != nil {
+		assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
+		assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(len(data)))
+	}
 }
 
 func (ts *TestState) WriteErr(fh nfstypes.Nfs_fh3, data []byte, how nfstypes.Stable_how, err nfstypes.Nfsstat3) {
@@ -607,4 +614,19 @@ func TestBigUnlink(t *testing.T) {
 	ts.Commit(x, sz*N)
 
 	ts.Remove("x")
+}
+
+func BenchmarkSmall(b *testing.B) {
+	data := mkdata(uint64(100))
+	ts := &TestState{t: nil, nfs: MkNfs()}
+	for i := 0; i < b.N; i++ {
+		s := strconv.Itoa(i)
+		name := "x" + s
+		ts.CreateOp(fh.MkRootFh3(), "x"+s)
+		reply := ts.LookupOp(fh.MkRootFh3(), name)
+		if reply.Status != nfstypes.NFS3_OK {
+			panic("BenchmarkSmall")
+		}
+		ts.WriteOp(reply.Resok.Object, 0, data, nfstypes.FILE_SYNC)
+	}
 }

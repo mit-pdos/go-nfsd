@@ -26,7 +26,17 @@ goosify
 
 log-by-pass writes
 
+goose-nfsd:
 
 [goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile  /mnt/nfs/
 657 files per 1002243 usec
 
+
+Linux:
+export /srv/nfs
+sudo mount --bind /tmp/nfs /srv/nfs/bench
+sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
+
+[goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs/bench/
+10440 files per 1000034 usec
+   much time spent in LookupName (0.93s out of 2.37)
