@@ -119,10 +119,8 @@ func (ts *TestState) WriteOp(fh nfstypes.Nfs_fh3, off uint64, data []byte, how n
 
 func (ts *TestState) WriteOff(fh nfstypes.Nfs_fh3, off uint64, data []byte, how nfstypes.Stable_how) {
 	reply := ts.WriteOp(fh, off, data, how)
-	if ts.t != nil {
-		assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
-		assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(len(data)))
-	}
+	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
+	assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(len(data)))
 }
 
 func (ts *TestState) WriteErr(fh nfstypes.Nfs_fh3, data []byte, how nfstypes.Stable_how, err nfstypes.Nfsstat3) {
