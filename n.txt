@@ -40,3 +40,11 @@ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
 [goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs/bench/
 10440 files per 1000034 usec
    much time spent in LookupName (0.93s out of 2.37)
+
+[goose-nfs (master)]$ go test -v -cpuprofile cpu.prof -memprofile mem.prof  -bench Small -run=^$
+goos: linux
+goarch: amd64
+pkg: github.com/mit-pdos/goose-nfsd
+BenchmarkSmall-8            1930            888415 ns/op
+PASS
+ok      github.com/mit-pdos/goose-nfsd  2.613s

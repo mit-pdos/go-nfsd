@@ -610,7 +610,6 @@ func TestBigUnlink(t *testing.T) {
 		ts.WriteOff(x, i*sz, data, nfstypes.UNSTABLE)
 	}
 	ts.Commit(x, sz*N)
-
 	ts.Remove("x")
 }
 

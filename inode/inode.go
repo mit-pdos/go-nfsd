@@ -397,6 +397,7 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 	var n = count
 	var data = dataBuf
 
+	util.DPrintf(10, "Write: off %d cnt %d\n", offset, count)
 	if offset+count > MaxFileSize() {
 		return 0, false
 	}

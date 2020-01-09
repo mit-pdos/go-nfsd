@@ -12,8 +12,8 @@ import (
 	"github.com/mit-pdos/goose-nfsd/wal"
 )
 
-const ICACHESZ uint64 = 20               // XXX resurrect icache
-const BCACHESZ uint64 = fs.HDRADDRS + 10 // At least as big as log
+const ICACHESZ uint64 = 20
+const BCACHESZ uint64 = 10 // XXX resurrect bcache
 
 type Nfs struct {
 	fsstate  *fstxn.FsState
@@ -58,6 +58,8 @@ func (nfs *Nfs) makeRootDir() {
 }
 
 func (nfs *Nfs) ShutdownNfs() {
+	util.DPrintf(1, "Shutdown\n")
 	nfs.shrinker.Shutdown()
 	nfs.fsstate.Txn.Shutdown()
+	util.DPrintf(1, "Shutdown done\n")
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/marshal"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/goose-nfsd/util"
 )
 
 const DIRENTSZ uint64 = 32
@@ -52,6 +53,7 @@ func ScanName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (fs.In
 func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum, name nfstypes.Filename3) (uint64, bool) {
 	var finalOff uint64 = 0
 
+	util.DPrintf(5, "AddNameDir: %v\n", name)
 	for off := uint64(0); off < dip.Size; off += DIRENTSZ {
 		data, _ := dip.Read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)

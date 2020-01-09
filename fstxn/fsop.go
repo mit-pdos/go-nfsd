@@ -107,8 +107,9 @@ func (op *FsTxn) FreeINum(inum fs.Inum) {
 }
 
 func (op *FsTxn) AllocBlock() uint64 {
+	util.DPrintf(5, "alloc block\n")
 	n := op.balloc.AllocNum(op.buftxn)
-	util.DPrintf(5, "alloc block %v\n", n)
+	util.DPrintf(5, "alloc block -> %v\n", n)
 	return n
 }
 
