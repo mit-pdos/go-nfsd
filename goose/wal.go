@@ -161,7 +161,7 @@ func (l *Walog) Read(blkno uint64) disk.Block {
 			buf := l.memLog[i]
 			if buf.Addr.Blkno == blkno {
 				blk = make([]byte, disk.BlockSize)
-				copy(blk, buf.Blk)
+				xxcopy(blk, buf.Blk)
 				break
 			}
 			if i == 0 {

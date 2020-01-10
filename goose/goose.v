@@ -18,6 +18,16 @@ Definition Min: val :=
     then "n"
     else "m").
 
+Definition xxcopy: val :=
+  λ: "dst" "src",
+    let: "dlen" := slice.len "dst" in
+    let: "slen" := slice.len "src" in
+    let: "copylen" := Min "dlen" "slen" in
+    let: "i" := ref #0 in
+    (for: (!"i" < "copylen"); ("i" <- !"i" + #1) :=
+      SliceSet "dst" !"i" (SliceGet "src" !"i");;
+      Continue).
+
 (* addr.go *)
 
 Module Addr.
@@ -141,7 +151,7 @@ Definition Buf__Load: val :=
   λ: "buf" "blk",
     let: "byte" := Addr.get "Off" (struct.loadF Buf.S "Addr" "buf") `quot` #8 in
     let: "sz" := RoundUp (Addr.get "Sz" (struct.loadF Buf.S "Addr" "buf")) #8 in
-    copy (struct.loadF Buf.S "Blk" "buf") (SliceSubslice "blk" "byte" ("byte" + "sz")).
+    xxcopy (struct.loadF Buf.S "Blk" "buf") (SliceSubslice "blk" "byte" ("byte" + "sz")).
 
 Definition Buf__WriteDirect: val :=
   λ: "buf",
@@ -604,7 +614,7 @@ Definition Walog__Read: val :=
         (if: Addr.get "Blkno" (Buf.get "Addr" "buf") = "blkno"
         then
           "blk" <- NewSlice byteT disk.BlockSize;;
-          copy !"blk" (Buf.get "Blk" "buf");;
+          xxcopy !"blk" (Buf.get "Blk" "buf");;
           Break
         else
           (if: !"i" = #0
