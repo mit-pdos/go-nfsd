@@ -620,11 +620,23 @@ func BenchmarkSmall(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		s := strconv.Itoa(i)
 		name := "x" + s
-		ts.CreateOp(fh.MkRootFh3(), "x"+s)
 		reply := ts.LookupOp(fh.MkRootFh3(), name)
+		if reply.Status == nfstypes.NFS3_OK {
+			panic("BenchmarkSmall")
+		}
+		ts.CreateOp(fh.MkRootFh3(), "x"+s)
+		reply = ts.LookupOp(fh.MkRootFh3(), name)
 		if reply.Status != nfstypes.NFS3_OK {
 			panic("BenchmarkSmall")
 		}
+		attr := ts.GetattrOp(reply.Resok.Object)
+		if attr.Status != nfstypes.NFS3_OK {
+			panic("BenchmarkSmall")
+		}
 		ts.WriteOp(reply.Resok.Object, 0, data, nfstypes.FILE_SYNC)
+		attr = ts.GetattrOp(reply.Resok.Object)
+		if attr.Status != nfstypes.NFS3_OK {
+			panic("BenchmarkSmall")
+		}
 	}
 }
