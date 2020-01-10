@@ -13,9 +13,9 @@ const (
 
 	INODESZ uint64 = 64 // on-disk size
 
-	HDRMETA  = uint64(2 * 8) // space for head and tail
+	HDRMETA  = uint64(8) // space for the end position
 	HDRADDRS = (disk.BlockSize - HDRMETA) / 8
-	LOGSIZE  = HDRADDRS + 1 // 1 for log header
+	LOGSIZE  = HDRADDRS + 2 // 2 for log header
 )
 
 type Inum uint64
