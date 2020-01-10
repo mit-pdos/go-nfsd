@@ -4,6 +4,20 @@ From Perennial.go_lang Require Import prelude.
 (* disk FFI *)
 From Perennial.go_lang Require Import ffi.disk_prelude.
 
+(* 00util.go *)
+
+Definition Debug : expr := #0.
+
+Definition RoundUp: val :=
+  λ: "n" "sz",
+    "n" + "sz" - #1 `quot` "sz".
+
+Definition Min: val :=
+  λ: "n" "m",
+    (if: "n" < "m"
+    then "n"
+    else "m").
+
 (* addr.go *)
 
 Module Addr.
@@ -419,20 +433,6 @@ Definition Walog__logger: val :=
       lock.condWait (struct.loadF Walog.S "condLogger" "l");;
       Continue);;
     lock.release (struct.loadF Walog.S "memLock" "l").
-
-(* util.go *)
-
-Definition Debug : expr := #0.
-
-Definition RoundUp: val :=
-  λ: "n" "sz",
-    "n" + "sz" - #1 `quot` "sz".
-
-Definition Min: val :=
-  λ: "n" "m",
-    (if: "n" < "m"
-    then "n"
-    else "m").
 
 (* wal.go *)
 
