@@ -338,8 +338,6 @@ Definition LOGSTART : expr := #2.
 Module Walog.
   Definition S := struct.decl [
     "memLock" :: lockRefT;
-    "condLogger" :: struct.ptrT Cond.S;
-    "condInstall" :: struct.ptrT Cond.S;
     "memLog" :: slice.T Buf.T;
     "memStart" :: LogPosition;
     "diskEnd" :: LogPosition;
@@ -358,8 +356,6 @@ Definition MkLog: val :=
     let: "ml" := lock.new #() in
     let: "l" := struct.new Walog.S [
       "memLock" ::= "ml";
-      "condLogger" ::= lock.newCond "ml";
-      "condInstall" ::= lock.newCond "ml";
       "memLog" ::= NewSlice Buf.T #0;
       "memStart" ::= #0;
       "diskEnd" ::= #0;
@@ -470,8 +466,7 @@ Definition Walog__recover: val :=
 Definition Walog__memWrite: val :=
   λ: "l" "bufs",
     ForSlice <> "buf" "bufs"
-      (struct.storeF Walog.S "memLog" "l" (SliceAppend (struct.loadF Walog.S "memLog" "l") (struct.load Buf.S "buf")));;
-    lock.condBroadcast (struct.loadF Walog.S "condLogger" "l").
+      (struct.storeF Walog.S "memLog" "l" (SliceAppend (struct.loadF Walog.S "memLog" "l") (struct.load Buf.S "buf"))).
 
 (* Assumes caller holds memLock
    XXX absorp *)
@@ -530,8 +525,6 @@ Definition Walog__MemAppend: val :=
         (if: struct.loadF Walog.S "memStart" "l" + slice.len (struct.loadF Walog.S "memLog" "l") - struct.loadF Walog.S "diskEnd" "l" + slice.len "bufs" > Walog__LogSz "l"
         then
           lock.release (struct.loadF Walog.S "memLock" "l");;
-          lock.condBroadcast (struct.loadF Walog.S "condLogger" "l");;
-          lock.condBroadcast (struct.loadF Walog.S "condInstall" "l");;
           Continue
         else
           "txn" <- Walog__doMemAppend "l" "bufs";;
@@ -548,7 +541,7 @@ Definition Walog__LogAppendWait: val :=
     (for: (#true); (Skip) :=
       (if: "txn" ≤ struct.loadF Walog.S "diskEnd" "l"
       then Break
-      else lock.condWait (struct.loadF Walog.S "condLogger" "l"));;
+      else #());;
       Continue);;
     lock.release (struct.loadF Walog.S "memLock" "l").
 
@@ -566,8 +559,6 @@ Definition Walog__Shutdown: val :=
   λ: "l",
     lock.acquire (struct.loadF Walog.S "memLock" "l");;
     struct.storeF Walog.S "shutdown" "l" #true;;
-    lock.condBroadcast (struct.loadF Walog.S "condLogger" "l");;
-    lock.condBroadcast (struct.loadF Walog.S "condInstall" "l");;
     lock.release (struct.loadF Walog.S "memLock" "l").
 
 (* x_installer.go *)
@@ -578,7 +569,6 @@ Definition Walog__installer: val :=
     Skip;;
     (for: (~ (struct.loadF Walog.S "shutdown" "l")); (Skip) :=
       Walog__logInstall "l";;
-      lock.condWait (struct.loadF Walog.S "condInstall" "l");;
       Continue);;
     lock.release (struct.loadF Walog.S "memLock" "l").
 
@@ -653,9 +643,7 @@ Definition Walog__logAppend: val :=
       ] in
       Walog__writeHdr "l" "newh";;
       lock.acquire (struct.loadF Walog.S "memLock" "l");;
-      struct.storeF Walog.S "diskEnd" "l" "memend";;
-      lock.condBroadcast (struct.loadF Walog.S "condLogger" "l");;
-      lock.condBroadcast (struct.loadF Walog.S "condInstall" "l")).
+      struct.storeF Walog.S "diskEnd" "l" "memend").
 
 Definition Walog__logger: val :=
   λ: "l",
@@ -663,6 +651,5 @@ Definition Walog__logger: val :=
     Skip;;
     (for: (~ (struct.loadF Walog.S "shutdown" "l")); (Skip) :=
       Walog__logAppend "l";;
-      lock.condWait (struct.loadF Walog.S "condLogger" "l");;
       Continue);;
     lock.release (struct.loadF Walog.S "memLock" "l").

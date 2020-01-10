@@ -16,8 +16,8 @@ const LOGSTART = uint64(2)
 type Walog struct {
 	memLock *sync.Mutex
 
-	condLogger  *sync.Cond
-	condInstall *sync.Cond
+	// condLogger  *sync.Cond
+	// condInstall *sync.Cond
 
 	memLog   []Buf // in-memory log starting with memStart
 	memStart LogPosition
@@ -29,8 +29,8 @@ func MkLog() *Walog {
 	ml := new(sync.Mutex)
 	l := &Walog{
 		memLock:     ml,
-		condLogger:  sync.NewCond(ml),
-		condInstall: sync.NewCond(ml),
+		// condLogger:  sync.NewCond(ml),
+		// condInstall: sync.NewCond(ml),
 		memLog:      make([]Buf, 0),
 		memStart:    0,
 		diskEnd:     0,
@@ -131,7 +131,7 @@ func (l *Walog) memWrite(bufs []*Buf) {
 	for _, buf := range bufs {
 		l.memLog = append(l.memLog, *buf)
 	}
-	l.condLogger.Broadcast()
+	// l.condLogger.Broadcast()
 }
 
 // Assumes caller holds memLock
@@ -188,8 +188,8 @@ func (l *Walog) MemAppend(bufs []*Buf) (LogPosition, bool) {
 		l.memLock.Lock()
 		if uint64(l.memStart)+uint64(len(l.memLog))-uint64(l.diskEnd)+uint64(len(bufs)) > l.LogSz() {
 			l.memLock.Unlock()
-			l.condLogger.Broadcast()
-			l.condInstall.Broadcast()
+			// l.condLogger.Broadcast()
+			// l.condInstall.Broadcast()
 			continue
 		}
 		txn = l.doMemAppend(bufs)
@@ -207,7 +207,7 @@ func (l *Walog) LogAppendWait(txn LogPosition) {
 		if txn <= l.diskEnd {
 			break
 		}
-		l.condLogger.Wait()
+		// l.condLogger.Wait()
 	}
 	l.memLock.Unlock()
 }
@@ -226,7 +226,7 @@ func (l *Walog) WaitFlushMemLog() {
 func (l *Walog) Shutdown() {
 	l.memLock.Lock()
 	l.shutdown = true
-	l.condLogger.Broadcast()
-	l.condInstall.Broadcast()
+	// l.condLogger.Broadcast()
+	// l.condInstall.Broadcast()
 	l.memLock.Unlock()
 }

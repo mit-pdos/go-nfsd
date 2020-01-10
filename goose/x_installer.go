@@ -12,7 +12,7 @@ func (l *Walog) installer() {
 	l.memLock.Lock()
 	for !l.shutdown {
 		l.logInstall()
-		l.condInstall.Wait()
+		// l.condInstall.Wait()
 	}
 	l.memLock.Unlock()
 }

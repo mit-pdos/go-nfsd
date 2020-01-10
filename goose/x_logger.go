@@ -44,15 +44,15 @@ func (l *Walog) logAppend() {
 
 	l.memLock.Lock()
 	l.diskEnd = memend
-	l.condLogger.Broadcast()
-	l.condInstall.Broadcast()
+	// l.condLogger.Broadcast()
+	// l.condInstall.Broadcast()
 }
 
 func (l *Walog) logger() {
 	l.memLock.Lock()
 	for !l.shutdown {
 		l.logAppend()
-		l.condLogger.Wait()
+		// l.condLogger.Wait()
 	}
 	l.memLock.Unlock()
 }
