@@ -571,7 +571,7 @@ Definition Walog__doMemAppend: val :=
    XXX use map *)
 Definition Walog__Read: val :=
   λ: "l" "blkno",
-    let: "blk" := ref (zero_val <type>) in
+    let: "blk" := ref (zero_val (slice.T byteT)) in
     lock.acquire (struct.loadF Walog.S "memLock" "l");;
     (if: slice.len (struct.loadF Walog.S "memLog" "l") > #0
     then
