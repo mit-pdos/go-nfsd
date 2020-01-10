@@ -29,7 +29,6 @@ func (enc *enc) PutInt(x uint64) {
 func (enc *enc) PutInts(xs []uint64) {
 	// we could be slightly more efficient here by not repeatedly updating
 	// the offset
-	n := uint64(len(xs))
 	for _, x := range xs {
 		enc.PutInt(x)
 	}
