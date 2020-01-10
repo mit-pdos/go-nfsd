@@ -203,11 +203,8 @@ Definition enc__PutInt: val :=
 
 Definition enc__PutInts: val :=
   λ: "enc" "xs",
-    let: "n" := slice.len "xs" in
-    let: "i" := ref #0 in
-    (for: (!"i" < "n"); ("i" <- !"i" + #1) :=
-      enc__PutInt "enc" (SliceGet "xs" !"i");;
-      Continue).
+    ForSlice <> "x" "xs"
+      (enc__PutInt "enc" "x").
 
 Module dec.
   Definition S := struct.decl [
@@ -246,10 +243,8 @@ Definition dec__GetInt32: val :=
 Definition dec__GetInts: val :=
   λ: "dec" "len",
     let: "xs" := NewSlice uint64T "len" in
-    let: "i" := ref #0 in
-    (for: (!"i" < "len"); ("i" <- !"i" + #1) :=
-      SliceSet "xs" !"i" (dec__GetInt "dec");;
-      Continue);;
+    ForSlice "i" <> "xs"
+      (SliceSet "xs" "i" (dec__GetInt "dec"));;
     "xs".
 
 Definition PutBytes: val :=

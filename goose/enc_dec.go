@@ -29,9 +29,8 @@ func (enc *enc) PutInt(x uint64) {
 func (enc *enc) PutInts(xs []uint64) {
 	// we could be slightly more efficient here by not repeatedly updating
 	// the offset
-	n := uint64(len(xs))
-	for i := uint64(0); i < n; i++ {
-		enc.PutInt(xs[i])
+	for _, x := range xs {
+		enc.PutInt(x)
 	}
 }
 
@@ -60,7 +59,7 @@ func (dec *dec) GetInt32() uint32 {
 
 func (dec *dec) GetInts(len uint64) []uint64 {
 	xs := make([]uint64, len)
-	for i := uint64(0); i < len; i++ {
+	for i := range xs {
 		xs[i] = dec.GetInt()
 	}
 	return xs
