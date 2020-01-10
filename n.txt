@@ -26,30 +26,18 @@ goosify
 
 log-by-pass writes
 
-goose-nfsd:
 
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile  /mnt/nfs/
-657 files per 1002243 usec
-
+== some performance
 
 Linux:
 export /srv/nfs
 sudo mount --bind /tmp/nfs /srv/nfs/bench
 sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
-
 [goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs/bench/
 10440 files per 1000034 usec
    much time spent in LookupName (0.93s out of 2.37)
 
-[goose-nfs (master)]$ go test -v -cpuprofile cpu.prof -memprofile mem.prof  -bench Small -run=^$
-goos: linux
-goarch: amd64
-pkg: github.com/mit-pdos/goose-nfsd
-BenchmarkSmall-8            1930            888415 ns/op
-PASS
-ok      github.com/mit-pdos/goose-nfsd  2.613s
-
-remember lastoff
+Goose:
 
 [goose-nfs (master)]$ go test -v -bench Small -run=^$ 
 goos: linux
@@ -60,3 +48,6 @@ PASS
 ok      github.com/mit-pdos/goose-nfsd  1.979s
 
 
+[goose-nfs (master)]$  ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
+2854 files per 1000161 usec
+[goose-nfs (master)]$ 
