@@ -363,6 +363,7 @@ func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byt
 	if count >= offset+ip.Size {
 		count = ip.Size - offset
 	}
+	util.DPrintf(5, "Read: off %d cnt %d\n", offset, count)
 	var data = make([]byte, 0)
 	var off = offset
 	for boff := off / disk.BlockSize; n < count; boff++ {
@@ -383,6 +384,7 @@ func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byt
 		n += nbytes
 		off += nbytes
 	}
+	util.DPrintf(5, "Read: off %d cnt %d -> %v\n", offset, count, data)
 	return data, false
 }
 
@@ -424,6 +426,7 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 		off += nbytes
 		cnt += nbytes
 	}
+	util.DPrintf(5, "Write: off %d cnt %d size %d\n", offset, cnt, ip.Size)
 	if alloc || cnt > 0 {
 		if offset+cnt > ip.Size {
 			ip.Size = offset + cnt

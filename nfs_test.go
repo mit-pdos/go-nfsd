@@ -10,6 +10,7 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/inode"
@@ -87,10 +88,11 @@ func (ts *TestState) Getattr(fh nfstypes.Nfs_fh3, sz uint64) {
 	assert.Equal(ts.t, nfstypes.Size3(sz), attr.Resok.Obj_attributes.Size)
 }
 
-func (ts *TestState) GetattrDir(fh nfstypes.Nfs_fh3) {
+func (ts *TestState) GetattrDir(fh nfstypes.Nfs_fh3) uint64 {
 	attr := ts.GetattrOp(fh)
 	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
 	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, nfstypes.NF3DIR)
+	return uint64(attr.Resok.Obj_attributes.Size)
 }
 
 func (ts *TestState) GetattrFail(fh nfstypes.Nfs_fh3) {
@@ -277,6 +279,8 @@ func TestOneFile(t *testing.T) {
 	ts := newTest(t)
 	sz := uint64(8192)
 	ts.Create("x")
+	sz1 := ts.GetattrDir(fh.MkRootFh3())
+	assert.Equal(t, 3*dir.DIRENTSZ, sz1)
 	fh := ts.Lookup("x", true)
 	ts.Getattr(fh, 0)
 	data := mkdata(sz)
@@ -300,6 +304,7 @@ func TestFile1(t *testing.T) {
 	data := mkdata(uint64(sz))
 	ts.Write(fh, data, nfstypes.FILE_SYNC)
 	ts.readcheck(fh, 0, data)
+	ts.Getattr(fh, sz)
 }
 
 func TestOneDir(t *testing.T) {

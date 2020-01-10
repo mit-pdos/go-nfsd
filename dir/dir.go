@@ -62,9 +62,12 @@ func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum,
 			break
 		}
 	}
+	if finalOff == 0 {
+		finalOff = dip.Size
+	}
 	de := &dirEnt{inum: inum, name: string(name)}
 	ent := encodeDirEnt(de)
-	util.DPrintf(5, "AddNameDir: %v %v %v\n", name, de, ent)
+	util.DPrintf(5, "AddNameDir: %v %v %v %d\n", name, de, ent, finalOff)
 	n, _ := dip.Write(op, finalOff, DIRENTSZ, ent)
 	return finalOff, n == DIRENTSZ
 }
