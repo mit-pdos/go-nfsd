@@ -184,7 +184,7 @@ End enc.
 
 Definition NewEnc: val :=
   λ: "blk",
-    struct.mk enc.S [
+    struct.new enc.S [
       "b" ::= "blk";
       "off" ::= #0
     ].
@@ -221,7 +221,7 @@ End dec.
 
 Definition NewDec: val :=
   λ: "b",
-    struct.mk dec.S [
+    struct.new dec.S [
       "b" ::= "b";
       "off" ::= #0
     ].

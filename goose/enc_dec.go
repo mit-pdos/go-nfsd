@@ -10,8 +10,8 @@ type enc struct {
 	off uint64
 }
 
-func NewEnc(blk disk.Block) enc {
-	return enc{b: blk, off: 0}
+func NewEnc(blk disk.Block) *enc {
+	return &enc{b: blk, off: 0}
 }
 
 func (enc *enc) PutInt32(x uint32) {
@@ -39,8 +39,8 @@ type dec struct {
 	off uint64
 }
 
-func NewDec(b disk.Block) dec {
-	return dec{b: b, off: 0}
+func NewDec(b disk.Block) *dec {
+	return &dec{b: b, off: 0}
 }
 
 func (dec *dec) GetInt() uint64 {
