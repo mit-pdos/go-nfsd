@@ -10,12 +10,14 @@ type Dentry struct {
 }
 
 type Dcache struct {
-	cache map[string]Dentry
+	cache   map[string]Dentry
+	Lastoff uint64
 }
 
 func MkDcache() *Dcache {
 	return &Dcache{
-		cache: make(map[string]Dentry),
+		cache:   make(map[string]Dentry),
+		Lastoff: uint64(0),
 	}
 }
 

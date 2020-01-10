@@ -48,3 +48,15 @@ pkg: github.com/mit-pdos/goose-nfsd
 BenchmarkSmall-8            1930            888415 ns/op
 PASS
 ok      github.com/mit-pdos/goose-nfsd  2.613s
+
+remember lastoff
+
+[goose-nfs (master)]$ go test -v -bench Small -run=^$ 
+goos: linux
+goarch: amd64
+pkg: github.com/mit-pdos/goose-nfsd
+BenchmarkSmall-8           16719             62692 ns/op
+PASS
+ok      github.com/mit-pdos/goose-nfsd  1.979s
+
+

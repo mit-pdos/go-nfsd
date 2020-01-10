@@ -37,11 +37,12 @@ func AddName(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum, name nfstypes.File
 	if dip.Kind != nfstypes.NF3DIR || uint64(len(name)) >= MAXNAMELEN {
 		return false
 	}
-	off, ok := AddNameDir(dip, op, inum, name)
+	if dip.Dcache == nil {
+		mkDcache(dip, op)
+	}
+	off, ok := AddNameDir(dip, op, inum, name, dip.Dcache.Lastoff)
 	if ok {
-		if dip.Dcache == nil {
-			mkDcache(dip, op)
-		}
+		dip.Dcache.Lastoff = off
 		dip.Dcache.Add(string(name), inum, off)
 	}
 	return ok
@@ -51,7 +52,12 @@ func RemName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) bool {
 	if dip.Kind != nfstypes.NF3DIR || uint64(len(name)) >= MAXNAMELEN {
 		return false
 	}
-	if RemNameDir(dip, op, name) {
+	if dip.Dcache == nil {
+		mkDcache(dip, op)
+	}
+	off, ok := RemNameDir(dip, op, name)
+	if ok {
+		dip.Dcache.Lastoff = off
 		ok := dip.Dcache.Del(string(name))
 		if !ok {
 			panic("RemName")

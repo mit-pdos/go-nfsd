@@ -50,10 +50,11 @@ func ScanName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (fs.In
 	return inum, finalOffset
 }
 
-func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum, name nfstypes.Filename3) (uint64, bool) {
-	var finalOff uint64 = 0
+func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum,
+	name nfstypes.Filename3, lastoff uint64) (uint64, bool) {
+	var finalOff uint64
 
-	for off := uint64(0); off < dip.Size; off += DIRENTSZ {
+	for off := uint64(lastoff); off < dip.Size; off += DIRENTSZ {
 		data, _ := dip.Read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		if de.inum == fs.NULLINUM {
@@ -68,15 +69,15 @@ func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum, name nfstypes.F
 	return finalOff, n == DIRENTSZ
 }
 
-func RemNameDir(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) bool {
+func RemNameDir(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (uint64, bool) {
 	inum, off := LookupName(dip, op, name)
 	if inum == fs.NULLINUM {
-		return true
+		return 0, false
 	}
 	de := &dirEnt{inum: fs.NULLINUM, name: ""}
 	ent := encodeDirEnt(de)
 	n, _ := dip.Write(op, off, DIRENTSZ, ent)
-	return n == DIRENTSZ
+	return off, n == DIRENTSZ
 }
 
 func IsDirEmpty(dip *inode.Inode, op *fstxn.FsTxn) bool {
