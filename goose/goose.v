@@ -475,6 +475,10 @@ Definition Walog__installer: val :=
       Continue);;
     lock.release (struct.loadF Walog.S "memLock" "l").
 
+Definition Walog__LogSz: val :=
+  λ: "l",
+    HDRADDRS.
+
 Definition Walog__logBlocks: val :=
   λ: "l" "memend" "memstart" "diskend" "bufs",
     let: "pos" := ref "diskend" in
@@ -520,21 +524,6 @@ Definition Walog__logger: val :=
       Continue);;
     lock.release (struct.loadF Walog.S "memLock" "l").
 
-Definition MkLog: val :=
-  λ: <>,
-    let: "ml" := lock.new #() in
-    let: "l" := struct.new Walog.S [
-      "memLock" ::= "ml";
-      "memLog" ::= NewSlice Buf.T #0;
-      "memStart" ::= #0;
-      "diskEnd" ::= #0;
-      "shutdown" ::= #false
-    ] in
-    Walog__recover "l";;
-    Fork (Walog__logger "l");;
-    Fork (Walog__installer "l");;
-    "l".
-
 Definition Walog__recover: val :=
   λ: "l",
     let: "h" := Walog__readHdr "l" in
@@ -550,6 +539,21 @@ Definition Walog__recover: val :=
       struct.storeF Walog.S "memLog" "l" (SliceAppend (struct.loadF Walog.S "memLog" "l") (struct.load Buf.S "b"));;
       Continue).
 
+Definition MkLog: val :=
+  λ: <>,
+    let: "ml" := lock.new #() in
+    let: "l" := struct.new Walog.S [
+      "memLock" ::= "ml";
+      "memLog" ::= NewSlice Buf.T #0;
+      "memStart" ::= #0;
+      "diskEnd" ::= #0;
+      "shutdown" ::= #false
+    ] in
+    Walog__recover "l";;
+    Fork (Walog__logger "l");;
+    Fork (Walog__installer "l");;
+    "l".
+
 Definition Walog__memWrite: val :=
   λ: "l" "bufs",
     ForSlice <> "buf" "bufs"
@@ -562,10 +566,6 @@ Definition Walog__doMemAppend: val :=
     Walog__memWrite "l" "bufs";;
     let: "txn" := struct.loadF Walog.S "memStart" "l" + slice.len (struct.loadF Walog.S "memLog" "l") in
     "txn".
-
-Definition Walog__LogSz: val :=
-  λ: "l",
-    HDRADDRS.
 
 (* Scan log for blkno. If not present, read from disk
    XXX use map *)

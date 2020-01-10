@@ -143,6 +143,10 @@ func (l *Walog) installer() {
 // Logger writes blocks from the in-memory log to the on-disk log
 //
 
+func (l *Walog) LogSz() uint64 {
+	return HDRADDRS
+}
+
 func (l *Walog) logBlocks(memend uint64, memstart uint64, diskend uint64, bufs []Buf) {
 	for pos := diskend; pos < memend; pos++ {
 		buf := bufs[pos-diskend]
@@ -192,6 +196,20 @@ func (l *Walog) logger() {
 	l.memLock.Unlock()
 }
 
+func (l *Walog) recover() {
+	h := l.readHdr()
+	h2 := l.readHdr2()
+	l.memStart = h2.start
+	l.diskEnd = h.end
+	for pos := h2.start; pos < h.end; pos++ {
+		addr := h.addrs[uint64(pos)%l.LogSz()]
+		blk := disk.Read(LOGSTART + (uint64(pos) % l.LogSz()))
+		a := MkAddr(addr, 0, NBITBLOCK)
+		b := MkBuf(a, blk)
+		l.memLog = append(l.memLog, *b)
+	}
+}
+
 func MkLog() *Walog {
 	ml := new(sync.Mutex)
 	l := &Walog{
@@ -214,20 +232,6 @@ func MkLog() *Walog {
 	return l
 }
 
-func (l *Walog) recover() {
-	h := l.readHdr()
-	h2 := l.readHdr2()
-	l.memStart = h2.start
-	l.diskEnd = h.end
-	for pos := h2.start; pos < h.end; pos++ {
-		addr := h.addrs[uint64(pos)%l.LogSz()]
-		blk := disk.Read(LOGSTART + (uint64(pos) % l.LogSz()))
-		a := MkAddr(addr, 0, NBITBLOCK)
-		b := MkBuf(a, blk)
-		l.memLog = append(l.memLog, *b)
-	}
-}
-
 func (l *Walog) memWrite(bufs []*Buf) {
 	for _, buf := range bufs {
 		l.memLog = append(l.memLog, *buf)
@@ -246,10 +250,6 @@ func (l *Walog) doMemAppend(bufs []*Buf) uint64 {
 //
 //  For clients of WAL
 //
-
-func (l *Walog) LogSz() uint64 {
-	return HDRADDRS
-}
 
 // Scan log for blkno. If not present, read from disk
 // XXX use map
