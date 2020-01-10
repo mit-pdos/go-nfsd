@@ -25,28 +25,6 @@ type Walog struct {
 	shutdown bool
 }
 
-func MkLog() *Walog {
-	ml := new(sync.Mutex)
-	l := &Walog{
-		memLock:     ml,
-		// condLogger:  sync.NewCond(ml),
-		// condInstall: sync.NewCond(ml),
-		memLog:      make([]Buf, 0),
-		memStart:    0,
-		diskEnd:     0,
-		shutdown:    false,
-	}
-
-	l.recover()
-
-	// TODO: do we still need to use machine.Spawn,
-	//  or can we just use go statements?
-	machine.Spawn(func() { l.logger() })
-	machine.Spawn(func() { l.installer() })
-
-	return l
-}
-
 // On-disk header in the first block of the log
 type hdr struct {
 	end   LogPosition
@@ -111,6 +89,131 @@ func (l *Walog) readHdr2() *hdr2 {
 	blk := disk.Read(LOGHDR2)
 	h := decodeHdr2(blk)
 	return h
+}
+
+
+//
+// Installer blocks from the on-disk log to their home location.
+//
+
+func (l *Walog) installBlocks(bufs []Buf) {
+	n := uint64(len(bufs))
+	for i := uint64(0); i < n; i++ {
+		blkno := bufs[i].Addr.Blkno
+		blk := bufs[i].Blk
+		disk.Write(blkno, blk)
+	}
+}
+
+// Installer holds logLock
+// XXX absorp
+func (l *Walog) logInstall() (uint64, LogPosition) {
+	installEnd := l.diskEnd
+	bufs := l.memLog[:installEnd-l.memStart]
+	if len(bufs) == 0 {
+		return 0, installEnd
+	}
+
+	l.memLock.Unlock()
+
+	l.installBlocks(bufs)
+	h := &hdr2{
+		start: installEnd,
+	}
+	l.writeHdr2(h)
+
+	l.memLock.Lock()
+	if installEnd < l.memStart {
+		panic("logInstall")
+	}
+	l.memLog = l.memLog[installEnd-l.memStart:]
+	l.memStart = installEnd
+
+	return uint64(len(bufs)), installEnd
+}
+
+func (l *Walog) installer() {
+	l.memLock.Lock()
+	for !l.shutdown {
+		l.logInstall()
+		// l.condInstall.Wait()
+	}
+	l.memLock.Unlock()
+}
+
+//
+// Logger writes blocks from the in-memory log to the on-disk log
+//
+
+func (l *Walog) logBlocks(memend LogPosition, memstart LogPosition, diskend LogPosition, bufs []Buf) {
+	for pos := diskend; pos < memend; pos++ {
+		buf := bufs[pos-diskend]
+		blk := buf.Blk
+		disk.Write(LOGSTART+(uint64(pos)%l.LogSz()), blk)
+	}
+}
+
+// Logger holds logLock
+func (l *Walog) logAppend() {
+	memstart := l.memStart
+	memlog := l.memLog
+	memend := memstart + LogPosition(len(memlog))
+	diskend := l.diskEnd
+	newbufs := memlog[diskend-memstart:]
+	if len(newbufs) == 0 {
+		return
+	}
+
+	l.memLock.Unlock()
+
+	l.logBlocks(memend, memstart, diskend, newbufs)
+
+	addrs := make([]uint64, l.LogSz())
+	for i := uint64(0); i < uint64(len(memlog)); i++ {
+		pos := memstart + LogPosition(i)
+		addrs[uint64(pos)%l.LogSz()] = memlog[i].Addr.Blkno
+	}
+	newh := &hdr{
+		end:   memend,
+		addrs: addrs,
+	}
+	l.writeHdr(newh)
+
+	l.memLock.Lock()
+	l.diskEnd = memend
+	// l.condLogger.Broadcast()
+	// l.condInstall.Broadcast()
+}
+
+func (l *Walog) logger() {
+	l.memLock.Lock()
+	for !l.shutdown {
+		l.logAppend()
+		// l.condLogger.Wait()
+	}
+	l.memLock.Unlock()
+}
+
+func MkLog() *Walog {
+	ml := new(sync.Mutex)
+	l := &Walog{
+		memLock:     ml,
+		// condLogger:  sync.NewCond(ml),
+		// condInstall: sync.NewCond(ml),
+		memLog:      make([]Buf, 0),
+		memStart:    0,
+		diskEnd:     0,
+		shutdown:    false,
+	}
+
+	l.recover()
+
+	// TODO: do we still need to use machine.Spawn,
+	//  or can we just use go statements?
+	machine.Spawn(func() { l.logger() })
+	machine.Spawn(func() { l.installer() })
+
+	return l
 }
 
 func (l *Walog) recover() {

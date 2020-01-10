@@ -351,21 +351,6 @@ Module Walog.
   End fields.
 End Walog.
 
-Definition MkLog: val :=
-  λ: <>,
-    let: "ml" := lock.new #() in
-    let: "l" := struct.new Walog.S [
-      "memLock" ::= "ml";
-      "memLog" ::= NewSlice Buf.T #0;
-      "memStart" ::= #0;
-      "diskEnd" ::= #0;
-      "shutdown" ::= #false
-    ] in
-    Walog__recover "l";;
-    Fork (Walog__logger "l");;
-    Fork (Walog__installer "l");;
-    "l".
-
 Module hdr.
   (* On-disk header in the first block of the log *)
   Definition S := struct.decl [
@@ -447,6 +432,110 @@ Definition Walog__readHdr2: val :=
     let: "blk" := disk.Read LOGHDR2 in
     let: "h" := decodeHdr2 "blk" in
     "h".
+
+Definition Walog__installBlocks: val :=
+  λ: "l" "bufs",
+    let: "n" := slice.len "bufs" in
+    let: "i" := ref #0 in
+    (for: (!"i" < "n"); ("i" <- !"i" + #1) :=
+      let: "blkno" := Addr.get "Blkno" (Buf.get "Addr" (SliceGet "bufs" !"i")) in
+      let: "blk" := Buf.get "Blk" (SliceGet "bufs" !"i") in
+      disk.Write "blkno" "blk";;
+      Continue).
+
+(* Installer holds logLock
+   XXX absorp *)
+Definition Walog__logInstall: val :=
+  λ: "l",
+    let: "installEnd" := struct.loadF Walog.S "diskEnd" "l" in
+    let: "bufs" := SliceTake (struct.loadF Walog.S "memLog" "l") ("installEnd" - struct.loadF Walog.S "memStart" "l") in
+    (if: slice.len "bufs" = #0
+    then (#0, "installEnd")
+    else
+      lock.release (struct.loadF Walog.S "memLock" "l");;
+      Walog__installBlocks "l" "bufs";;
+      let: "h" := struct.new hdr2.S [
+        "start" ::= "installEnd"
+      ] in
+      Walog__writeHdr2 "l" "h";;
+      lock.acquire (struct.loadF Walog.S "memLock" "l");;
+      (if: "installEnd" < struct.loadF Walog.S "memStart" "l"
+      then
+        Panic "logInstall";;
+        #()
+      else #());;
+      struct.storeF Walog.S "memLog" "l" (SliceSkip (struct.loadF Walog.S "memLog" "l") ("installEnd" - struct.loadF Walog.S "memStart" "l"));;
+      struct.storeF Walog.S "memStart" "l" "installEnd";;
+      (slice.len "bufs", "installEnd")).
+
+Definition Walog__installer: val :=
+  λ: "l",
+    lock.acquire (struct.loadF Walog.S "memLock" "l");;
+    Skip;;
+    (for: (~ (struct.loadF Walog.S "shutdown" "l")); (Skip) :=
+      Walog__logInstall "l";;
+      Continue);;
+    lock.release (struct.loadF Walog.S "memLock" "l").
+
+Definition Walog__logBlocks: val :=
+  λ: "l" "memend" "memstart" "diskend" "bufs",
+    let: "pos" := ref "diskend" in
+    (for: (!"pos" < "memend"); ("pos" <- !"pos" + #1) :=
+      let: "buf" := SliceGet "bufs" (!"pos" - "diskend") in
+      let: "blk" := Buf.get "Blk" "buf" in
+      disk.Write (LOGSTART + !"pos" `rem` Walog__LogSz "l") "blk";;
+      Continue).
+
+(* Logger holds logLock *)
+Definition Walog__logAppend: val :=
+  λ: "l",
+    let: "memstart" := struct.loadF Walog.S "memStart" "l" in
+    let: "memlog" := struct.loadF Walog.S "memLog" "l" in
+    let: "memend" := "memstart" + LogPosition (slice.len "memlog") in
+    let: "diskend" := struct.loadF Walog.S "diskEnd" "l" in
+    let: "newbufs" := SliceSkip "memlog" ("diskend" - "memstart") in
+    (if: slice.len "newbufs" = #0
+    then #()
+    else
+      lock.release (struct.loadF Walog.S "memLock" "l");;
+      Walog__logBlocks "l" "memend" "memstart" "diskend" "newbufs";;
+      let: "addrs" := NewSlice uint64T (Walog__LogSz "l") in
+      let: "i" := ref #0 in
+      (for: (!"i" < slice.len "memlog"); ("i" <- !"i" + #1) :=
+        let: "pos" := "memstart" + LogPosition !"i" in
+        SliceSet "addrs" ("pos" `rem` Walog__LogSz "l") (Addr.get "Blkno" (Buf.get "Addr" (SliceGet "memlog" !"i")));;
+        Continue);;
+      let: "newh" := struct.new hdr.S [
+        "end" ::= "memend";
+        "addrs" ::= "addrs"
+      ] in
+      Walog__writeHdr "l" "newh";;
+      lock.acquire (struct.loadF Walog.S "memLock" "l");;
+      struct.storeF Walog.S "diskEnd" "l" "memend").
+
+Definition Walog__logger: val :=
+  λ: "l",
+    lock.acquire (struct.loadF Walog.S "memLock" "l");;
+    Skip;;
+    (for: (~ (struct.loadF Walog.S "shutdown" "l")); (Skip) :=
+      Walog__logAppend "l";;
+      Continue);;
+    lock.release (struct.loadF Walog.S "memLock" "l").
+
+Definition MkLog: val :=
+  λ: <>,
+    let: "ml" := lock.new #() in
+    let: "l" := struct.new Walog.S [
+      "memLock" ::= "ml";
+      "memLog" ::= NewSlice Buf.T #0;
+      "memStart" ::= #0;
+      "diskEnd" ::= #0;
+      "shutdown" ::= #false
+    ] in
+    Walog__recover "l";;
+    Fork (Walog__logger "l");;
+    Fork (Walog__installer "l");;
+    "l".
 
 Definition Walog__recover: val :=
   λ: "l",
@@ -559,97 +648,4 @@ Definition Walog__Shutdown: val :=
   λ: "l",
     lock.acquire (struct.loadF Walog.S "memLock" "l");;
     struct.storeF Walog.S "shutdown" "l" #true;;
-    lock.release (struct.loadF Walog.S "memLock" "l").
-
-(* x_installer.go *)
-
-Definition Walog__installer: val :=
-  λ: "l",
-    lock.acquire (struct.loadF Walog.S "memLock" "l");;
-    Skip;;
-    (for: (~ (struct.loadF Walog.S "shutdown" "l")); (Skip) :=
-      Walog__logInstall "l";;
-      Continue);;
-    lock.release (struct.loadF Walog.S "memLock" "l").
-
-Definition Walog__installBlocks: val :=
-  λ: "l" "bufs",
-    let: "n" := slice.len "bufs" in
-    let: "i" := ref #0 in
-    (for: (!"i" < "n"); ("i" <- !"i" + #1) :=
-      let: "blkno" := Addr.get "Blkno" (Buf.get "Addr" (SliceGet "bufs" !"i")) in
-      let: "blk" := Buf.get "Blk" (SliceGet "bufs" !"i") in
-      disk.Write "blkno" "blk";;
-      Continue).
-
-(* Installer holds logLock
-   XXX absorp *)
-Definition Walog__logInstall: val :=
-  λ: "l",
-    let: "installEnd" := struct.loadF Walog.S "diskEnd" "l" in
-    let: "bufs" := SliceTake (struct.loadF Walog.S "memLog" "l") ("installEnd" - struct.loadF Walog.S "memStart" "l") in
-    (if: slice.len "bufs" = #0
-    then (#0, "installEnd")
-    else
-      lock.release (struct.loadF Walog.S "memLock" "l");;
-      Walog__installBlocks "l" "bufs";;
-      let: "h" := struct.new hdr2.S [
-        "start" ::= "installEnd"
-      ] in
-      Walog__writeHdr2 "l" "h";;
-      lock.acquire (struct.loadF Walog.S "memLock" "l");;
-      (if: "installEnd" < struct.loadF Walog.S "memStart" "l"
-      then
-        Panic "logInstall";;
-        #()
-      else #());;
-      struct.storeF Walog.S "memLog" "l" (SliceSkip (struct.loadF Walog.S "memLog" "l") ("installEnd" - struct.loadF Walog.S "memStart" "l"));;
-      struct.storeF Walog.S "memStart" "l" "installEnd";;
-      (slice.len "bufs", "installEnd")).
-
-(* x_logger.go *)
-
-Definition Walog__logBlocks: val :=
-  λ: "l" "memend" "memstart" "diskend" "bufs",
-    let: "pos" := ref "diskend" in
-    (for: (!"pos" < "memend"); ("pos" <- !"pos" + #1) :=
-      let: "buf" := SliceGet "bufs" (!"pos" - "diskend") in
-      let: "blk" := Buf.get "Blk" "buf" in
-      disk.Write (LOGSTART + !"pos" `rem` Walog__LogSz "l") "blk";;
-      Continue).
-
-(* Logger holds logLock *)
-Definition Walog__logAppend: val :=
-  λ: "l",
-    let: "memstart" := struct.loadF Walog.S "memStart" "l" in
-    let: "memlog" := struct.loadF Walog.S "memLog" "l" in
-    let: "memend" := "memstart" + LogPosition (slice.len "memlog") in
-    let: "diskend" := struct.loadF Walog.S "diskEnd" "l" in
-    let: "newbufs" := SliceSkip "memlog" ("diskend" - "memstart") in
-    (if: slice.len "newbufs" = #0
-    then #()
-    else
-      lock.release (struct.loadF Walog.S "memLock" "l");;
-      Walog__logBlocks "l" "memend" "memstart" "diskend" "newbufs";;
-      let: "addrs" := NewSlice uint64T (Walog__LogSz "l") in
-      let: "i" := ref #0 in
-      (for: (!"i" < slice.len "memlog"); ("i" <- !"i" + #1) :=
-        let: "pos" := "memstart" + LogPosition !"i" in
-        SliceSet "addrs" ("pos" `rem` Walog__LogSz "l") (Addr.get "Blkno" (Buf.get "Addr" (SliceGet "memlog" !"i")));;
-        Continue);;
-      let: "newh" := struct.new hdr.S [
-        "end" ::= "memend";
-        "addrs" ::= "addrs"
-      ] in
-      Walog__writeHdr "l" "newh";;
-      lock.acquire (struct.loadF Walog.S "memLock" "l");;
-      struct.storeF Walog.S "diskEnd" "l" "memend").
-
-Definition Walog__logger: val :=
-  λ: "l",
-    lock.acquire (struct.loadF Walog.S "memLock" "l");;
-    Skip;;
-    (for: (~ (struct.loadF Walog.S "shutdown" "l")); (Skip) :=
-      Walog__logAppend "l";;
-      Continue);;
     lock.release (struct.loadF Walog.S "memLock" "l").
