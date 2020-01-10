@@ -7,8 +7,6 @@ import (
 	"sync"
 )
 
-type LogPosition uint64
-
 const LOGHDR = uint64(0)
 const LOGHDR2 = uint64(1)
 const LOGSTART = uint64(2)
@@ -20,14 +18,14 @@ type Walog struct {
 	// condInstall *sync.Cond
 
 	memLog   []Buf // in-memory log starting with memStart
-	memStart LogPosition
-	diskEnd  LogPosition // next block to log to disk
+	memStart uint64
+	diskEnd  uint64 // next block to log to disk
 	shutdown bool
 }
 
 // On-disk header in the first block of the log
 type hdr struct {
-	end   LogPosition
+	end   uint64
 	addrs []uint64
 }
 
@@ -37,7 +35,7 @@ func decodeHdr(blk disk.Block) *hdr {
 		addrs: nil,
 	}
 	dec := NewDec(blk)
-	h.end = LogPosition(dec.GetInt())
+	h.end = uint64(dec.GetInt())
 	h.addrs = dec.GetInts(HDRADDRS)
 	return h
 }
@@ -50,7 +48,7 @@ func encodeHdr(h hdr, blk disk.Block) {
 
 // On-disk header in the second block of the log
 type hdr2 struct {
-	start LogPosition
+	start uint64
 }
 
 func decodeHdr2(blk disk.Block) *hdr2 {
@@ -58,7 +56,7 @@ func decodeHdr2(blk disk.Block) *hdr2 {
 		start: 0,
 	}
 	dec := NewDec(blk)
-	h.start = LogPosition(dec.GetInt())
+	h.start = uint64(dec.GetInt())
 	return h
 }
 
@@ -107,7 +105,7 @@ func (l *Walog) installBlocks(bufs []Buf) {
 
 // Installer holds logLock
 // XXX absorp
-func (l *Walog) logInstall() (uint64, LogPosition) {
+func (l *Walog) logInstall() (uint64, uint64) {
 	installEnd := l.diskEnd
 	bufs := l.memLog[:installEnd-l.memStart]
 	if len(bufs) == 0 {
@@ -145,7 +143,7 @@ func (l *Walog) installer() {
 // Logger writes blocks from the in-memory log to the on-disk log
 //
 
-func (l *Walog) logBlocks(memend LogPosition, memstart LogPosition, diskend LogPosition, bufs []Buf) {
+func (l *Walog) logBlocks(memend uint64, memstart uint64, diskend uint64, bufs []Buf) {
 	for pos := diskend; pos < memend; pos++ {
 		buf := bufs[pos-diskend]
 		blk := buf.Blk
@@ -157,7 +155,7 @@ func (l *Walog) logBlocks(memend LogPosition, memstart LogPosition, diskend LogP
 func (l *Walog) logAppend() {
 	memstart := l.memStart
 	memlog := l.memLog
-	memend := memstart + LogPosition(len(memlog))
+	memend := memstart + uint64(len(memlog))
 	diskend := l.diskEnd
 	newbufs := memlog[diskend-memstart:]
 	if len(newbufs) == 0 {
@@ -170,7 +168,7 @@ func (l *Walog) logAppend() {
 
 	addrs := make([]uint64, l.LogSz())
 	for i := uint64(0); i < uint64(len(memlog)); i++ {
-		pos := memstart + LogPosition(i)
+		pos := memstart + uint64(i)
 		addrs[uint64(pos)%l.LogSz()] = memlog[i].Addr.Blkno
 	}
 	newh := &hdr{
@@ -239,9 +237,9 @@ func (l *Walog) memWrite(bufs []*Buf) {
 
 // Assumes caller holds memLock
 // XXX absorp
-func (l *Walog) doMemAppend(bufs []*Buf) LogPosition {
+func (l *Walog) doMemAppend(bufs []*Buf) uint64 {
 	l.memWrite(bufs)
-	txn := l.memStart + LogPosition(len(l.memLog))
+	txn := l.memStart + uint64(len(l.memLog))
 	return txn
 }
 
@@ -281,12 +279,12 @@ func (l *Walog) Read(blkno uint64) disk.Block {
 
 // Append to in-memory log. Returns false, if bufs don't fit.
 // Otherwise, returns the txn for this append.
-func (l *Walog) MemAppend(bufs []*Buf) (LogPosition, bool) {
+func (l *Walog) MemAppend(bufs []*Buf) (uint64, bool) {
 	if uint64(len(bufs)) > l.LogSz() {
 		return 0, false
 	}
 
-	var txn LogPosition = 0
+	var txn uint64 = 0
 	for {
 		l.memLock.Lock()
 		if uint64(l.memStart)+uint64(len(l.memLog))-uint64(l.diskEnd)+uint64(len(bufs)) > l.LogSz() {
@@ -304,7 +302,7 @@ func (l *Walog) MemAppend(bufs []*Buf) (LogPosition, bool) {
 
 // Wait until logger has appended in-memory log through txn to on-disk
 // log
-func (l *Walog) LogAppendWait(txn LogPosition) {
+func (l *Walog) LogAppendWait(txn uint64) {
 	l.memLock.Lock()
 	for {
 		if txn <= l.diskEnd {
@@ -319,7 +317,7 @@ func (l *Walog) LogAppendWait(txn LogPosition) {
 // it is logged, then all preceeding transactions are also logged.
 func (l *Walog) WaitFlushMemLog() {
 	l.memLock.Lock()
-	n := l.memStart + LogPosition(len(l.memLog))
+	n := l.memStart + uint64(len(l.memLog))
 	l.memLock.Unlock()
 
 	l.LogAppendWait(n)

@@ -327,8 +327,6 @@ Definition FsSuper__Inum2Addr: val :=
 
 (* wal.go *)
 
-Definition LogPosition: ty := uint64T.
-
 Definition LOGHDR : expr := #0.
 
 Definition LOGHDR2 : expr := #1.
@@ -339,8 +337,8 @@ Module Walog.
   Definition S := struct.decl [
     "memLock" :: lockRefT;
     "memLog" :: slice.T Buf.T;
-    "memStart" :: LogPosition;
-    "diskEnd" :: LogPosition;
+    "memStart" :: uint64T;
+    "diskEnd" :: uint64T;
     "shutdown" :: boolT
   ].
   Definition T: ty := struct.t S.
@@ -354,7 +352,7 @@ End Walog.
 Module hdr.
   (* On-disk header in the first block of the log *)
   Definition S := struct.decl [
-    "end" :: LogPosition;
+    "end" :: uint64T;
     "addrs" :: slice.T uint64T
   ].
   Definition T: ty := struct.t S.
@@ -372,7 +370,7 @@ Definition decodeHdr: val :=
       "addrs" ::= slice.nil
     ] in
     let: "dec" := NewDec "blk" in
-    struct.storeF hdr.S "end" "h" (LogPosition (dec__GetInt "dec"));;
+    struct.storeF hdr.S "end" "h" (dec__GetInt "dec");;
     struct.storeF hdr.S "addrs" "h" (dec__GetInts "dec" HDRADDRS);;
     "h".
 
@@ -385,7 +383,7 @@ Definition encodeHdr: val :=
 Module hdr2.
   (* On-disk header in the second block of the log *)
   Definition S := struct.decl [
-    "start" :: LogPosition
+    "start" :: uint64T
   ].
   Definition T: ty := struct.t S.
   Definition Ptr: ty := struct.ptrT S.
@@ -401,7 +399,7 @@ Definition decodeHdr2: val :=
       "start" ::= #0
     ] in
     let: "dec" := NewDec "blk" in
-    struct.storeF hdr2.S "start" "h" (LogPosition (dec__GetInt "dec"));;
+    struct.storeF hdr2.S "start" "h" (dec__GetInt "dec");;
     "h".
 
 Definition encodeHdr2: val :=
@@ -491,7 +489,7 @@ Definition Walog__logAppend: val :=
   λ: "l",
     let: "memstart" := struct.loadF Walog.S "memStart" "l" in
     let: "memlog" := struct.loadF Walog.S "memLog" "l" in
-    let: "memend" := "memstart" + LogPosition (slice.len "memlog") in
+    let: "memend" := "memstart" + slice.len "memlog" in
     let: "diskend" := struct.loadF Walog.S "diskEnd" "l" in
     let: "newbufs" := SliceSkip "memlog" ("diskend" - "memstart") in
     (if: slice.len "newbufs" = #0
@@ -502,7 +500,7 @@ Definition Walog__logAppend: val :=
       let: "addrs" := NewSlice uint64T (Walog__LogSz "l") in
       let: "i" := ref #0 in
       (for: (!"i" < slice.len "memlog"); ("i" <- !"i" + #1) :=
-        let: "pos" := "memstart" + LogPosition !"i" in
+        let: "pos" := "memstart" + !"i" in
         SliceSet "addrs" ("pos" `rem` Walog__LogSz "l") (Addr.get "Blkno" (Buf.get "Addr" (SliceGet "memlog" !"i")));;
         Continue);;
       let: "newh" := struct.new hdr.S [
@@ -562,7 +560,7 @@ Definition Walog__memWrite: val :=
 Definition Walog__doMemAppend: val :=
   λ: "l" "bufs",
     Walog__memWrite "l" "bufs";;
-    let: "txn" := struct.loadF Walog.S "memStart" "l" + LogPosition (slice.len (struct.loadF Walog.S "memLog" "l")) in
+    let: "txn" := struct.loadF Walog.S "memStart" "l" + slice.len (struct.loadF Walog.S "memLog" "l") in
     "txn".
 
 Definition Walog__LogSz: val :=
@@ -639,7 +637,7 @@ Definition Walog__LogAppendWait: val :=
 Definition Walog__WaitFlushMemLog: val :=
   λ: "l",
     lock.acquire (struct.loadF Walog.S "memLock" "l");;
-    let: "n" := struct.loadF Walog.S "memStart" "l" + LogPosition (slice.len (struct.loadF Walog.S "memLog" "l")) in
+    let: "n" := struct.loadF Walog.S "memStart" "l" + slice.len (struct.loadF Walog.S "memLog" "l") in
     lock.release (struct.loadF Walog.S "memLock" "l");;
     Walog__LogAppendWait "l" "n".
 
