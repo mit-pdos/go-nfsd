@@ -72,3 +72,7 @@ func (fs *FsSuper) NInode() Inum {
 func (fs *FsSuper) Inum2Addr(inum Inum) buf.Addr {
 	return buf.MkAddr(fs.InodeStart()+uint64(inum)/INODEBLK, (uint64(inum)%INODEBLK)*INODESZ*8, INODESZ*8)
 }
+
+func (fs *FsSuper) DiskBlockSize(addr buf.Addr) bool {
+	return addr.Sz == NBITBLOCK
+}
