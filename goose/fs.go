@@ -30,19 +30,6 @@ type FsSuper struct {
 	Maxaddr      uint64
 }
 
-func MkFsSuper() *FsSuper {
-	sz := uint64(10 * 10000)
-	nblockbitmap := (sz / NBITBLOCK) + 1
-	disk.Init(disk.NewMemDisk(sz))
-	return &FsSuper{
-		Size:         sz,
-		nLog:         LOGSIZE,
-		NBlockBitmap: nblockbitmap,
-		NInodeBitmap: NINODEBITMAP,
-		nInodeBlk:    (NINODEBITMAP * NBITBLOCK * INODESZ) / disk.BlockSize,
-		Maxaddr:      sz}
-}
-
 func (fs *FsSuper) BitmapBlockStart() uint64 {
 	return fs.nLog
 }
@@ -63,9 +50,10 @@ func (fs *FsSuper) Block2addr(blkno uint64) Addr {
 	return MkAddr(blkno, 0, NBITBLOCK)
 }
 
-func (fs *FsSuper) NInode() Inum {
-	return Inum(fs.nInodeBlk * INODEBLK)
-}
+// XXX goose emits something nonsensical
+//func (fs *FsSuper) NInode() Inum {
+//	return Inum(fs.nInodeBlk * INODEBLK)
+//}
 
 func (fs *FsSuper) Inum2Addr(inum Inum) Addr {
 	return MkAddr(fs.InodeStart()+uint64(inum)/INODEBLK, (uint64(inum)%INODEBLK)*INODESZ*8, INODESZ*8)

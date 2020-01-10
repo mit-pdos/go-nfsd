@@ -102,6 +102,10 @@ func (buf *Buf) Load(blk disk.Block) {
 	xxcopy(buf.Blk, blk[byte:byte+sz])
 }
 
+func (buf *Buf) SetDirty() {
+	buf.dirty = true
+}
+
 func (buf *Buf) WriteDirect() {
 	buf.SetDirty()
 	if buf.Addr.Sz == disk.BlockSize {
@@ -111,8 +115,4 @@ func (buf *Buf) WriteDirect() {
 		buf.Install(blk)
 		disk.Write(buf.Addr.Blkno, blk)
 	}
-}
-
-func (buf *Buf) SetDirty() {
-	buf.dirty = true
 }
