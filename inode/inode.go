@@ -388,8 +388,7 @@ func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byt
 
 // Returns number of bytes written and error
 func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
-	count uint64,
-	dataBuf []byte) (uint64, bool) {
+	count uint64, dataBuf []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
 	var ok bool = true
@@ -397,7 +396,7 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 	var n = count
 	var data = dataBuf
 
-	util.DPrintf(10, "Write: off %d cnt %d\n", offset, count)
+	util.DPrintf(5, "Write: off %d cnt %d\n", offset, count)
 	if offset+count > MaxFileSize() {
 		return 0, false
 	}
@@ -426,8 +425,8 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 		cnt += nbytes
 	}
 	if alloc || cnt > 0 {
-		if off+cnt > ip.Size {
-			ip.Size = off + cnt
+		if offset+cnt > ip.Size {
+			ip.Size = offset + cnt
 		}
 		ip.WriteInode(op)
 	}

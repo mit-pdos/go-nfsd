@@ -43,11 +43,12 @@ Goose:
 goos: linux
 goarch: amd64
 pkg: github.com/mit-pdos/goose-nfsd
-BenchmarkSmall-8           16719             62692 ns/op
+BenchmarkSmall-8           19822             58381 ns/op
 PASS
-ok      github.com/mit-pdos/goose-nfsd  1.979s
+ok      github.com/mit-pdos/goose-nfsd  3.138s
 
 
 [goose-nfs (master)]$  ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
 2854 files per 1000161 usec
 [goose-nfs (master)]$ 
+
