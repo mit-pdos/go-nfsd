@@ -229,7 +229,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_EXIST, []*inode.Inode{dip})
 		return reply
 	}
-	inum := inode.AllocInode(op, nfstypes.NF3REG)
+	inum, ip := inode.AllocInode(op, nfstypes.NF3REG)
 	if inum == fs.NULLINUM {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, []*inode.Inode{dip})
 		return reply
@@ -240,7 +240,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, []*inode.Inode{dip})
 		return reply
 	}
-	commitReply(op, &reply.Status, []*inode.Inode{dip})
+	commitReply(op, &reply.Status, []*inode.Inode{dip, ip})
 	return reply
 }
 
@@ -265,12 +265,11 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_EXIST, []*inode.Inode{dip})
 		return reply
 	}
-	inum := inode.AllocInode(op, nfstypes.NF3DIR)
+	inum, ip := inode.AllocInode(op, nfstypes.NF3DIR)
 	if inum == fs.NULLINUM {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, []*inode.Inode{dip})
 		return reply
 	}
-	ip := inode.GetInodeLocked(op, inum)
 	ok := dir.InitDir(ip, op, dip.Inum)
 	if !ok {
 		ip.DecLink(op)

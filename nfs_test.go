@@ -208,7 +208,7 @@ func (ts *TestState) RenameFhs(fhfrom nfstypes.Nfs_fh3, from string, fhto nfstyp
 
 func (ts *TestState) RenameFail(from string, to string) {
 	status := ts.RenameOp(fh.MkRootFh3(), from, fh.MkRootFh3(), to)
-	assert.Equal(ts.t, status, nfstypes.NFS3ERR_NOTEMPTY)
+	assert.Equal(ts.t, nfstypes.NFS3ERR_NOTEMPTY, status)
 }
 
 func mkdata(sz uint64) []byte {
@@ -335,6 +335,7 @@ func TestOneDir(t *testing.T) {
 	fh3 := ts.Lookup("d3", true)
 	ts.GetattrDir(fh3)
 	ts.CreateFh(fh3, "f")
+	ts.LookupFh(fh3, "f")
 	ts.RenameFail("d2", "d3")
 
 	// Rmdir("d")

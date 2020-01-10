@@ -53,7 +53,6 @@ func ScanName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (fs.In
 func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum, name nfstypes.Filename3) (uint64, bool) {
 	var finalOff uint64 = 0
 
-	util.DPrintf(5, "AddNameDir: %v\n", name)
 	for off := uint64(0); off < dip.Size; off += DIRENTSZ {
 		data, _ := dip.Read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
@@ -64,6 +63,7 @@ func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum, name nfstypes.F
 	}
 	de := &dirEnt{inum: inum, name: string(name)}
 	ent := encodeDirEnt(de)
+	util.DPrintf(5, "AddNameDir: %v %v %v\n", name, de, ent)
 	n, _ := dip.Write(op, finalOff, DIRENTSZ, ent)
 	return finalOff, n == DIRENTSZ
 }
@@ -93,6 +93,7 @@ func IsDirEmpty(dip *inode.Inode, op *fstxn.FsTxn) bool {
 		empty = false
 		break
 	}
+	util.DPrintf(10, "IsDirEmpty: %v -> %v\n", dip, empty)
 	return empty
 }
 

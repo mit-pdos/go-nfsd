@@ -205,10 +205,11 @@ func allocInum(op *fstxn.FsTxn) fs.Inum {
 	return fs.Inum(n)
 }
 
-func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) fs.Inum {
+func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
+	var ip *Inode
 	inum := op.AllocINum()
 	if inum != 0 {
-		ip := GetInodeLocked(op, inum)
+		ip = GetInodeLocked(op, inum)
 		if ip.Kind == NF3FREE {
 			util.DPrintf(5, "allocInode: allocate inode %d\n", inum)
 			ip.Inum = inum
@@ -219,9 +220,8 @@ func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) fs.Inum {
 			panic("allocInode")
 		}
 		ip.WriteInode(op)
-		ip.Put(op)
 	}
-	return inum
+	return inum, ip
 }
 
 func (ip *Inode) freeInode(op *fstxn.FsTxn) {
