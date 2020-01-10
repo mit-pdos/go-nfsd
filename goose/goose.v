@@ -35,10 +35,6 @@ Module Addr.
   End fields.
 End Addr.
 
-Definition Addr__eq: val :=
-  λ: "a" "b",
-    struct.loadF Addr.S "Blkno" "a" = Addr.get "Blkno" "b" && struct.loadF Addr.S "Off" "a" = Addr.get "Off" "b" && struct.loadF Addr.S "Sz" "a" = Addr.get "Sz" "b".
-
 Definition MkAddr: val :=
   λ: "blkno" "off" "sz",
     struct.mk Addr.S [
