@@ -21,6 +21,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	WSIZE    uint64 = 16 * disk.BlockSize
+	FILESIZE uint64 = 50 * 1024 * 1024
+)
+
 var quiet = flag.Bool("quiet", false, "disable logging")
 
 func checkFlags() {
@@ -145,12 +150,17 @@ func (ts *TestState) Read(fh nfstypes.Nfs_fh3, off uint64, sz uint64) []byte {
 	return reply.Resok.Data
 }
 
-func (ts *TestState) Remove(name string) {
+func (ts *TestState) RemoveOp(name string) nfstypes.REMOVE3res {
 	what := nfstypes.Diropargs3{Dir: fh.MkRootFh3(), Name: nfstypes.Filename3(name)}
 	args := nfstypes.REMOVE3args{
 		Object: what,
 	}
 	reply := ts.nfs.NFSPROC3_REMOVE(args)
+	return reply
+}
+
+func (ts *TestState) Remove(name string) {
+	reply := ts.RemoveOp(name)
 	assert.Equal(ts.t, nfstypes.NFS3_OK, reply.Status)
 }
 
@@ -644,4 +654,26 @@ func BenchmarkSmall(b *testing.B) {
 			panic("BenchmarkSmall")
 		}
 	}
+}
+
+func BenchmarkLarge(b *testing.B) {
+	data := mkdata(WSIZE)
+	ts := &TestState{t: nil, nfs: MkNfs()}
+	for i := 0; i < b.N; i++ {
+		name := "x"
+		ts.CreateOp(fh.MkRootFh3(), name)
+		reply := ts.LookupOp(fh.MkRootFh3(), name)
+		fh := reply.Resok.Object
+		n := FILESIZE / WSIZE
+		for j := uint64(0); j < n; j++ {
+			ts.WriteOp(fh, j*WSIZE, data, nfstypes.UNSTABLE)
+		}
+		ts.CommitOp(fh, n*WSIZE)
+		attr := ts.GetattrOp(fh)
+		if uint64(attr.Resok.Obj_attributes.Size) != FILESIZE {
+			panic("large")
+		}
+		ts.RemoveOp("x")
+	}
+
 }
