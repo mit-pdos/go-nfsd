@@ -13,11 +13,13 @@ import (
 func errRet(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3,
 	inodes []*inode.Inode) {
 	*status = err
+	util.DPrintf(1, "errRet %v", err)
 	inode.Abort(op, inodes)
 }
 
 func commitReply(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, inodes []*inode.Inode) {
 	ok := inode.Commit(op, inodes)
+	util.DPrintf(1, "commitReply %v %v", ok, status)
 	if ok {
 		*status = nfstypes.NFS3_OK
 	} else {

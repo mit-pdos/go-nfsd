@@ -199,12 +199,6 @@ func (ip *Inode) WriteInode(op *fstxn.FsTxn) {
 	util.DPrintf(1, "WriteInode %v %v\n", ip, buf)
 }
 
-func allocInum(op *fstxn.FsTxn) fs.Inum {
-	n := op.AllocINum()
-	util.DPrintf(5, "alloc inode %v\n", n)
-	return fs.Inum(n)
-}
-
 func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
 	var ip *Inode
 	inum := op.AllocINum()
