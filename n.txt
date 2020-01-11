@@ -39,16 +39,15 @@ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
 
 Goose:
 
-[goose-nfs (master)]$ go test -v -bench Small -run=^$ 
+[goose-nfs (master)]$ go test -v -cpuprofile cpu.prof -memprofil
 goos: linux
 goarch: amd64
 pkg: github.com/mit-pdos/goose-nfsd
-BenchmarkSmall-8           19822             58381 ns/op
+BenchmarkSmall-8           26823             40653 ns/op
 PASS
-ok      github.com/mit-pdos/goose-nfsd  3.138s
+ok      github.com/mit-pdos/goose-nfsd  3.316s
 
 
-[goose-nfs (master)]$  ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
-2854 files per 1000161 usec
-[goose-nfs (master)]$ 
-
+[goose-nfs (master)]$  ~/hack/fscq-impl/bench/smallfile /mnt/nfs
+3068 files per 1000284 usec
+[goose-nfs (master)]$ ls /mnt/nfs
