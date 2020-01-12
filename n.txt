@@ -51,3 +51,17 @@ ok      github.com/mit-pdos/goose-nfsd  3.316s
 [goose-nfs (master)]$  ~/hack/fscq-impl/bench/smallfile /mnt/nfs
 3068 files per 1000284 usec
 [goose-nfs (master)]$ ls /mnt/nfs
+
+---
+
+Linux:
+
+
+
+Goose:
+
+[goose-nfs (master)]$ sudo mount -t nfs -o vers=3 localhost:/ /mnt/nfs
+[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
+makefile 50 MB 468844 usec throughput 109204.8 KB/s
+writefile 50 MB 308590 usec throughput 165915.9 KB/s
+[goose-nfs (master)]$ 

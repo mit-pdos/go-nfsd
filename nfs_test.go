@@ -126,13 +126,13 @@ func (ts *TestState) WriteOp(fh nfstypes.Nfs_fh3, off uint64, data []byte, how n
 
 func (ts *TestState) WriteOff(fh nfstypes.Nfs_fh3, off uint64, data []byte, how nfstypes.Stable_how) {
 	reply := ts.WriteOp(fh, off, data, how)
-	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
-	assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(len(data)))
+	assert.Equal(ts.t, nfstypes.NFS3_OK, reply.Status)
+	assert.Equal(ts.t, nfstypes.Count3(len(data)), reply.Resok.Count)
 }
 
 func (ts *TestState) WriteErr(fh nfstypes.Nfs_fh3, data []byte, how nfstypes.Stable_how, err nfstypes.Nfsstat3) {
 	reply := ts.WriteOp(fh, 0, data, how)
-	assert.Equal(ts.t, reply.Status, err)
+	assert.Equal(ts.t, err, reply.Status)
 }
 
 func (ts *TestState) Write(fh nfstypes.Nfs_fh3, data []byte, how nfstypes.Stable_how) {
@@ -145,8 +145,8 @@ func (ts *TestState) Read(fh nfstypes.Nfs_fh3, off uint64, sz uint64) []byte {
 		Offset: nfstypes.Offset3(off),
 		Count:  nfstypes.Count3(sz)}
 	reply := ts.nfs.NFSPROC3_READ(args)
-	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
-	assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(sz))
+	assert.Equal(ts.t, nfstypes.NFS3_OK, reply.Status)
+	assert.Equal(ts.t, nfstypes.Count3(sz), reply.Resok.Count)
 	return reply.Resok.Data
 }
 
@@ -427,7 +427,7 @@ func TestUnstable(t *testing.T) {
 	ts.readcheck(x, 0, data2)
 }
 
-func TestConcurWrite(t *testing.T) {
+func TestConcurWriteFiles(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 
@@ -455,6 +455,38 @@ func TestConcurWrite(t *testing.T) {
 		assert.Equal(t, N*SZ, uint64(len(buf)))
 		for _, v := range buf {
 			assert.Equal(t, byte(g), v)
+		}
+	}
+}
+
+func TestConcurWriteBlocks(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+	const SZ = 100
+	const N = 4
+
+	n := "x"
+	ts.Create(n)
+	fh := ts.Lookup(n, true)
+	var wg sync.WaitGroup
+	for t := 0; t < N; t++ {
+		wg.Add(1)
+		go func(fh nfstypes.Nfs_fh3, t uint64) {
+			for i := t; i < SZ*N; i += N {
+				data := mkdataval(byte(t), disk.BlockSize)
+				ts.WriteOff(fh, uint64(i)*disk.BlockSize, data,
+					nfstypes.UNSTABLE)
+			}
+			wg.Done()
+		}(fh, uint64(t))
+	}
+	ts.Commit(fh, 0)
+	wg.Wait()
+	for i := 0; i < SZ*N; i++ {
+		fh := ts.Lookup(n, true)
+		buf := ts.Read(fh, uint64(i)*disk.BlockSize, disk.BlockSize)
+		for _, v := range buf {
+			assert.Equal(t, v, byte(i%N))
 		}
 	}
 }
