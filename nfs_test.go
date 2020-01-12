@@ -629,7 +629,27 @@ func TestBigUnlink(t *testing.T) {
 	ts.Remove("x")
 }
 
-func BenchmarkSmall(b *testing.B) {
+func TestTooLargeFile(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+
+	ts.Create("x")
+	sz := uint64(4096)
+	x := ts.Lookup("x", true)
+	for i := uint64(0); ; i++ {
+		data := mkdataval(byte(i), sz)
+		reply := ts.WriteOp(x, i*sz, data, nfstypes.FILE_SYNC)
+		if reply.Status == nfstypes.NFS3_OK {
+			assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(len(data)))
+		} else {
+			assert.Equal(ts.t, reply.Status, nfstypes.NFS3ERR_NOSPC)
+			break
+		}
+	}
+	ts.Remove("x")
+}
+
+func BenchmarkSmallFile(b *testing.B) {
 	data := mkdata(uint64(100))
 	ts := &TestState{t: nil, nfs: MkNfs()}
 	for i := 0; i < b.N; i++ {
@@ -656,9 +676,10 @@ func BenchmarkSmall(b *testing.B) {
 	}
 }
 
-func BenchmarkLarge(b *testing.B) {
+func BenchmarkLargeFile(b *testing.B) {
 	data := mkdata(WSIZE)
 	ts := &TestState{t: nil, nfs: MkNfs()}
+	fmt.Printf("N=%v\n", b.N)
 	for i := 0; i < b.N; i++ {
 		name := "x"
 		ts.CreateOp(fh.MkRootFh3(), name)

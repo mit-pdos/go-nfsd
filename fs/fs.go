@@ -32,9 +32,13 @@ type FsSuper struct {
 	Maxaddr      uint64
 }
 
-func MkFsSuper() *FsSuper {
-	sz := uint64(10 * 10000)
+func MkFsSuper(sz uint64) *FsSuper {
 	nblockbitmap := (sz / NBITBLOCK) + 1
+	//filedisk, err := disk.NewFileDisk("/tmp/goose-nfsd.img", sz)
+	//if err != nil {
+	//	panic("MkFsSuper: couldn't create disk image")
+	//}
+	//disk.Init(filedisk)
 	disk.Init(disk.NewMemDisk(sz))
 	return &FsSuper{
 		Size:         sz,

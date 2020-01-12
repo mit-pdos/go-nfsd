@@ -288,6 +288,7 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root uint64, level uint64, off uint64,
 		buf.SetDirty()
 	}
 	if b >= op.Fs.Size {
+		util.DPrintf(0, "indbmap %v %v\n", b, op.Fs.Size)
 		panic("indbmap")
 	}
 	return b, newroot
