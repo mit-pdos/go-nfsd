@@ -56,7 +56,14 @@ ok      github.com/mit-pdos/goose-nfsd  3.316s
 
 Linux:
 
-
+[goose-nfs (master)]$ showmount -e
+Export list for fk6x1:
+/srv/nfs/bench localhost
+/srv/nfs       localhost
+[goose-nfs (master)]$ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
+[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile /mnt/nfs
+makefile 50 MB 40476 usec throughput 1264947.1 KB/s
+writefile 50 MB 30536 usec throughput 1676709.5 KB/s
 
 Goose:
 
