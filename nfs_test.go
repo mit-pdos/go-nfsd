@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	WSIZE    uint64 = 16 * disk.BlockSize
+	WSIZE    uint64 = disk.BlockSize
 	FILESIZE uint64 = 50 * 1024 * 1024
 )
 
