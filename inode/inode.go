@@ -197,7 +197,7 @@ func (ip *Inode) WriteInode(op *fstxn.FsTxn) {
 	}
 	d := ip.Encode()
 	op.OverWrite(op.Fs.Inum2Addr(ip.Inum), d)
-	util.DPrintf(1, "WriteInode %v %v\n", ip, d)
+	util.DPrintf(1, "WriteInode %v\n", ip)
 }
 
 func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
