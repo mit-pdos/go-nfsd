@@ -87,6 +87,13 @@ BenchmarkLargeFile-8           7         150782653 ns/op
 
 --- running on ext4 over image in tmpfs
 
+$ dd if=/dev/zero of=nfs3.img bs=4K count=100000
+$ mkfs -t ext4 nfs3.img
+$ sudo mount -t ext4 -o loop /tmp/nfs3.img /srv/nfs/bench
+$ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
+$ sudo chmod 777 /srv/nfs/bench
+
+
 ext4 with log-by-pass and delayed allocation
 
 [goose-nfs (master)]$  ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
