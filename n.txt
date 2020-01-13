@@ -29,6 +29,8 @@ log-by-pass writes
 
 == some performance
 
+--- small ---
+
 Linux:
 export /srv/nfs
 sudo mount --bind /tmp/nfs /srv/nfs/bench
@@ -52,7 +54,7 @@ ok      github.com/mit-pdos/goose-nfsd  3.316s
 3068 files per 1000284 usec
 [goose-nfs (master)]$ ls /mnt/nfs
 
----
+--- large ---
 
 Linux:
 
@@ -71,4 +73,14 @@ Goose:
 [goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
 makefile 50 MB 468844 usec throughput 109204.8 KB/s
 writefile 50 MB 308590 usec throughput 165915.9 KB/s
-[goose-nfs (master)]$ 
+[goose-nfs (master)]$
+
+[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
+makefile 50 MB 408314 usec throughput 125393.7 KB/s
+writefile 50 MB 238106 usec throughput 215030.3 KB/s
+
+[goose-nfs (master)]$ go test -v  -bench Large -run=^$ 
+goos: linux
+goarch: amd64
+pkg: github.com/mit-pdos/goose-nfsd
+BenchmarkLargeFile-8           7         150782653 ns/op

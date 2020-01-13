@@ -66,17 +66,15 @@ func makeFs(super *fs.FsSuper) {
 	// inum = 0 is reserved
 	nulli := inode.MkNullInode()
 	naddr := super.Inum2Addr(fs.NULLINUM)
-	nullblk := make(disk.Block, fs.INODESZ)
-	b := buf.MkBuf(naddr, nullblk)
-	nulli.Encode(b)
+	d := nulli.Encode()
+	b := buf.MkBuf(naddr, d)
 	b.WriteDirect()
 
 	root := inode.MkRootInode()
 	util.DPrintf(1, "root %v\n", root)
 	raddr := super.Inum2Addr(fs.ROOTINUM)
-	rootblk := make(disk.Block, fs.INODESZ)
+	rootblk := root.Encode()
 	rootbuf := buf.MkBuf(raddr, rootblk)
-	root.Encode(rootbuf)
 	rootbuf.WriteDirect()
 
 	markAlloc(super, super.DataStart(), super.Maxaddr)

@@ -85,8 +85,8 @@ func (op *FsTxn) ReadBuf(addr buf.Addr) *buf.Buf {
 }
 
 // assumes caller hold lock on addr
-func (op *FsTxn) LookupBuf(addr buf.Addr) *buf.Buf {
-	return op.buftxn.LookupBuf(addr)
+func (op *FsTxn) OverWrite(addr buf.Addr, data []byte) {
+	op.buftxn.OverWrite(addr, data)
 }
 
 func (op *FsTxn) LookupSlot(inum fs.Inum) *cache.Cslot {

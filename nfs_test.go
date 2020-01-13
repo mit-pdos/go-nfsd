@@ -711,7 +711,7 @@ func BenchmarkSmallFile(b *testing.B) {
 func BenchmarkLargeFile(b *testing.B) {
 	data := mkdata(WSIZE)
 	ts := &TestState{t: nil, nfs: MkNfs()}
-	fmt.Printf("N=%v\n", b.N)
+
 	for i := 0; i < b.N; i++ {
 		name := "x"
 		ts.CreateOp(fh.MkRootFh3(), name)

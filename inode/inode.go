@@ -88,13 +88,15 @@ func (ip *Inode) MkFattr() nfstypes.Fattr3 {
 	}
 }
 
-func (ip *Inode) Encode(buf *buf.Buf) {
-	enc := marshal.NewEnc(buf.Blk)
+func (ip *Inode) Encode() []byte {
+	d := make([]byte, fs.INODESZ)
+	enc := marshal.NewEnc(d)
 	enc.PutInt32(uint32(ip.Kind))
 	enc.PutInt32(ip.Nlink)
 	enc.PutInt(ip.Gen)
 	enc.PutInt(ip.Size)
 	enc.PutInts(ip.blks)
+	return d
 }
 
 func decode(buf *buf.Buf, inum fs.Inum) *Inode {
@@ -193,10 +195,9 @@ func (ip *Inode) WriteInode(op *fstxn.FsTxn) {
 	if ip.Inum >= op.Fs.NInode() {
 		panic("WriteInode")
 	}
-	buf := op.LookupBuf(op.Fs.Inum2Addr(ip.Inum))
-	ip.Encode(buf)
-	buf.SetDirty()
-	util.DPrintf(1, "WriteInode %v %v\n", ip, buf)
+	d := ip.Encode()
+	op.OverWrite(op.Fs.Inum2Addr(ip.Inum), d)
+	util.DPrintf(1, "WriteInode %v %v\n", ip, d)
 }
 
 func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
@@ -406,16 +407,22 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 		if new {
 			alloc = true
 		}
-		buf := op.ReadBlock(blkno)
 		byteoff := off % disk.BlockSize
 		var nbytes = disk.BlockSize - byteoff
 		if n < nbytes {
 			nbytes = n
 		}
-		for b := uint64(0); b < nbytes; b++ {
-			buf.Blk[byteoff+b] = data[b]
+		if byteoff == 0 && nbytes == disk.BlockSize { // block overwrite?
+			addr := op.Fs.Block2addr(blkno)
+			op.Acquire(addr)
+			op.OverWrite(addr, data[0:nbytes])
+		} else {
+			buffer := op.ReadBlock(blkno)
+			for b := uint64(0); b < nbytes; b++ {
+				buffer.Blk[byteoff+b] = data[b]
+			}
+			buffer.SetDirty()
 		}
-		buf.SetDirty()
 		n -= nbytes
 		data = data[nbytes:]
 		off += nbytes
