@@ -84,3 +84,14 @@ goos: linux
 goarch: amd64
 pkg: github.com/mit-pdos/goose-nfsd
 BenchmarkLargeFile-8           7         150782653 ns/op
+
+--- running on ext4 over image in tmpfs
+
+ext4 with log-by-pass and delayed allocation
+
+[goose-nfs (master)]$  ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
+4478 files per 1000176 usec
+
+[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile /mnt/nfs
+makefile 50 MB 98050 usec throughput 522182.6 KB/s
+writefile 50 MB 102683 usec throughput 498622.0 KB/s
