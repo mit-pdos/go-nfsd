@@ -379,7 +379,7 @@ func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byt
 		n += nbytes
 		off += nbytes
 	}
-	util.DPrintf(5, "Read: off %d cnt %d -> %v\n", offset, count, data)
+	util.DPrintf(10, "Read: off %d cnt %d -> %v\n", offset, count, data)
 	return data, false
 }
 
