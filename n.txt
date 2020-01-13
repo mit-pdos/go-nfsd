@@ -90,6 +90,7 @@ BenchmarkLargeFile-8           7         150782653 ns/op
 $ dd if=/dev/zero of=nfs3.img bs=4K count=100000
 $ mkfs -t ext4 nfs3.img
 $ sudo mount -t ext4 -o loop /tmp/nfs3.img /srv/nfs/bench
+$ sudo systemctl start nfs-server.service
 $ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
 $ sudo chmod 777 /srv/nfs/bench
 
@@ -102,3 +103,31 @@ ext4 with log-by-pass and delayed allocation
 [goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile /mnt/nfs
 makefile 50 MB 98050 usec throughput 522182.6 KB/s
 writefile 50 MB 102683 usec throughput 498622.0 KB/s
+
+--- running on ext3 over image in tmpfs
+
+[tmp]$ rm nfs3.img 
+[tmp]$ dd if=/dev/zero of=nfs3.img bs=4K count=100000
+[tmp]$ mkfs -t ext3 nfs3.img
+[tmp]$ sudo mount -t ext3 -o data=journal,sync -o loop /tmp/nfs3.img /srv/nfs/bench
+[tmp]$ sudo systemctl start nfs-server.service
+[tmp]$ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
+[tmp]$ sudo chmod 777 /srv/nfs/bench
+
+[bench (master)]$ ~/hack/fscq-impl/bench/largefile /mnt/nfs
+makefile 50 MB 295276 usec throughput 173397.1 KB/s
+writefile 50 MB 168222 usec throughput 304359.7 KB/s
+
+[bench (master)]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs
+4286 files per 1000016 usec
+[bench (master)]$
+
+--- running goose-nfsd over file disk image in tmpfs
+
+[tmp]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
+makefile 50 MB 484000 usec throughput 105785.1 KB/s
+writefile 50 MB 366641 usec throughput 139646.1 KB/s
+
+[tmp]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
+2776 files per 1000213 usec
+
