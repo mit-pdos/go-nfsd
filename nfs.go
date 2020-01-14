@@ -39,7 +39,7 @@ func MakeNfs(persistent bool) *Nfs {
 	var name *string
 	if persistent {
 		r := rand.Uint64()
-		n := "/tmp/goose" + strconv.FormatUint(r, 16) + ".img"
+		n := "/dev/shm/goose" + strconv.FormatUint(r, 16) + ".img"
 		name = &n
 	}
 	sz := uint64(100 * 1000)
