@@ -26,6 +26,20 @@ goosify
 
 log-by-pass writes
 
+simplify allocator
+  goal: avoid locking regions; no search for free object as part of txn
+    txn never issues reads to bitmaps (except at recovery time)
+    txn contains single-bit writes to freed or allocated blocks
+  in-memory allocator state: list of free object IDs (block#s, inode#s)
+    probably map[uint64]struct{}
+  invariant: in-memory allocator state (set of free object IDs) is a
+    subset of the on-disk allocator state (set of free bits in bitmap)
+  allocation returns one of the in-memory IDs, and marks it in-use
+  after allocating an object ID, add txn write to the allocated bitmap bit
+  if txn aborts, return allocated IDs to the in-memory allocator state
+  when freeing object, add txn write to the freed bitmap bit
+  after txn commits, put freed IDs into the in-memory allocator state
+  on recovery, populate in-memory allocator state from on-disk bitmap
 
 == some performance
 
