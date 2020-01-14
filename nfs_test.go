@@ -250,7 +250,6 @@ func newTest(t *testing.T) *TestState {
 
 func (ts *TestState) Close() {
 	ts.nfs.ShutdownNfsDestroy()
-	fmt.Printf("%s\n", ts.t.Name())
 }
 
 func TestRoot(t *testing.T) {
@@ -694,6 +693,8 @@ func TestRestart(t *testing.T) {
 func BenchmarkSmallFile(b *testing.B) {
 	data := mkdata(uint64(100))
 	ts := &TestState{t: nil, nfs: MkNfs()}
+	defer ts.Close()
+
 	for i := 0; i < b.N; i++ {
 		s := strconv.Itoa(i)
 		name := "x" + s
@@ -724,6 +725,7 @@ func BenchmarkLargeFile(b *testing.B) {
 
 	data := mkdata(WSIZE)
 	ts := &TestState{t: nil, nfs: MkNfs()}
+	defer ts.Close()
 
 	for i := 0; i < b.N; i++ {
 		name := "x"
