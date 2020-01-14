@@ -99,7 +99,7 @@ func (ip *Inode) Encode() []byte {
 	return d
 }
 
-func decode(buf *buf.Buf, inum fs.Inum) *Inode {
+func Decode(buf *buf.Buf, inum fs.Inum) *Inode {
 	ip := &Inode{
 		Inum:  0,
 		Kind:  0,
@@ -143,7 +143,7 @@ func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	}
 	if cslot.Obj == nil {
 		buf := op.ReadBuf(addr)
-		i := decode(buf, inum)
+		i := Decode(buf, inum)
 		cslot.Obj = i
 	}
 	i := cslot.Obj.(*Inode)

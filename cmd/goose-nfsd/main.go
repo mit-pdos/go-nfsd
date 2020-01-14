@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"os"
 
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
@@ -46,6 +47,12 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 }
 
 func main() {
+	if len(os.Args) < 2 {
+		fmt.Printf("Usage %s <filename>\n", os.Args[0])
+		return
+	}
+	name := os.Args[1]
+
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		panic(err)
@@ -66,7 +73,7 @@ func main() {
 	}
 	defer pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, false)
 
-	nfs := goose_nfs.MkNfs()
+	nfs := goose_nfs.MkNfsName(name)
 	defer nfs.ShutdownNfsDestroy()
 
 	srv := rfc1057.MakeServer()

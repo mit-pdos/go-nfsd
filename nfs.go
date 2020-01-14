@@ -22,43 +22,47 @@ const ICACHESZ uint64 = 20
 const BCACHESZ uint64 = 10 // XXX resurrect bcache
 
 type Nfs struct {
-	name     *string
+	Name     *string
 	fsstate  *fstxn.FsState
 	shrinker *inode.Shrinker
 }
 
 func MkNfsMem() *Nfs {
-	return MakeNfs(false)
+	return MakeNfs(nil)
+}
+
+func MkNfsName(name string) *Nfs {
+	return MakeNfs(&name)
 }
 
 func MkNfs() *Nfs {
-	return MakeNfs(true)
+	r := rand.Uint64()
+	n := "/dev/shm/goose" + strconv.FormatUint(r, 16) + ".img"
+	name := &n
+	return MakeNfs(name)
 }
 
-func MakeNfs(persistent bool) *Nfs {
-	var name *string
-	if persistent {
-		r := rand.Uint64()
-		n := "/dev/shm/goose" + strconv.FormatUint(r, 16) + ".img"
-		name = &n
-	}
+func MakeNfs(name *string) *Nfs {
 	sz := uint64(100 * 1000)
 	// run first so that disk is initialized before mkLog
 	super := fs.MkFsSuper(sz, name)
 	util.DPrintf(1, "Super: %v\n", super)
 
-	makeFs(super)
 	txn := txn.MkTxn(super)
 	icache := cache.MkCache(ICACHESZ)
 	balloc := alloc.MkAlloc(super.BitmapBlockStart(), super.NBlockBitmap)
 	ialloc := alloc.MkAlloc(super.BitmapInodeStart(), super.NInodeBitmap)
 	st := fstxn.MkFsState(super, txn, icache, balloc, ialloc)
 	nfs := &Nfs{
-		name:     name,
+		Name:     name,
 		fsstate:  st,
 		shrinker: inode.MkShrinker(st),
 	}
-	nfs.makeRootDir()
+	i := ReadRootInode(super)
+	if i.Kind == 0 {
+		makeFs(super)
+		nfs.makeRootDir()
+	}
 	return nfs
 }
 
@@ -68,7 +72,7 @@ func (nfs *Nfs) doShutdown(destroy bool) {
 	nfs.fsstate.Txn.Shutdown()
 
 	if destroy {
-		os.Remove(*nfs.name)
+		os.Remove(*nfs.Name)
 	}
 
 	util.DPrintf(1, "Shutdown done\n")
@@ -143,4 +147,13 @@ func markAlloc(super *fs.FsSuper, n uint64, m uint64) {
 	blk2[0] = blk2[0] | 1<<0
 	blk2[0] = blk2[0] | 1<<1
 	super.Disk.Write(super.BitmapInodeStart(), blk2)
+}
+
+// For boot up
+func ReadRootInode(super *fs.FsSuper) *inode.Inode {
+	addr := super.Inum2Addr(fs.ROOTINUM)
+	blk := super.Disk.Read(addr.Blkno)
+	buf := buf.MkBufLoad(addr, blk)
+	i := inode.Decode(buf, fs.ROOTINUM)
+	return i
 }

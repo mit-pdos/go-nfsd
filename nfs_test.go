@@ -270,6 +270,7 @@ func TestRoot(t *testing.T) {
 func TestReadDir(t *testing.T) {
 	checkFlags()
 	ts := newTest(t)
+	defer ts.Close()
 
 	dl3 := ts.ReadDirPlus()
 	ne3 := dl3.Entries
@@ -282,6 +283,8 @@ func TestReadDir(t *testing.T) {
 // Grow file with setattr before writing
 func TestOneFile(t *testing.T) {
 	ts := newTest(t)
+	defer ts.Close()
+
 	sz := uint64(8192)
 	ts.Create("x")
 	sz1 := ts.GetattrDir(fh.MkRootFh3())
@@ -674,6 +677,18 @@ func TestTooLargeFile(t *testing.T) {
 		}
 	}
 	ts.Remove("x")
+}
+
+func TestRestart(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+
+	ts.Create("x")
+	ts.nfs.ShutdownNfs()
+	ts.nfs = MakeNfs(ts.nfs.Name)
+	ts.Lookup("x", true)
+	ts.Create("y")
+	ts.Lookup("y", true)
 }
 
 func BenchmarkSmallFile(b *testing.B) {
