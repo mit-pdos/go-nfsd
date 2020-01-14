@@ -21,11 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	WSIZE    uint64 = disk.BlockSize
-	FILESIZE uint64 = 50 * 1024 * 1024
-)
-
 var quiet = flag.Bool("quiet", false, "disable logging")
 
 func checkFlags() {
@@ -254,7 +249,7 @@ func newTest(t *testing.T) *TestState {
 }
 
 func (ts *TestState) Close() {
-	ts.nfs.ShutdownNfs()
+	ts.nfs.ShutdownNfsDestroy()
 	fmt.Printf("%s\n", ts.t.Name())
 }
 
@@ -604,7 +599,7 @@ func TestConcurEvict(t *testing.T) {
 	ts.evict(names)
 }
 
-func TestLargeFile(t *testing.T) {
+func TestWriteLargeFile(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 	const N = 522
@@ -709,6 +704,9 @@ func BenchmarkSmallFile(b *testing.B) {
 }
 
 func BenchmarkLargeFile(b *testing.B) {
+	const FILESIZE uint64 = 50 * 1024 * 1024
+	const WSIZE uint64 = disk.BlockSize
+
 	data := mkdata(WSIZE)
 	ts := &TestState{t: nil, nfs: MkNfs()}
 

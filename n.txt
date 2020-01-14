@@ -131,3 +131,12 @@ writefile 50 MB 366641 usec throughput 139646.1 KB/s
 [tmp]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
 2776 files per 1000213 usec
 
+with eager logging (i.e., broadcast logger at end of memWrite)
+
+[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
+makefile 50 MB 492391 usec throughput 103982.4 KB/s
+writefile 50 MB 546629 usec throughput 93665.0 KB/s
+
+[goose-nfs (master)]$ sudo mount -t nfs -o vers=3 localhost:/ /mnt/nfs
+[goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
+2721 files per 1000128 usec

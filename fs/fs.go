@@ -4,6 +4,7 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/buf"
+	"github.com/mit-pdos/goose-nfsd/util"
 )
 
 const (
@@ -24,6 +25,7 @@ const NULLINUM Inum = 0
 const ROOTINUM Inum = 1
 
 type FsSuper struct {
+	Disk         disk.Disk
 	Size         uint64
 	nLog         uint64 // including commit block
 	NBlockBitmap uint64
@@ -32,15 +34,23 @@ type FsSuper struct {
 	Maxaddr      uint64
 }
 
-func MkFsSuper(sz uint64) *FsSuper {
+func MkFsSuper(sz uint64, name *string) *FsSuper {
 	nblockbitmap := (sz / NBITBLOCK) + 1
-	//filedisk, err := disk.NewFileDisk("/tmp/goose-nfsd.img", sz)
-	//if err != nil {
-	//	panic("MkFsSuper: couldn't create disk image")
-	//}
-	//disk.Init(filedisk)
-	disk.Init(disk.NewMemDisk(sz))
+	var d disk.Disk
+	if name != nil {
+		util.DPrintf(0, "MkFsSuper: create file disk %s\n", *name)
+		file, err := disk.NewFileDisk(*name, sz)
+		if err != nil {
+			panic("MkFsSuper: couldn't create disk image")
+		}
+		d = file
+	} else {
+		util.DPrintf(0, "MkFsSuper: create mem disk\n")
+		d = disk.NewMemDisk(sz)
+	}
+
 	return &FsSuper{
+		Disk:         d,
 		Size:         sz,
 		nLog:         LOGSIZE,
 		NBlockBitmap: nblockbitmap,

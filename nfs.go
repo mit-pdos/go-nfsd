@@ -12,19 +12,39 @@ import (
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
+
+	"math/rand"
+	"os"
+	"strconv"
 )
 
 const ICACHESZ uint64 = 20
 const BCACHESZ uint64 = 10 // XXX resurrect bcache
 
 type Nfs struct {
+	name     *string
 	fsstate  *fstxn.FsState
 	shrinker *inode.Shrinker
 }
 
+func MkNfsMem() *Nfs {
+	return MakeNfs(false)
+}
+
 func MkNfs() *Nfs {
+	return MakeNfs(true)
+}
+
+func MakeNfs(persistent bool) *Nfs {
+	var name *string
+	if persistent {
+		r := rand.Uint64()
+		n := "/tmp/goose" + strconv.FormatUint(r, 16) + ".img"
+		name = &n
+	}
 	sz := uint64(100 * 1000)
-	super := fs.MkFsSuper(sz) // run first so that disk is initialized before mkLog
+	// run first so that disk is initialized before mkLog
+	super := fs.MkFsSuper(sz, name)
 	util.DPrintf(1, "Super: %v\n", super)
 
 	makeFs(super)
@@ -34,6 +54,7 @@ func MkNfs() *Nfs {
 	ialloc := alloc.MkAlloc(super.BitmapInodeStart(), super.NInodeBitmap)
 	st := fstxn.MkFsState(super, txn, icache, balloc, ialloc)
 	nfs := &Nfs{
+		name:     name,
 		fsstate:  st,
 		shrinker: inode.MkShrinker(st),
 	}
@@ -41,11 +62,24 @@ func MkNfs() *Nfs {
 	return nfs
 }
 
-func (nfs *Nfs) ShutdownNfs() {
-	util.DPrintf(1, "Shutdown\n")
+func (nfs *Nfs) doShutdown(destroy bool) {
+	util.DPrintf(1, "Shutdown %v\n", destroy)
 	nfs.shrinker.Shutdown()
 	nfs.fsstate.Txn.Shutdown()
+
+	if destroy {
+		os.Remove(*nfs.name)
+	}
+
 	util.DPrintf(1, "Shutdown done\n")
+}
+
+func (nfs *Nfs) ShutdownNfsDestroy() {
+	nfs.doShutdown(true)
+}
+
+func (nfs *Nfs) ShutdownNfs() {
+	nfs.doShutdown(false)
 }
 
 func (nfs *Nfs) makeRootDir() {
@@ -68,14 +102,14 @@ func makeFs(super *fs.FsSuper) {
 	naddr := super.Inum2Addr(fs.NULLINUM)
 	d := nulli.Encode()
 	b := buf.MkBuf(naddr, d)
-	b.WriteDirect()
+	b.WriteDirect(super.Disk)
 
 	root := inode.MkRootInode()
 	util.DPrintf(1, "root %v\n", root)
 	raddr := super.Inum2Addr(fs.ROOTINUM)
 	rootblk := root.Encode()
 	rootbuf := buf.MkBuf(raddr, rootblk)
-	rootbuf.WriteDirect()
+	rootbuf.WriteDirect(super.Disk)
 
 	markAlloc(super, super.DataStart(), super.Maxaddr)
 }
@@ -93,7 +127,7 @@ func markAlloc(super *fs.FsSuper, n uint64, m uint64) {
 		bit := bn % 8
 		blk[byte] = blk[byte] | 1<<bit
 	}
-	disk.Write(super.BitmapBlockStart(), blk)
+	super.Disk.Write(super.BitmapBlockStart(), blk)
 
 	blk1 := make(disk.Block, disk.BlockSize)
 	blkno := m/alloc.NBITBLOCK + super.BitmapBlockStart()
@@ -102,11 +136,11 @@ func markAlloc(super *fs.FsSuper, n uint64, m uint64) {
 		bit := bn % 8
 		blk1[byte] = blk1[byte] | 1<<bit
 	}
-	disk.Write(blkno, blk1)
+	super.Disk.Write(blkno, blk1)
 
 	// mark inode 0 and 1 as allocated
 	blk2 := make(disk.Block, disk.BlockSize)
 	blk2[0] = blk2[0] | 1<<0
 	blk2[0] = blk2[0] | 1<<1
-	disk.Write(super.BitmapInodeStart(), blk2)
+	super.Disk.Write(super.BitmapInodeStart(), blk2)
 }
