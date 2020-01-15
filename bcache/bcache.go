@@ -38,13 +38,18 @@ func (bc *Bcache) Read(bn uint64) disk.Block {
 	copy(blk, b)
 	cslot.Unlock()
 	bc.bcache.FreeSlot(bn)
-	return b
+	return blk
 }
 
 func (bc *Bcache) Write(bn uint64, b disk.Block) {
+	if b == nil {
+		panic("Write")
+	}
 	cslot := bc.bcache.LookupSlot(bn)
 	if cslot != nil {
+		cslot.Lock()
 		cslot.Obj = b
+		cslot.Unlock()
 		bc.bcache.FreeSlot(bn)
 	}
 	bc.d.Write(bn, b)
