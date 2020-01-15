@@ -97,6 +97,6 @@ func shrink(inum fs.Inum, oldsz uint64) {
 	util.DPrintf(1, "Shrinker: done shrinking %d to bn %d\n", inum, bn)
 	shrinker.mu.Lock()
 	shrinker.nthread = shrinker.nthread - 1
-	shrinker.mu.Unlock()
 	shrinker.condShut.Signal()
+	shrinker.mu.Unlock()
 }
