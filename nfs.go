@@ -19,7 +19,6 @@ import (
 )
 
 const ICACHESZ uint64 = 20
-const BCACHESZ uint64 = 10 // XXX resurrect bcache
 
 type Nfs struct {
 	Name     *string

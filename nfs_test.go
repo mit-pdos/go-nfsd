@@ -10,12 +10,12 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/bcache"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -562,7 +562,7 @@ func TestFileHole(t *testing.T) {
 }
 
 func (ts *TestState) evict(names []string) {
-	const N uint64 = BCACHESZ * uint64(10)
+	const N uint64 = bcache.BCACHESZ * uint64(10)
 	var wg sync.WaitGroup
 	for _, n := range names {
 		wg.Add(1)

@@ -20,11 +20,11 @@ type Cslot struct {
 	Obj interface{}
 }
 
-func (slot *Cslot) lock() {
+func (slot *Cslot) Lock() {
 	slot.mu.Lock()
 }
 
-func (slot *Cslot) unlock() {
+func (slot *Cslot) Unlock() {
 	slot.mu.Unlock()
 }
 
@@ -52,25 +52,26 @@ func MkCache(sz uint64) *Cache {
 
 func (c *Cache) PrintCache() {
 	for k, v := range c.entries {
-		util.DPrintf(0, "Entry %v: %v\n", k, v)
+		util.DPrintf(0, "Entry %v %v\n", k, v.ref)
 	}
 }
 
-func (c *Cache) evict() uint64 {
-	var addr uint64 = 0
+func (c *Cache) evict() bool {
 	var done = false
+	var addr uint64 = 0
 	for a, entry := range c.entries {
 		if !done && entry.ref == 0 {
-			addr = a
 			done = true
+			addr = a
+			break
 		}
 	}
-	if addr != 0 {
-		util.DPrintf(5, "evict: %d\n", addr)
+	if !done {
+		util.DPrintf(0, "evict: %d\n", addr)
 		delete(c.entries, addr)
 		c.cnt = c.cnt - 1
 	}
-	return addr
+	return done
 }
 
 // Lookup the cache slot for id.  Create the slot if id isn't in the
@@ -85,7 +86,7 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 		return &e.slot
 	}
 	if c.cnt >= c.sz {
-		if c.evict() == 0 {
+		if !c.evict() {
 			// failed to find victim. caller is
 			// responsible for creating space.
 			c.PrintCache()

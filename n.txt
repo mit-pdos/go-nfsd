@@ -103,7 +103,7 @@ BenchmarkLargeFile-8           7         150782653 ns/op
 
 $ dd if=/dev/zero of=nfs3.img bs=4K count=100000
 $ mkfs -t ext4 nfs3.img
-$ sudo mount -t ext4 -o loop /tmp/nfs3.img /srv/nfs/bench
+$ sudo mount -t ext4 -o loop /tmp/nfs3.img /srv/nfs/benchb
 $ sudo systemctl start nfs-server.service
 $ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
 $ sudo chmod 777 /srv/nfs/bench
