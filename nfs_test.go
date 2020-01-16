@@ -10,13 +10,14 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
+	"testing"
+
 	"github.com/mit-pdos/goose-nfsd/bcache"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
 )

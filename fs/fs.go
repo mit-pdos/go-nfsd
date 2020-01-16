@@ -38,14 +38,14 @@ func MkFsSuper(sz uint64, name *string) *FsSuper {
 	nblockbitmap := (sz / NBITBLOCK) + 1
 	var d disk.Disk
 	if name != nil {
-		util.DPrintf(0, "MkFsSuper: open file disk %s\n", *name)
+		util.DPrintf(1, "MkFsSuper: open file disk %s\n", *name)
 		file, err := disk.NewFileDisk(*name, sz)
 		if err != nil {
 			panic("MkFsSuper: couldn't create disk image")
 		}
 		d = file
 	} else {
-		util.DPrintf(0, "MkFsSuper: create mem disk\n")
+		util.DPrintf(1, "MkFsSuper: create mem disk\n")
 		d = disk.NewMemDisk(sz)
 	}
 
