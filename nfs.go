@@ -1,6 +1,8 @@
 package goose_nfs
 
 import (
+	"path/filepath"
+
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/alloc"
@@ -36,7 +38,12 @@ func MkNfsName(name string) *Nfs {
 
 func MkNfs() *Nfs {
 	r := rand.Uint64()
-	n := "/dev/shm/goose" + strconv.FormatUint(r, 16) + ".img"
+	tmpdir := "/dev/shm"
+	f, err := os.Stat(tmpdir)
+	if !(err == nil && f.IsDir()) {
+		tmpdir = os.TempDir()
+	}
+	n := filepath.Join(tmpdir, "goose"+strconv.FormatUint(r, 16)+".img")
 	name := &n
 	return MakeNfs(name)
 }
