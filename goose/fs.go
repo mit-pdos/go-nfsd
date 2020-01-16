@@ -46,15 +46,7 @@ func (fs *FsSuper) DataStart() uint64 {
 	return fs.InodeStart() + fs.nInodeBlk
 }
 
-func (fs *FsSuper) Block2addr(blkno uint64) Addr {
-	return MkAddr(blkno, 0, NBITBLOCK)
-}
-
 // XXX goose emits something nonsensical
 //func (fs *FsSuper) NInode() Inum {
 //	return Inum(fs.nInodeBlk * INODEBLK)
 //}
-
-func (fs *FsSuper) Inum2Addr(inum Inum) Addr {
-	return MkAddr(fs.InodeStart()+uint64(inum)/INODEBLK, (uint64(inum)%INODEBLK)*INODESZ*8, INODESZ*8)
-}

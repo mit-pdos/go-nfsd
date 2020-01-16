@@ -28,145 +28,6 @@ Definition xxcopy: val :=
       SliceSet "dst" !"i" (SliceGet "src" !"i");;
       Continue).
 
-(* addr.go *)
-
-Module Addr.
-  (* Address of disk object and its size *)
-  Definition S := struct.decl [
-    "Blkno" :: uint64T;
-    "Off" :: uint64T;
-    "Sz" :: uint64T
-  ].
-  Definition T: ty := struct.t S.
-  Definition Ptr: ty := struct.ptrT S.
-  Section fields.
-    Context `{ext_ty: ext_types}.
-    Definition get := struct.get S.
-  End fields.
-End Addr.
-
-Definition MkAddr: val :=
-  λ: "blkno" "off" "sz",
-    struct.mk Addr.S [
-      "Blkno" ::= "blkno";
-      "Off" ::= "off";
-      "Sz" ::= "sz"
-    ].
-
-(* buf.go *)
-
-Module Buf.
-  (* A buf holds the disk object (inode, bitmap block, etc.) at Addr. *)
-  Definition S := struct.decl [
-    "Addr" :: Addr.T;
-    "Blk" :: disk.blockT;
-    "dirty" :: boolT
-  ].
-  Definition T: ty := struct.t S.
-  Definition Ptr: ty := struct.ptrT S.
-  Section fields.
-    Context `{ext_ty: ext_types}.
-    Definition get := struct.get S.
-  End fields.
-End Buf.
-
-Definition MkBuf: val :=
-  λ: "addr" "blk",
-    let: "b" := struct.new Buf.S [
-      "Addr" ::= "addr";
-      "Blk" ::= "blk";
-      "dirty" ::= #false
-    ] in
-    "b".
-
-Definition MkBufData: val :=
-  λ: "addr",
-    let: "data" := NewSlice byteT (Addr.get "Sz" "addr") in
-    let: "buf" := MkBuf "addr" "data" in
-    "buf".
-
-Definition Buf__String: val :=
-  λ: "buf",
-    #(str"").
-
-Definition installBits: val :=
-  λ: "src" "dst" "bit" "nbit",
-    let: "new" := ref "dst" in
-    let: "i" := ref "bit" in
-    (for: (!"i" < "bit" + "nbit"); ("i" <- !"i" + #1) :=
-      (if: "src" && #(U8 1) ≪ !"i" = "dst" && #(U8 1) ≪ !"i"
-      then Continue
-      else
-        (if: "src" && #(U8 1) ≪ !"i" = #(U8 0)
-        then "new" <- !"new" && ~ (#(U8 1) ≪ "bit")
-        else "new" <- !"new" ∥ #(U8 1) ≪ "bit"));;
-      Continue);;
-    !"new".
-
-(* copy nbits from src to dst, at dstoff in destination. dstoff is in bits. *)
-Definition copyBits: val :=
-  λ: "src" "dst" "dstoff" "nbit",
-    let: "n" := ref "nbit" in
-    let: "off" := ref #0 in
-    let: "dstbyte" := ref ("dstoff" `quot` #8) in
-    (if: "dstoff" `rem` #8 ≠ #0
-    then
-      let: "bit" := "dstoff" `rem` #8 in
-      let: "nbit" := Min (#8 - "bit") !"n" in
-      let: "srcbyte" := SliceGet "src" #0 in
-      let: "dstbyte2" := SliceGet "dst" !"dstbyte" in
-      SliceSet "dst" "dstbyte2" (installBits "srcbyte" "dstbyte2" "bit" "nbit");;
-      "off" <- !"off" + #8;;
-      "dstbyte" <- !"dstbyte" + #1;;
-      "n" <- !"n" - "nbit";;
-      #()
-    else #());;
-    let: "sz" := !"n" `quot` #8 in
-    let: "i" := ref !"off" in
-    (for: (!"i" < !"off" + "sz"); ("i" <- !"i" + #1) :=
-      SliceSet "dst" (!"i" + !"dstbyte") (SliceGet "src" !"i");;
-      Continue);;
-    "n" <- !"n" - "sz" * #8;;
-    "off" <- !"off" + "sz" * #8;;
-    (if: !"n" > #0
-    then
-      let: "lastbyte" := !"off" `quot` #8 in
-      let: "srcbyte" := SliceGet "src" "lastbyte" in
-      let: "dstbyte" := SliceGet "dst" ("lastbyte" + !"dstbyte") in
-      SliceSet "dst" "lastbyte" (installBits "srcbyte" "dstbyte" #0 !"n")
-    else #()).
-
-(* Install the bits from buf into blk, if buf has been modified *)
-Definition Buf__Install: val :=
-  λ: "buf" "blk",
-    (if: struct.loadF Buf.S "dirty" "buf"
-    then
-      copyBits (struct.loadF Buf.S "Blk" "buf") "blk" (Addr.get "Off" (struct.loadF Buf.S "Addr" "buf")) (Addr.get "Sz" (struct.loadF Buf.S "Addr" "buf"));;
-      #()
-    else #());;
-    struct.loadF Buf.S "dirty" "buf".
-
-(* Load the bits of a disk block into buf, as specified by addr *)
-Definition Buf__Load: val :=
-  λ: "buf" "blk",
-    let: "byte" := Addr.get "Off" (struct.loadF Buf.S "Addr" "buf") `quot` #8 in
-    let: "sz" := RoundUp (Addr.get "Sz" (struct.loadF Buf.S "Addr" "buf")) #8 in
-    xxcopy (struct.loadF Buf.S "Blk" "buf") (SliceSubslice "blk" "byte" ("byte" + "sz")).
-
-Definition Buf__SetDirty: val :=
-  λ: "buf",
-    struct.storeF Buf.S "dirty" "buf" #true.
-
-Definition Buf__WriteDirect: val :=
-  λ: "buf",
-    Buf__SetDirty "buf";;
-    (if: Addr.get "Sz" (struct.loadF Buf.S "Addr" "buf") = disk.BlockSize
-    then disk.Write (Addr.get "Blkno" (struct.loadF Buf.S "Addr" "buf")) (struct.loadF Buf.S "Blk" "buf")
-    else
-      let: "blk" := disk.Read (Addr.get "Blkno" (struct.loadF Buf.S "Addr" "buf")) in
-      Buf__Install "buf" "blk";;
-      disk.Write (Addr.get "Blkno" (struct.loadF Buf.S "Addr" "buf")) "blk").
-
 (* enc_dec.go *)
 
 Module enc.
@@ -312,14 +173,6 @@ Definition FsSuper__DataStart: val :=
   λ: "fs",
     FsSuper__InodeStart "fs" + struct.loadF FsSuper.S "nInodeBlk" "fs".
 
-Definition FsSuper__Block2addr: val :=
-  λ: "fs" "blkno",
-    MkAddr "blkno" #0 NBITBLOCK.
-
-Definition FsSuper__Inum2Addr: val :=
-  λ: "fs" "inum",
-    MkAddr (FsSuper__InodeStart "fs" + "inum" `quot` INODEBLK) ("inum" `rem` INODEBLK * INODESZ * #8) (INODESZ * #8).
-
 (* wal.go *)
 
 Definition LOGHDR : expr := #0.
@@ -328,12 +181,25 @@ Definition LOGHDR2 : expr := #1.
 
 Definition LOGSTART : expr := #2.
 
+Module BlockData.
+  Definition S := struct.decl [
+    "Blocknum" :: uint64T;
+    "Data" :: disk.blockT
+  ].
+  Definition T: ty := struct.t S.
+  Definition Ptr: ty := struct.ptrT S.
+  Section fields.
+    Context `{ext_ty: ext_types}.
+    Definition get := struct.get S.
+  End fields.
+End BlockData.
+
 Module Walog.
   Definition S := struct.decl [
     "memLock" :: lockRefT;
     "condLogger" :: condvarRefT;
     "condInstall" :: condvarRefT;
-    "memLog" :: slice.T Buf.T;
+    "memLog" :: slice.T BlockData.T;
     "memStart" :: uint64T;
     "diskEnd" :: uint64T;
     "shutdown" :: boolT
@@ -433,8 +299,8 @@ Definition Walog__installBlocks: val :=
     let: "n" := slice.len "bufs" in
     let: "i" := ref #0 in
     (for: (!"i" < "n"); ("i" <- !"i" + #1) :=
-      let: "blkno" := Addr.get "Blkno" (Buf.get "Addr" (SliceGet "bufs" !"i")) in
-      let: "blk" := Buf.get "Blk" (SliceGet "bufs" !"i") in
+      let: "blkno" := BlockData.get "Blocknum" (SliceGet "bufs" !"i") in
+      let: "blk" := BlockData.get "Data" (SliceGet "bufs" !"i") in
       disk.Write "blkno" "blk";;
       Continue).
 
@@ -481,7 +347,7 @@ Definition Walog__logBlocks: val :=
     let: "pos" := ref "diskend" in
     (for: (!"pos" < "memend"); ("pos" <- !"pos" + #1) :=
       let: "buf" := SliceGet "bufs" (!"pos" - "diskend") in
-      let: "blk" := Buf.get "Blk" "buf" in
+      let: "blk" := BlockData.get "Data" "buf" in
       disk.Write (LOGSTART + !"pos" `rem` Walog__LogSz "l") "blk";;
       Continue).
 
@@ -502,7 +368,7 @@ Definition Walog__logAppend: val :=
       let: "i" := ref #0 in
       (for: (!"i" < slice.len "memlog"); ("i" <- !"i" + #1) :=
         let: "pos" := "memstart" + !"i" in
-        SliceSet "addrs" ("pos" `rem` Walog__LogSz "l") (Addr.get "Blkno" (Buf.get "Addr" (SliceGet "memlog" !"i")));;
+        SliceSet "addrs" ("pos" `rem` Walog__LogSz "l") (BlockData.get "Blocknum" (SliceGet "memlog" !"i"));;
         Continue);;
       let: "newh" := struct.new hdr.S [
         "end" ::= "memend";
@@ -531,9 +397,11 @@ Definition Walog__recover: val :=
     (for: (!"pos" < struct.loadF hdr.S "end" "h"); ("pos" <- !"pos" + #1) :=
       let: "addr" := SliceGet (struct.loadF hdr.S "addrs" "h") (!"pos" `rem` Walog__LogSz "l") in
       let: "blk" := disk.Read (LOGSTART + !"pos" `rem` Walog__LogSz "l") in
-      let: "a" := MkAddr "addr" #0 NBITBLOCK in
-      let: "b" := MkBuf "a" "blk" in
-      struct.storeF Walog.S "memLog" "l" (SliceAppend (struct.loadF Walog.S "memLog" "l") (struct.load Buf.S "b"));;
+      let: "b" := struct.mk BlockData.S [
+        "Blocknum" ::= "addr";
+        "Data" ::= "blk"
+      ] in
+      struct.storeF Walog.S "memLog" "l" (SliceAppend (struct.loadF Walog.S "memLog" "l") "b");;
       Continue).
 
 Definition MkLog: val :=
@@ -543,7 +411,7 @@ Definition MkLog: val :=
       "memLock" ::= "ml";
       "condLogger" ::= lock.newCond "ml";
       "condInstall" ::= lock.newCond "ml";
-      "memLog" ::= NewSlice Buf.T #0;
+      "memLog" ::= NewSlice BlockData.T #0;
       "memStart" ::= #0;
       "diskEnd" ::= #0;
       "shutdown" ::= #false
@@ -555,8 +423,7 @@ Definition MkLog: val :=
 
 Definition Walog__memWrite: val :=
   λ: "l" "bufs",
-    ForSlice <> "buf" "bufs"
-      (struct.storeF Walog.S "memLog" "l" (SliceAppend (struct.loadF Walog.S "memLog" "l") (struct.load Buf.S "buf"))).
+    struct.storeF Walog.S "memLog" "l" (SliceAppendSlice (struct.loadF Walog.S "memLog" "l") "bufs").
 
 (* Assumes caller holds memLock
    XXX absorp *)
@@ -577,10 +444,10 @@ Definition Walog__Read: val :=
       let: "i" := ref (slice.len (struct.loadF Walog.S "memLog" "l") - #1) in
       (for: (#true); ("i" <- !"i" - #1) :=
         let: "buf" := SliceGet (struct.loadF Walog.S "memLog" "l") !"i" in
-        (if: Addr.get "Blkno" (Buf.get "Addr" "buf") = "blkno"
+        (if: BlockData.get "Blocknum" "buf" = "blkno"
         then
           "blk" <- NewSlice byteT disk.BlockSize;;
-          xxcopy !"blk" (Buf.get "Blk" "buf");;
+          xxcopy !"blk" (BlockData.get "Data" "buf");;
           Break
         else
           (if: !"i" = #0
