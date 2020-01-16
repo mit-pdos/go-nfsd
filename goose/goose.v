@@ -331,6 +331,8 @@ Definition LOGSTART : expr := #2.
 Module Walog.
   Definition S := struct.decl [
     "memLock" :: lockRefT;
+    "condLogger" :: condvarRefT;
+    "condInstall" :: condvarRefT;
     "memLog" :: slice.T Buf.T;
     "memStart" :: uint64T;
     "diskEnd" :: uint64T;
@@ -539,6 +541,8 @@ Definition MkLog: val :=
     let: "ml" := lock.new #() in
     let: "l" := struct.new Walog.S [
       "memLock" ::= "ml";
+      "condLogger" ::= lock.newCond "ml";
+      "condInstall" ::= lock.newCond "ml";
       "memLog" ::= NewSlice Buf.T #0;
       "memStart" ::= #0;
       "diskEnd" ::= #0;

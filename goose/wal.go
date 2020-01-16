@@ -14,8 +14,8 @@ const LOGSTART = uint64(2)
 type Walog struct {
 	memLock *sync.Mutex
 
-	// condLogger  *sync.Cond
-	// condInstall *sync.Cond
+	condLogger  *sync.Cond
+	condInstall *sync.Cond
 
 	memLog   []Buf // in-memory log starting with memStart
 	memStart uint64
@@ -212,13 +212,13 @@ func (l *Walog) recover() {
 func MkLog() *Walog {
 	ml := new(sync.Mutex)
 	l := &Walog{
-		memLock: ml,
-		// condLogger:  sync.NewCond(ml),
-		// condInstall: sync.NewCond(ml),
-		memLog:   make([]Buf, 0),
-		memStart: 0,
-		diskEnd:  0,
-		shutdown: false,
+		memLock:     ml,
+		condLogger:  sync.NewCond(ml),
+		condInstall: sync.NewCond(ml),
+		memLog:      make([]Buf, 0),
+		memStart:    0,
+		diskEnd:     0,
+		shutdown:    false,
 	}
 
 	l.recover()
