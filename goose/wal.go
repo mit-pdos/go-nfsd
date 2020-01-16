@@ -89,7 +89,6 @@ func (l *Walog) readHdr2() *hdr2 {
 	return h
 }
 
-
 //
 // Installer blocks from the on-disk log to their home location.
 //
@@ -213,13 +212,13 @@ func (l *Walog) recover() {
 func MkLog() *Walog {
 	ml := new(sync.Mutex)
 	l := &Walog{
-		memLock:     ml,
+		memLock: ml,
 		// condLogger:  sync.NewCond(ml),
 		// condInstall: sync.NewCond(ml),
-		memLog:      make([]Buf, 0),
-		memStart:    0,
-		diskEnd:     0,
-		shutdown:    false,
+		memLog:   make([]Buf, 0),
+		memStart: 0,
+		diskEnd:  0,
+		shutdown: false,
 	}
 
 	l.recover()

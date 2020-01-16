@@ -2,7 +2,6 @@ package wal
 
 import (
 	"github.com/tchajed/goose/machine/disk"
-
 	// "fmt"
 )
 
