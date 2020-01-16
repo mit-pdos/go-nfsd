@@ -664,7 +664,7 @@ func TestTooLargeFile(t *testing.T) {
 	defer ts.Close()
 
 	ts.Create("x")
-	sz := uint64(4096)
+	sz := uint64(4096 * 50)
 	x := ts.Lookup("x", true)
 	for i := uint64(0); ; i++ {
 		data := mkdataval(byte(i), sz)
