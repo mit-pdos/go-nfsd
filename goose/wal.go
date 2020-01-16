@@ -13,7 +13,7 @@ const LOGSTART = uint64(2)
 
 type BlockData struct {
 	Blocknum uint64
-	Data disk.Block
+	Data     disk.Block
 }
 
 type Walog struct {
@@ -210,7 +210,7 @@ func (l *Walog) recover() {
 		blk := disk.Read(LOGSTART + (uint64(pos) % l.LogSz()))
 		b := BlockData{
 			Blocknum: addr,
-			Data: blk,
+			Data:     blk,
 		}
 		l.memLog = append(l.memLog, b)
 	}
