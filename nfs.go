@@ -52,7 +52,7 @@ func MakeNfs(name *string) *Nfs {
 	sz := uint64(100 * 1000)
 	// run first so that disk is initialized before mkLog
 	super := fs.MkFsSuper(sz, name)
-	util.DPrintf(1, "Super: %v\n", super)
+	util.DPrintf(1, "Super: sz %d %v\n", sz, super)
 
 	txn := txn.MkTxn(super)
 	icache := cache.MkCache(ICACHESZ)
