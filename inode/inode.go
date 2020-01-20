@@ -299,13 +299,13 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root uint64, level uint64, off uint64,
 // a new thread to free blocks in a separate transaction.
 func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 	util.DPrintf(5, "resize %v to sz %d\n", ip, sz)
-	doshrink := sz < ip.Size
+	oldsz := ip.Size
 	ip.Size = sz
 	ip.WriteInode(op)
-	if doshrink {
+	if sz < oldsz {
 		util.DPrintf(1, "start shrink thread\n")
 		shrinker.nthread = shrinker.nthread + 1
-		machine.Spawn(func() { shrink(ip.Inum, ip.Size) })
+		machine.Spawn(func() { shrink(ip.Inum, oldsz) })
 	}
 }
 

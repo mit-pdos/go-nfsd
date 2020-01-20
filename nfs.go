@@ -78,6 +78,7 @@ func (nfs *Nfs) doShutdown(destroy bool) {
 	nfs.fsstate.Txn.Shutdown()
 
 	if destroy {
+		util.DPrintf(1, "Destroy %v\n", *nfs.Name)
 		os.Remove(*nfs.Name)
 	}
 

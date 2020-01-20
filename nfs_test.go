@@ -354,7 +354,7 @@ func TestOneDir(t *testing.T) {
 	// Rmdir("d")
 }
 
-// Many filesgg
+// Many files
 func TestManyFiles(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()

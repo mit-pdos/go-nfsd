@@ -60,7 +60,7 @@ func shrink(inum fs.Inum, oldsz uint64) {
 			break
 		}
 		cursz := util.RoundUp(ip.Size, disk.BlockSize)
-		util.DPrintf(5, "shrink: bn %d cursz %d\n", bn, cursz)
+		util.DPrintf(1, "shrink: bn %d cursz %d\n", bn, cursz)
 		// 4: inode block, 2xbitmap block, indirect block, double indirect
 		for bn > cursz && op.NumberDirty()+4 < op.LogSz() {
 			bn = bn - 1
