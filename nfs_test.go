@@ -25,6 +25,7 @@ import (
 var quiet = flag.Bool("quiet", false, "disable logging")
 
 const DISKSZ uint64 = 10 * 1000
+const BENCHDISKSZ uint64 = 100 * 1000
 
 func checkFlags() {
 	if *quiet {
@@ -702,7 +703,7 @@ func TestRestart(t *testing.T) {
 
 func BenchmarkSmallFile(b *testing.B) {
 	data := mkdata(uint64(100))
-	ts := &TestState{t: nil, nfs: MkNfs(DISKSZ)}
+	ts := &TestState{t: nil, nfs: MkNfs(BENCHDISKSZ)}
 	defer ts.Close()
 
 	for i := 0; i < b.N; i++ {
@@ -734,7 +735,7 @@ func BenchmarkLargeFile(b *testing.B) {
 	const WSIZE uint64 = disk.BlockSize
 
 	data := mkdata(WSIZE)
-	ts := &TestState{t: nil, nfs: MkNfs(100 * 1000)}
+	ts := &TestState{t: nil, nfs: MkNfs(BENCHDISKSZ)}
 	defer ts.Close()
 
 	for i := 0; i < b.N; i++ {

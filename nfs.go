@@ -125,7 +125,7 @@ func makeFs(super *fs.FsSuper) {
 }
 
 func markAlloc(super *fs.FsSuper, n uint64, m uint64) {
-	util.DPrintf(0, "markAlloc: [0, %d) and [%d,%d)\n", n, m,
+	util.DPrintf(5, "markAlloc: [0, %d) and [%d,%d)\n", n, m,
 		super.NBlockBitmap*alloc.NBITBLOCK)
 	if n >= alloc.NBITBLOCK || m >= alloc.NBITBLOCK*super.NBlockBitmap ||
 		m < n {
