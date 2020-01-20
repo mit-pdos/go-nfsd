@@ -58,3 +58,7 @@ func (bc *Bcache) Write(bn uint64, b disk.Block) {
 func (bc *Bcache) Barrier() {
 	bc.d.Barrier()
 }
+
+func (bc *Bcache) Size() uint64 {
+	return bc.d.Size()
+}

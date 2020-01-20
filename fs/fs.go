@@ -3,6 +3,7 @@ package fs
 import (
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/bcache"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
@@ -49,8 +50,11 @@ func MkFsSuper(sz uint64, name *string) *FsSuper {
 		d = disk.NewMemDisk(sz)
 	}
 
+	// use the disk with a buffer cache
+	bc := bcache.MkBcache(d)
+
 	return &FsSuper{
-		Disk:         d,
+		Disk:         bc,
 		Size:         sz,
 		nLog:         LOGSIZE,
 		NBlockBitmap: nblockbitmap,
