@@ -3,12 +3,17 @@ package inode
 import (
 	"sync"
 
+	"github.com/tchajed/goose/machine"
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
+
+//
+// Freeing of a file, run in separate thread/transaction
+//
 
 type Shrinker struct {
 	mu       *sync.Mutex
@@ -65,6 +70,7 @@ func shrink(inum fs.Inum, oldsz uint64) {
 		for bn > cursz && op.NumberDirty()+4 < op.LogSz() {
 			bn = bn - 1
 			if bn < NDIRECT {
+				op.ZeroBlock(ip.blks[bn])
 				op.FreeBlock(ip.blks[bn])
 				ip.blks[bn] = 0
 			} else {
@@ -72,6 +78,7 @@ func shrink(inum fs.Inum, oldsz uint64) {
 				if off < NBLKBLK {
 					freeroot := ip.indshrink(op, ip.blks[INDIRECT], 1, off)
 					if freeroot != 0 {
+						op.ZeroBlock(ip.blks[INDIRECT])
 						op.FreeBlock(ip.blks[INDIRECT])
 						ip.blks[INDIRECT] = 0
 					}
@@ -79,6 +86,7 @@ func shrink(inum fs.Inum, oldsz uint64) {
 					off = off - NBLKBLK
 					freeroot := ip.indshrink(op, ip.blks[DINDIRECT], 2, off)
 					if freeroot != 0 {
+						op.ZeroBlock(ip.blks[DINDIRECT])
 						op.FreeBlock(ip.blks[DINDIRECT])
 						ip.blks[DINDIRECT] = 0
 					}
@@ -99,4 +107,32 @@ func shrink(inum fs.Inum, oldsz uint64) {
 	shrinker.nthread = shrinker.nthread - 1
 	shrinker.condShut.Signal()
 	shrinker.mu.Unlock()
+}
+
+// Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn
+// have been cleared
+func (ip *Inode) indshrink(op *fstxn.FsTxn, root uint64, level uint64, bn uint64) uint64 {
+	if level == 0 {
+		return root
+	}
+	divisor := pow(level - 1)
+	off := (bn / divisor)
+	ind := bn % divisor
+	boff := off * 8
+	buf := op.ReadBlock(root)
+	nxtroot := machine.UInt64Get(buf.Blk[boff : boff+8])
+	if nxtroot != 0 {
+		freeroot := ip.indshrink(op, nxtroot, level-1, ind)
+		if freeroot != 0 {
+			machine.UInt64Put(buf.Blk[boff:boff+8], 0)
+			buf.SetDirty()
+			op.ZeroBlock(freeroot)
+			op.FreeBlock(freeroot)
+		}
+	}
+	if off == 0 && ind == 0 {
+		return root
+	} else {
+		return 0
+	}
 }

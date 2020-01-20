@@ -443,34 +443,3 @@ func (ip *Inode) DecLink(op *fstxn.FsTxn) {
 	ip.Nlink = ip.Nlink - 1
 	ip.WriteInode(op)
 }
-
-//
-// Freeing of a file, run in separate thread/transaction
-//
-
-// Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn
-// have been cleared
-func (ip *Inode) indshrink(op *fstxn.FsTxn, root uint64, level uint64, bn uint64) uint64 {
-	if level == 0 {
-		return root
-	}
-	divisor := pow(level - 1)
-	off := (bn / divisor)
-	ind := bn % divisor
-	boff := off * 8
-	buf := op.ReadBlock(root)
-	nxtroot := machine.UInt64Get(buf.Blk[boff : boff+8])
-	if nxtroot != 0 {
-		freeroot := ip.indshrink(op, nxtroot, level-1, ind)
-		if freeroot != 0 {
-			machine.UInt64Put(buf.Blk[boff:boff+8], 0)
-			buf.SetDirty()
-			op.FreeBlock(freeroot)
-		}
-	}
-	if off == 0 && ind == 0 {
-		return root
-	} else {
-		return 0
-	}
-}

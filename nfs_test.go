@@ -650,13 +650,12 @@ func TestBigWrite(t *testing.T) {
 	ts.CommitErr(y, sz, nfstypes.NFS3ERR_INVAL)
 }
 
-// XXX allocate file
 func TestBigUnlink(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 	const N = DISKSZ / 2
 
-	for j := 0; j < 1; j++ {
+	for j := 0; j < 4; j++ {
 		ts.Create("x")
 		sz := disk.BlockSize
 		x := ts.Lookup("x", true)
