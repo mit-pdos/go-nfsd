@@ -73,7 +73,7 @@ func main() {
 	}
 	defer pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, false)
 
-	nfs := goose_nfs.MkNfsName(name)
+	nfs := goose_nfs.MkNfsName(name, uint64(100*1000))
 	defer nfs.ShutdownNfsDestroy()
 
 	srv := rfc1057.MakeServer()

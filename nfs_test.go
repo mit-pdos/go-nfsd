@@ -24,6 +24,8 @@ import (
 
 var quiet = flag.Bool("quiet", false, "disable logging")
 
+const DISKSZ uint64 = 10 * 1000
+
 func checkFlags() {
 	if *quiet {
 		log.SetFlags(0)
@@ -246,7 +248,7 @@ func (ts *TestState) readcheck(fh nfstypes.Nfs_fh3, off uint64, data []byte) {
 func newTest(t *testing.T) *TestState {
 	checkFlags()
 	fmt.Printf("%s\n", t.Name())
-	return &TestState{t: t, nfs: MkNfs()}
+	return &TestState{t: t, nfs: MkNfs(DISKSZ)}
 }
 
 func (ts *TestState) Close() {
@@ -563,8 +565,11 @@ func TestFileHole(t *testing.T) {
 }
 
 func (ts *TestState) evict(names []string) {
-	const N uint64 = bcache.BCACHESZ * uint64(10)
+	const N uint64 = bcache.BCACHESZ * 2
 	var wg sync.WaitGroup
+	if N*uint64(len(names)) > DISKSZ {
+		panic("Disk is too small")
+	}
 	for _, n := range names {
 		wg.Add(1)
 		go func(n string) {
@@ -592,10 +597,10 @@ func TestSerialEvict(t *testing.T) {
 func TestConcurEvict(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
-	const N = 10
+	const N = 4
 
 	names := make([]string, N)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < N; i++ {
 		names[i] = "f" + strconv.Itoa(i)
 	}
 
@@ -605,7 +610,8 @@ func TestConcurEvict(t *testing.T) {
 func TestWriteLargeFile(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
-	const N = 522
+	// allocate a double indirect block
+	const N = inode.NDIRECT + disk.BlockSize/8 + 10
 
 	ts.Create("x")
 	sz := uint64(4096)
@@ -643,20 +649,23 @@ func TestBigWrite(t *testing.T) {
 	ts.CommitErr(y, sz, nfstypes.NFS3ERR_INVAL)
 }
 
+// XXX allocate file
 func TestBigUnlink(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
-	const N = 100 * (disk.BlockSize / 8)
+	const N = DISKSZ / 2
 
-	ts.Create("x")
-	sz := disk.BlockSize
-	x := ts.Lookup("x", true)
-	for i := uint64(0); i < N; i++ {
-		data := mkdataval(byte(i), sz)
-		ts.WriteOff(x, i*sz, data, nfstypes.UNSTABLE)
+	for j := 0; j < 1; j++ {
+		ts.Create("x")
+		sz := disk.BlockSize
+		x := ts.Lookup("x", true)
+		for i := uint64(0); i < N; i++ {
+			data := mkdataval(byte(i), sz)
+			ts.WriteOff(x, i*sz, data, nfstypes.UNSTABLE)
+		}
+		ts.Commit(x, sz*N)
+		ts.Remove("x")
 	}
-	ts.Commit(x, sz*N)
-	ts.Remove("x")
 }
 
 func TestTooLargeFile(t *testing.T) {
@@ -685,7 +694,7 @@ func TestRestart(t *testing.T) {
 
 	ts.Create("x")
 	ts.nfs.ShutdownNfs()
-	ts.nfs = MakeNfs(ts.nfs.Name)
+	ts.nfs = MakeNfs(ts.nfs.Name, DISKSZ)
 	ts.Lookup("x", true)
 	ts.Create("y")
 	ts.Lookup("y", true)
@@ -693,7 +702,7 @@ func TestRestart(t *testing.T) {
 
 func BenchmarkSmallFile(b *testing.B) {
 	data := mkdata(uint64(100))
-	ts := &TestState{t: nil, nfs: MkNfs()}
+	ts := &TestState{t: nil, nfs: MkNfs(DISKSZ)}
 	defer ts.Close()
 
 	for i := 0; i < b.N; i++ {
@@ -725,7 +734,7 @@ func BenchmarkLargeFile(b *testing.B) {
 	const WSIZE uint64 = disk.BlockSize
 
 	data := mkdata(WSIZE)
-	ts := &TestState{t: nil, nfs: MkNfs()}
+	ts := &TestState{t: nil, nfs: MkNfs(100 * 1000)}
 	defer ts.Close()
 
 	for i := 0; i < b.N; i++ {

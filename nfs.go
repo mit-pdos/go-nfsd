@@ -28,15 +28,15 @@ type Nfs struct {
 	shrinker *inode.Shrinker
 }
 
-func MkNfsMem() *Nfs {
-	return MakeNfs(nil)
+func MkNfsMem(sz uint64) *Nfs {
+	return MakeNfs(nil, sz)
 }
 
-func MkNfsName(name string) *Nfs {
-	return MakeNfs(&name)
+func MkNfsName(name string, sz uint64) *Nfs {
+	return MakeNfs(&name, sz)
 }
 
-func MkNfs() *Nfs {
+func MkNfs(sz uint64) *Nfs {
 	r := rand.Uint64()
 	tmpdir := "/dev/shm"
 	f, err := os.Stat(tmpdir)
@@ -45,11 +45,10 @@ func MkNfs() *Nfs {
 	}
 	n := filepath.Join(tmpdir, "goose"+strconv.FormatUint(r, 16)+".img")
 	name := &n
-	return MakeNfs(name)
+	return MakeNfs(name, sz)
 }
 
-func MakeNfs(name *string) *Nfs {
-	sz := uint64(100 * 1000)
+func MakeNfs(name *string, sz uint64) *Nfs {
 	// run first so that disk is initialized before mkLog
 	super := fs.MkFsSuper(sz, name)
 	util.DPrintf(1, "Super: sz %d %v\n", sz, super)
@@ -126,10 +125,10 @@ func makeFs(super *fs.FsSuper) {
 }
 
 func markAlloc(super *fs.FsSuper, n uint64, m uint64) {
-	util.DPrintf(1, "markAlloc: [0, %d) and [%d,%d)\n", n, m,
+	util.DPrintf(0, "markAlloc: [0, %d) and [%d,%d)\n", n, m,
 		super.NBlockBitmap*alloc.NBITBLOCK)
 	if n >= alloc.NBITBLOCK || m >= alloc.NBITBLOCK*super.NBlockBitmap ||
-		m < alloc.NBITBLOCK {
+		m < n {
 		panic("markAlloc: configuration makes no sense")
 	}
 	blk := make(disk.Block, disk.BlockSize)
@@ -140,9 +139,12 @@ func markAlloc(super *fs.FsSuper, n uint64, m uint64) {
 	}
 	super.Disk.Write(super.BitmapBlockStart(), blk)
 
-	blk1 := make(disk.Block, disk.BlockSize)
+	blk1 := blk
 	blkno := m/alloc.NBITBLOCK + super.BitmapBlockStart()
-	for bn := m % disk.BlockSize; bn < alloc.NBITBLOCK; bn++ {
+	if blkno > super.BitmapBlockStart() {
+		blk1 = make(disk.Block, disk.BlockSize)
+	}
+	for bn := m % alloc.NBITBLOCK; bn < alloc.NBITBLOCK; bn++ {
 		byte := bn / 8
 		bit := bn % 8
 		blk1[byte] = blk1[byte] | 1<<bit
