@@ -186,3 +186,10 @@ Lookup: 260851 file in 1000000 usec with 4 threads
 
 Not surprising result: read-only operations commit like write
 operations
+
+With sharded lockmap:
+
+Lookup: 284640 file in 1000000 usec with 1 threads
+Lookup: 440071 file in 1000000 usec with 2 threads
+Lookup: 509882 file in 1000000 usec with 3 threads
+Lookup: 540488 file in 1000000 usec with 4 threads

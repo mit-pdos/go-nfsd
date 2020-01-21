@@ -34,7 +34,8 @@ func Lookup(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) {
 	if reply.Status != nfstypes.NFS3_OK {
 		panic("Lookup")
 	}
-	attr := clnt.GetattrOp(reply.Resok.Object)
+	fh := reply.Resok.Object
+	attr := clnt.GetattrOp(fh)
 	if attr.Status != nfstypes.NFS3_OK {
 		panic("Lookup")
 	}
