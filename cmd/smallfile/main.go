@@ -61,26 +61,26 @@ func mkdata(sz uint64) []byte {
 
 func PSmallFile() {
 	const N = 1000000
-	res := goose_nfs.Parallel(BENCHDISKSZ,
-		func(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) int {
-			data := mkdata(uint64(100))
-			start := time.Now()
-			i := 0
-			for true {
-				s := strconv.Itoa(i)
-				SmallFile(clnt, dirfh, "x"+s, data)
-				i++
-				t := time.Now()
-				elapsed := t.Sub(start)
-				if elapsed.Microseconds() >= N {
-					break
+	for i := 1; i <= 4; i++ {
+		res := goose_nfs.Parallel(BENCHDISKSZ,
+			func(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) int {
+				data := mkdata(uint64(100))
+				start := time.Now()
+				i := 0
+				for true {
+					s := strconv.Itoa(i)
+					SmallFile(clnt, dirfh, "x"+s, data)
+					i++
+					t := time.Now()
+					elapsed := t.Sub(start)
+					if elapsed.Microseconds() >= N {
+						break
+					}
 				}
-			}
-			return i
-		})
-	for i, v := range res {
+				return i
+			})
 		fmt.Printf("Smallfile: %d file in %d usec with %d threads\n",
-			v, N, i+1)
+			res, N, i)
 
 	}
 }

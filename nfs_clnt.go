@@ -115,33 +115,29 @@ func (clnt *NfsClient) ReadDirPlusOp(dir nfstypes.Nfs_fh3, cnt uint64) nfstypes.
 }
 
 // Run parallel clients executing f(), each in their own directory
-func Parallel(disksz uint64,
-	f func(clnt *NfsClient, dirfh nfstypes.Nfs_fh3) int) []uint64 {
+func Parallel(nthread int, disksz uint64,
+	f func(clnt *NfsClient, dirfh nfstypes.Nfs_fh3) int) int {
 	names := []string{"d0", "d1", "d2", "d3"}
 	root := fh.MkRootFh3()
-	res := make([]uint64, 0)
-	for nthread := 0; nthread < len(names); nthread++ {
-		clnt := MkNfsClient(disksz)
-		count := make(chan int)
-		for j := 0; j < nthread+1; j++ {
-			go func(j int) {
-				clnt.MkDirOp(root, names[j])
-				reply := clnt.LookupOp(root, names[j])
-				if reply.Status != nfstypes.NFS3_OK {
-					panic("Parallel")
-				}
-				dirfh := reply.Resok.Object
-				n := f(clnt, dirfh)
-				count <- n
-			}(j)
-		}
-		n := 0
-		for j := 0; j < nthread+1; j++ {
-			i := <-count
-			n += i
-		}
-		res = append(res, uint64(n))
-		clnt.ShutdownDestroy()
+	clnt := MkNfsClient(disksz)
+	count := make(chan int)
+	for i := 0; i < nthread; i++ {
+		go func(i int) {
+			clnt.MkDirOp(root, names[i])
+			reply := clnt.LookupOp(root, names[i])
+			if reply.Status != nfstypes.NFS3_OK {
+				panic("Parallel")
+			}
+			dirfh := reply.Resok.Object
+			n := f(clnt, dirfh)
+			count <- n
+		}(i)
 	}
-	return res
+	n := 0
+	for i := 0; i < nthread; i++ {
+		c := <-count
+		n += c
+	}
+	clnt.ShutdownDestroy()
+	return n
 }
