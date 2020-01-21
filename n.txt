@@ -168,3 +168,12 @@ writefile 50 MB 266116 usec throughput 192397.3 KB/s
 
 [goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile  /mnt/nfs
 2922 files per 1000115 usec
+
+--- parallel small file test
+
+[goose-nfs (master)]$ go test -run SmallFile
+Smallfile 11138 file in 1000000 usec with 1 threads
+Smallfile 13468 file in 1000000 usec with 2 threads
+Smallfile 15045 file in 1000000 usec with 3 threads
+Smallfile 16204 file in 1000000 usec with 4 threads
+	

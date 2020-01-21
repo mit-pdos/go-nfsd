@@ -7,6 +7,7 @@ import (
 	"log"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/tchajed/goose/machine/disk"
 
@@ -700,32 +701,62 @@ func TestRestart(t *testing.T) {
 	ts.Lookup("y", true)
 }
 
-func BenchmarkSmallFile(b *testing.B) {
-	data := mkdata(uint64(100))
-	ts := &TestState{t: nil, nfs: MkNfs(BENCHDISKSZ)}
-	defer ts.Close()
+func (ts *TestState) SmallFile(dirfh nfstypes.Nfs_fh3, name string, data []byte) {
+	reply := ts.LookupOp(dirfh, name)
+	if reply.Status == nfstypes.NFS3_OK {
+		panic("BenchmarkSmall")
+	}
+	ts.CreateOp(dirfh, name)
+	reply = ts.LookupOp(dirfh, name)
+	if reply.Status != nfstypes.NFS3_OK {
+		panic("BenchmarkSmall")
+	}
+	attr := ts.GetattrOp(reply.Resok.Object)
+	if attr.Status != nfstypes.NFS3_OK {
+		panic("BenchmarkSmall")
+	}
+	ts.WriteOp(reply.Resok.Object, 0, data, nfstypes.FILE_SYNC)
+	attr = ts.GetattrOp(reply.Resok.Object)
+	if attr.Status != nfstypes.NFS3_OK {
+		panic("BenchmarkSmall")
+	}
+}
 
-	for i := 0; i < b.N; i++ {
-		s := strconv.Itoa(i)
-		name := "x" + s
-		reply := ts.LookupOp(fh.MkRootFh3(), name)
-		if reply.Status == nfstypes.NFS3_OK {
-			panic("BenchmarkSmall")
+func TestSmallFile(t *testing.T) {
+	data := mkdata(uint64(100))
+	const N = 1000000
+
+	names := []string{"d0", "d1", "d2", "d3"}
+	for nthread := 0; nthread < len(names); nthread++ {
+		ts := &TestState{t: t, nfs: MkNfs(BENCHDISKSZ)}
+		count := make(chan int)
+		for j := 0; j < nthread+1; j++ {
+			go func(j int) {
+				ts.MkDir(names[j])
+				dir := ts.Lookup(names[j], true)
+				start := time.Now()
+				i := 0
+				for true {
+					s := strconv.Itoa(i)
+					ts.SmallFile(dir, "x"+s, data)
+					i++
+					t := time.Now()
+					elapsed := t.Sub(start)
+					if elapsed.Microseconds() >= N {
+						break
+					}
+				}
+				count <- i
+			}(j)
 		}
-		ts.CreateOp(fh.MkRootFh3(), "x"+s)
-		reply = ts.LookupOp(fh.MkRootFh3(), name)
-		if reply.Status != nfstypes.NFS3_OK {
-			panic("BenchmarkSmall")
+		n := 0
+		for j := 0; j < nthread+1; j++ {
+			i := <-count
+			n += i
 		}
-		attr := ts.GetattrOp(reply.Resok.Object)
-		if attr.Status != nfstypes.NFS3_OK {
-			panic("BenchmarkSmall")
-		}
-		ts.WriteOp(reply.Resok.Object, 0, data, nfstypes.FILE_SYNC)
-		attr = ts.GetattrOp(reply.Resok.Object)
-		if attr.Status != nfstypes.NFS3_OK {
-			panic("BenchmarkSmall")
-		}
+		fmt.Printf("Smallfile %d file in %d usec with %d threads\n",
+			n, N, nthread+1)
+		ts.Close()
 	}
 }
 
