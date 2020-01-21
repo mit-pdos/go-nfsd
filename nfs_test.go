@@ -704,21 +704,21 @@ func TestRestart(t *testing.T) {
 func (ts *TestState) SmallFile(dirfh nfstypes.Nfs_fh3, name string, data []byte) {
 	reply := ts.LookupOp(dirfh, name)
 	if reply.Status == nfstypes.NFS3_OK {
-		panic("BenchmarkSmall")
+		panic("SmallFile")
 	}
 	ts.CreateOp(dirfh, name)
 	reply = ts.LookupOp(dirfh, name)
 	if reply.Status != nfstypes.NFS3_OK {
-		panic("BenchmarkSmall")
+		panic("SmallFile")
 	}
 	attr := ts.GetattrOp(reply.Resok.Object)
 	if attr.Status != nfstypes.NFS3_OK {
-		panic("BenchmarkSmall")
+		panic("SmallFile")
 	}
 	ts.WriteOp(reply.Resok.Object, 0, data, nfstypes.FILE_SYNC)
 	attr = ts.GetattrOp(reply.Resok.Object)
 	if attr.Status != nfstypes.NFS3_OK {
-		panic("BenchmarkSmall")
+		panic("SmallFile")
 	}
 }
 
@@ -755,6 +755,50 @@ func TestSmallFile(t *testing.T) {
 			n += i
 		}
 		fmt.Printf("Smallfile %d file in %d usec with %d threads\n",
+			n, N, nthread+1)
+		ts.Close()
+	}
+}
+
+func TestLookup(t *testing.T) {
+	const N = 1000000
+
+	names := []string{"d0", "d1", "d2", "d3"}
+	for nthread := 0; nthread < len(names); nthread++ {
+		ts := &TestState{t: t, nfs: MkNfs(BENCHDISKSZ)}
+		count := make(chan int)
+		for j := 0; j < nthread+1; j++ {
+			go func(j int) {
+				ts.MkDir(names[j])
+				dir := ts.Lookup(names[j], true)
+				ts.CreateOp(dir, "x")
+				start := time.Now()
+				i := 0
+				for true {
+					reply := ts.LookupOp(dir, "x")
+					if reply.Status != nfstypes.NFS3_OK {
+						panic("TestLookup")
+					}
+					attr := ts.GetattrOp(reply.Resok.Object)
+					if attr.Status != nfstypes.NFS3_OK {
+						panic("TestLookup")
+					}
+					i++
+					t := time.Now()
+					elapsed := t.Sub(start)
+					if elapsed.Microseconds() >= N {
+						break
+					}
+				}
+				count <- i
+			}(j)
+		}
+		n := 0
+		for j := 0; j < nthread+1; j++ {
+			i := <-count
+			n += i
+		}
+		fmt.Printf("TestLookup %d file in %d usec with %d threads\n",
 			n, N, nthread+1)
 		ts.Close()
 	}
