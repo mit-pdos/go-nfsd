@@ -1,6 +1,7 @@
 package goose_nfs
 
 import (
+	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 
@@ -111,4 +112,36 @@ func (clnt *NfsClient) ReadDirPlusOp(dir nfstypes.Nfs_fh3, cnt uint64) nfstypes.
 	args := nfstypes.READDIRPLUS3args{Dir: dir, Dircount: nfstypes.Count3(100), Maxcount: nfstypes.Count3(cnt)}
 	reply := clnt.srv.NFSPROC3_READDIRPLUS(args)
 	return reply
+}
+
+// Run parallel clients executing f(), each in their own directory
+func Parallel(disksz uint64,
+	f func(clnt *NfsClient, dirfh nfstypes.Nfs_fh3) int) []uint64 {
+	names := []string{"d0", "d1", "d2", "d3"}
+	root := fh.MkRootFh3()
+	res := make([]uint64, 0)
+	for nthread := 0; nthread < len(names); nthread++ {
+		clnt := MkNfsClient(disksz)
+		count := make(chan int)
+		for j := 0; j < nthread+1; j++ {
+			go func(j int) {
+				clnt.MkDirOp(root, names[j])
+				reply := clnt.LookupOp(root, names[j])
+				if reply.Status != nfstypes.NFS3_OK {
+					panic("Parallel")
+				}
+				dirfh := reply.Resok.Object
+				n := f(clnt, dirfh)
+				count <- n
+			}(j)
+		}
+		n := 0
+		for j := 0; j < nthread+1; j++ {
+			i := <-count
+			n += i
+		}
+		res = append(res, uint64(n))
+		clnt.ShutdownDestroy()
+	}
+	return res
 }
