@@ -70,7 +70,6 @@ func shrink(inum fs.Inum, oldsz uint64) {
 		for bn > cursz && op.NumberDirty()+4 < op.LogSz() {
 			bn = bn - 1
 			if bn < NDIRECT {
-				op.ZeroBlock(ip.blks[bn])
 				op.FreeBlock(ip.blks[bn])
 				ip.blks[bn] = 0
 			} else {
@@ -78,7 +77,6 @@ func shrink(inum fs.Inum, oldsz uint64) {
 				if off < NBLKBLK {
 					freeroot := ip.indshrink(op, ip.blks[INDIRECT], 1, off)
 					if freeroot != 0 {
-						op.ZeroBlock(ip.blks[INDIRECT])
 						op.FreeBlock(ip.blks[INDIRECT])
 						ip.blks[INDIRECT] = 0
 					}
@@ -86,7 +84,6 @@ func shrink(inum fs.Inum, oldsz uint64) {
 					off = off - NBLKBLK
 					freeroot := ip.indshrink(op, ip.blks[DINDIRECT], 2, off)
 					if freeroot != 0 {
-						op.ZeroBlock(ip.blks[DINDIRECT])
 						op.FreeBlock(ip.blks[DINDIRECT])
 						ip.blks[DINDIRECT] = 0
 					}
@@ -126,7 +123,6 @@ func (ip *Inode) indshrink(op *fstxn.FsTxn, root uint64, level uint64, bn uint64
 		if freeroot != 0 {
 			machine.UInt64Put(buf.Blk[boff:boff+8], 0)
 			buf.SetDirty()
-			op.ZeroBlock(freeroot)
 			op.FreeBlock(freeroot)
 		}
 	}
