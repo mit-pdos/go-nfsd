@@ -107,6 +107,7 @@ func (nfs *Nfs) makeRootDir() {
 
 // Make an empty file system
 func makeFs(super *fs.FsSuper) {
+	util.DPrintf(1, "mkfs")
 	// inum = 0 is reserved
 	nulli := inode.MkNullInode()
 	naddr := super.Inum2Addr(fs.NULLINUM)
