@@ -176,4 +176,13 @@ Smallfile 11138 file in 1000000 usec with 1 threads
 Smallfile 13468 file in 1000000 usec with 2 threads
 Smallfile 15045 file in 1000000 usec with 3 threads
 Smallfile 16204 file in 1000000 usec with 4 threads
-	
+
+--- parallel lookup
+
+Lookup: 311704 file in 1000000 usec with 1 threads
+Lookup: 274567 file in 1000000 usec with 2 threads
+Lookup: 269901 file in 1000000 usec with 3 threads
+Lookup: 260851 file in 1000000 usec with 4 threads
+
+Not surprising result: read-only operations commit like write
+operations
