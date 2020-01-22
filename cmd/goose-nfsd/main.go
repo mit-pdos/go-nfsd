@@ -58,6 +58,9 @@ func main() {
 	flag.Parse()
 	if *diskfile != "" {
 		name = *diskfile
+	} else {
+		fmt.Printf("Argument '-diskfile <file>' required\n")
+		return
 	}
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
