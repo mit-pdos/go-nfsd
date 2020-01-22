@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"runtime/pprof"
 
 	"github.com/zeldovich/go-rpcgen/rfc1057"
@@ -57,7 +58,9 @@ func main() {
 		return
 	}
 	name := os.Args[1]
+	flag.Parse()
 	if *cpuprofile != "" {
+		fmt.Printf("profile\n")
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
 			log.Fatal(err)
@@ -93,12 +96,18 @@ func main() {
 	srv.RegisterMany(nfstypes.MOUNT_PROGRAM_MOUNT_V3_regs(nfs))
 	srv.RegisterMany(nfstypes.NFS_PROGRAM_NFS_V3_regs(nfs))
 
-	// srv.RegisterMany(goose_nfs.NFS_PROGRAM_NFS_V3_regs(nfs))
+	sigs := make(chan os.Signal)
+	signal.Notify(sigs, os.Interrupt)
+	go func() {
+		<-sigs
+		listener.Close()
+	}()
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			panic(err)
+			fmt.Printf("accept: %v\n", err)
+			break
 		}
 
 		go srv.Run(conn)
