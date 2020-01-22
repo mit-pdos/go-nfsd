@@ -51,16 +51,15 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 }
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+var diskfile = flag.String("disk", "", "disk image")
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Printf("Usage %s <filename>\n", os.Args[0])
-		return
-	}
-	name := os.Args[1]
+	var name string
 	flag.Parse()
+	if *diskfile != "" {
+		name = *diskfile
+	}
 	if *cpuprofile != "" {
-		fmt.Printf("profile\n")
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
 			log.Fatal(err)
