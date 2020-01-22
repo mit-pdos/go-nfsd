@@ -193,3 +193,17 @@ Lookup: 284640 file in 1000000 usec with 1 threads
 Lookup: 440071 file in 1000000 usec with 2 threads
 Lookup: 509882 file in 1000000 usec with 3 threads
 Lookup: 540488 file in 1000000 usec with 4 threads
+
+With read-only trans:
+
+[goose-nfs (master)]$ go run ./cmd/lookup/main.go
+Lookup: 385771 file in 1000000 usec with 1 threads
+Lookup: 593760 file in 1000000 usec with 2 threads
+Lookup: 771640 file in 1000000 usec with 3 threads
+Lookup: 809043 file in 1000000 usec with 4 threads
+
+[goose-nfs (master)]$ go run ./cmd/smallfile/main.go
+Smallfile: 14204 file in 1000000 usec with 1 threads
+Smallfile: 20968 file in 1000000 usec with 2 threads
+Smallfile: 23580 file in 1000000 usec with 3 threads
+Smallfile: 24799 file in 1000000 usec with 4 threads

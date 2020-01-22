@@ -57,21 +57,21 @@ func (c *Cache) PrintCache() {
 }
 
 func (c *Cache) evict() bool {
-	var done = false
+	var victim = false
 	var addr uint64 = 0
 	for a, entry := range c.entries {
-		if !done && entry.ref == 0 {
-			done = true
+		if entry.ref == 0 {
+			victim = true
 			addr = a
 			break
 		}
 	}
-	if !done {
-		util.DPrintf(0, "evict: %d\n", addr)
+	if victim {
+		util.DPrintf(5, "evict: %d\n", addr)
 		delete(c.entries, addr)
 		c.cnt = c.cnt - 1
 	}
-	return done
+	return victim
 }
 
 // Lookup the cache slot for id.  Create the slot if id isn't in the

@@ -43,7 +43,8 @@ func Lookup(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) {
 
 func PLookup() {
 	const N = 1000000
-	for i := 4; i <= 4; i++ {
+	const NTHREAD = 4
+	for i := 1; i <= NTHREAD; i++ {
 		res := goose_nfs.Parallel(i, BENCHDISKSZ,
 			func(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) int {
 				clnt.CreateOp(dirfh, "x")
