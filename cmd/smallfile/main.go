@@ -49,6 +49,10 @@ func SmallFile(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3, name string, d
 	if attr.Status != nfstypes.NFS3_OK {
 		panic("SmallFile")
 	}
+	res := clnt.RemoveOp(dirfh, name)
+	if res.Status != nfstypes.NFS3_OK {
+		panic("SmallFile")
+	}
 }
 
 func mkdata(sz uint64) []byte {
@@ -60,8 +64,9 @@ func mkdata(sz uint64) []byte {
 }
 
 func PSmallFile() {
-	const N = 1000000
-	for i := 1; i <= 4; i++ {
+	const N = 1000 * 1000 * 10
+	const NTHREAD = 1
+	for i := 1; i <= NTHREAD; i++ {
 		res := goose_nfs.Parallel(i, BENCHDISKSZ,
 			func(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) int {
 				data := mkdata(uint64(100))
@@ -79,8 +84,8 @@ func PSmallFile() {
 				}
 				return i
 			})
-		fmt.Printf("Smallfile: %d file in %d usec with %d threads\n",
-			res, N, i)
+		fmt.Printf("smallfile: %v file/swith %d threads\n",
+			float64(res)/(N/(1000*1000)), i)
 
 	}
 }

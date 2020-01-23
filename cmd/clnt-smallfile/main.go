@@ -83,6 +83,20 @@ func (c *nfsclnt) create(fh rfc1813.Nfs_fh3, name string) *rfc1813.CREATE3res {
 	return &res
 }
 
+func (c *nfsclnt) remove(fh rfc1813.Nfs_fh3, name string) *rfc1813.REMOVE3res {
+	var res rfc1813.REMOVE3res
+	what := rfc1813.Diropargs3{Dir: fh, Name: rfc1813.Filename3(name)}
+	arg := rfc1813.REMOVE3args{
+		Object: what,
+	}
+
+	err := c.clnt.Call(rfc1813.NFSPROC3_REMOVE, c.cred, c.verf, &arg, &res)
+	if err != nil {
+		panic(err)
+	}
+	return &res
+}
+
 func (c *nfsclnt) write(fh rfc1813.Nfs_fh3, off uint64, data []byte, how rfc1813.Stable_how) *rfc1813.WRITE3res {
 	var res rfc1813.WRITE3res
 
@@ -116,6 +130,10 @@ func smallfile(clnt *nfsclnt, dirfh rfc1813.Nfs_fh3, name string, data []byte) {
 	clnt.write(reply.Resok.Object, 0, data, rfc1813.FILE_SYNC)
 	attr = clnt.getattr(reply.Resok.Object)
 	if attr.Status != rfc1813.NFS3_OK {
+		panic("smallfile")
+	}
+	res := clnt.remove(dirfh, name)
+	if res.Status != rfc1813.NFS3_OK {
 		panic("smallfile")
 	}
 }
@@ -167,7 +185,7 @@ func main() {
 	nfs := pmap_client("localhost", rfc1813.NFS_PROGRAM, rfc1813.NFS_V3)
 	clnt := &nfsclnt{clnt: nfs, cred: cred_unix, verf: cred_none}
 
-	const N = 1000000
+	const N = 1000 * 1000 * 10
 
 	start := time.Now()
 	i := 0
@@ -183,5 +201,5 @@ func main() {
 			break
 		}
 	}
-	fmt.Printf("clnt: %d small in %d usec\n", i, N)
+	fmt.Printf("clnt-smallfile: %v file/s\n", float64(i)/(N/(1000*1000)))
 }
