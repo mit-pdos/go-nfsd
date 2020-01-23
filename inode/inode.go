@@ -304,7 +304,9 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 	ip.WriteInode(op)
 	if sz < oldsz {
 		util.DPrintf(1, "start shrink thread\n")
+		shrinker.mu.Lock()
 		shrinker.nthread = shrinker.nthread + 1
+		shrinker.mu.Unlock()
 		machine.Spawn(func() { shrink(ip.Inum, oldsz) })
 	}
 }
