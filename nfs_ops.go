@@ -28,7 +28,7 @@ func commitReply(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, inodes []*inode.Ino
 }
 
 func (nfs *Nfs) NFSPROC3_NULL() {
-	util.DPrintf(1, "NFS Null\n")
+	util.DPrintf(0, "NFS Null\n")
 }
 
 // XXX factor out lookup ip, test, and maybe fail pattern

@@ -207,3 +207,18 @@ Smallfile: 14204 file in 1000000 usec with 1 threads
 Smallfile: 20968 file in 1000000 usec with 2 threads
 Smallfile: 23580 file in 1000000 usec with 3 threads
 Smallfile: 24799 file in 1000000 usec with 4 threads
+
+No improvement with loop back; something else is the bottleneck
+- run top (see how much idle time)
+  server at 61%
+- put client and server on same core
+  seems to make no difference; in fact, best performance with no taskset
+- buffered read on reading
+
+null: 33551 getattr in 1000000 usec
+
+[goose-nfs (master)]$ go run ./cmd/null/main.go 
+root fh {[1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]}
+clnt: 4080 small in 1000000 usec
+
+
