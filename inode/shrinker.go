@@ -15,27 +15,27 @@ import (
 // Freeing of a file, run in separate thread/transaction
 //
 
-type Shrinker struct {
+type ShrinkerSt struct {
 	mu       *sync.Mutex
 	condShut *sync.Cond
 	nthread  uint32
 	fsstate  *fstxn.FsState
 }
 
-var shrinker *Shrinker
+var shrinkst *ShrinkerSt
 
-func MkShrinker(st *fstxn.FsState) *Shrinker {
+func MkShrinkerSt(st *fstxn.FsState) *ShrinkerSt {
 	mu := new(sync.Mutex)
-	shrinker = &Shrinker{
+	shrinkst = &ShrinkerSt{
 		mu:       mu,
 		condShut: sync.NewCond(mu),
 		nthread:  0,
 		fsstate:  st,
 	}
-	return shrinker
+	return shrinkst
 }
 
-func (shrinker *Shrinker) Shutdown() {
+func (shrinker *ShrinkerSt) Shutdown() {
 	shrinker.mu.Lock()
 	for shrinker.nthread > 0 {
 		util.DPrintf(1, "ShutdownNfs: wait %d\n", shrinker.nthread)
@@ -48,11 +48,42 @@ func singletonTrans(ip *Inode) []*Inode {
 	return []*Inode{ip}
 }
 
-func shrink(inum fs.Inum, oldsz uint64) {
+func (ip *Inode) shrink(op *fstxn.FsTxn, bn uint64) uint64 {
+	cursz := util.RoundUp(ip.Size, disk.BlockSize)
+	util.DPrintf(1, "shrink: bn %d cursz %d\n", bn, cursz)
+	// 4: inode block, 2xbitmap block, indirect block, double indirect
+	for bn > cursz && op.NumberDirty()+4 < op.LogSz() {
+		bn = bn - 1
+		if bn < NDIRECT {
+			op.FreeBlock(ip.blks[bn])
+			ip.blks[bn] = 0
+		} else {
+			var off = bn - NDIRECT
+			if off < NBLKBLK {
+				freeroot := ip.indshrink(op, ip.blks[INDIRECT], 1, off)
+				if freeroot != 0 {
+					op.FreeBlock(ip.blks[INDIRECT])
+					ip.blks[INDIRECT] = 0
+				}
+			} else {
+				off = off - NBLKBLK
+				freeroot := ip.indshrink(op, ip.blks[DINDIRECT], 2, off)
+				if freeroot != 0 {
+					op.FreeBlock(ip.blks[DINDIRECT])
+					ip.blks[DINDIRECT] = 0
+				}
+			}
+		}
+	}
+	ip.WriteInode(op)
+	return bn
+}
+
+func shrinker(inum fs.Inum, oldsz uint64) {
 	var bn = util.RoundUp(oldsz, disk.BlockSize)
 	util.DPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
 	for {
-		op := fstxn.Begin(shrinker.fsstate)
+		op := fstxn.Begin(shrinkst.fsstate)
 		ip := getInodeInumFree(op, inum)
 		if ip == nil {
 			panic("shrink")
@@ -65,32 +96,7 @@ func shrink(inum fs.Inum, oldsz uint64) {
 			break
 		}
 		cursz := util.RoundUp(ip.Size, disk.BlockSize)
-		util.DPrintf(1, "shrink: bn %d cursz %d\n", bn, cursz)
-		// 4: inode block, 2xbitmap block, indirect block, double indirect
-		for bn > cursz && op.NumberDirty()+4 < op.LogSz() {
-			bn = bn - 1
-			if bn < NDIRECT {
-				op.FreeBlock(ip.blks[bn])
-				ip.blks[bn] = 0
-			} else {
-				var off = bn - NDIRECT
-				if off < NBLKBLK {
-					freeroot := ip.indshrink(op, ip.blks[INDIRECT], 1, off)
-					if freeroot != 0 {
-						op.FreeBlock(ip.blks[INDIRECT])
-						ip.blks[INDIRECT] = 0
-					}
-				} else {
-					off = off - NBLKBLK
-					freeroot := ip.indshrink(op, ip.blks[DINDIRECT], 2, off)
-					if freeroot != 0 {
-						op.FreeBlock(ip.blks[DINDIRECT])
-						ip.blks[DINDIRECT] = 0
-					}
-				}
-			}
-		}
-		ip.WriteInode(op)
+		bn = ip.shrink(op, bn)
 		ok := Commit(op, singletonTrans(ip))
 		if !ok {
 			panic("shrink")
@@ -100,10 +106,10 @@ func shrink(inum fs.Inum, oldsz uint64) {
 		}
 	}
 	util.DPrintf(1, "Shrinker: done shrinking %d to bn %d\n", inum, bn)
-	shrinker.mu.Lock()
-	shrinker.nthread = shrinker.nthread - 1
-	shrinker.condShut.Signal()
-	shrinker.mu.Unlock()
+	shrinkst.mu.Lock()
+	shrinkst.nthread = shrinkst.nthread - 1
+	shrinkst.condShut.Signal()
+	shrinkst.mu.Unlock()
 }
 
 // Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn

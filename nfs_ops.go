@@ -316,22 +316,26 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 		util.DPrintf(1, "NFS Remove %v\n", args)
 		dip = inode.GetInode(op, args.Object.Dir)
 		if dip == nil {
+			util.DPrintf(0, "RemName stale\n")
 			errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
 			done = true
 			break
 		}
 		if dir.IllegalName(args.Object.Name) {
+			util.DPrintf(0, "RemName inval\n")
 			errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, []*inode.Inode{dip})
 			done = true
 			break
 		}
 		inum, _ := dir.LookupName(dip, op, args.Object.Name)
 		if inum == fs.NULLINUM {
+			util.DPrintf(0, "RemName noentl\n")
 			errRet(op, &reply.Status, nfstypes.NFS3ERR_NOENT, []*inode.Inode{dip})
 			done = true
 			break
 		}
 		if inum < dip.Inum {
+			util.DPrintf(0, "abort noentl\n")
 			// Abort. Try to lock inodes in order
 			inode.Abort(op, []*inode.Inode{dip})
 			op := fstxn.Begin(nfs.fsstate)
@@ -348,16 +352,21 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 		return reply
 	}
 	if ip.Kind != nfstypes.NF3REG {
+		util.DPrintf(0, "RemName not file\n")
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inodes)
 		return reply
 	}
 	ok := dir.RemName(dip, op, args.Object.Name)
 	if !ok {
+		util.DPrintf(0, "RemName failed\n")
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
 		return reply
 	}
 	ip.DecLink(op)
 	commitReply(op, &reply.Status, inodes)
+	if reply.Status != nfstypes.NFS3_OK {
+		util.DPrintf(0, "RemName %v\n", reply.Status)
+	}
 	return reply
 }
 

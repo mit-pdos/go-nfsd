@@ -23,9 +23,9 @@ import (
 const ICACHESZ uint64 = 10000
 
 type Nfs struct {
-	Name     *string
-	fsstate  *fstxn.FsState
-	shrinker *inode.Shrinker
+	Name       *string
+	fsstate    *fstxn.FsState
+	shrinkerst *inode.ShrinkerSt
 }
 
 func MkNfsMem(sz uint64) *Nfs {
@@ -59,9 +59,9 @@ func MakeNfs(name *string, sz uint64) *Nfs {
 	ialloc := alloc.MkAlloc(super.BitmapInodeStart(), super.NInodeBitmap)
 	st := fstxn.MkFsState(super, txn, icache, balloc, ialloc)
 	nfs := &Nfs{
-		Name:     name,
-		fsstate:  st,
-		shrinker: inode.MkShrinker(st),
+		Name:       name,
+		fsstate:    st,
+		shrinkerst: inode.MkShrinkerSt(st),
 	}
 	i := ReadRootInode(super)
 	if i.Kind == 0 {
@@ -73,7 +73,7 @@ func MakeNfs(name *string, sz uint64) *Nfs {
 
 func (nfs *Nfs) doShutdown(destroy bool) {
 	util.DPrintf(1, "Shutdown %v\n", destroy)
-	nfs.shrinker.Shutdown()
+	nfs.shrinkerst.Shutdown()
 	nfs.fsstate.Txn.Shutdown()
 
 	if destroy {

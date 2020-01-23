@@ -303,11 +303,17 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 	ip.Size = sz
 	ip.WriteInode(op)
 	if sz < oldsz {
-		util.DPrintf(1, "start shrink thread\n")
-		shrinker.mu.Lock()
-		shrinker.nthread = shrinker.nthread + 1
-		shrinker.mu.Unlock()
-		machine.Spawn(func() { shrink(ip.Inum, oldsz) })
+		if ip.blks[INDIRECT] != 0 {
+			util.DPrintf(1, "start shrink thread\n")
+			shrinkst.mu.Lock()
+			shrinkst.nthread = shrinkst.nthread + 1
+			shrinkst.mu.Unlock()
+			machine.Spawn(func() { shrinker(ip.Inum, oldsz) })
+		} else {
+			bn := util.RoundUp(oldsz, disk.BlockSize)
+			ip.shrink(op, bn)
+			util.DPrintf(1, "small file delete inside trans\n")
+		}
 	}
 }
 
