@@ -120,6 +120,14 @@ func smallfile(clnt *nfsclnt, dirfh rfc1813.Nfs_fh3, name string, data []byte) {
 	}
 }
 
+func mkdata(sz uint64) []byte {
+	data := make([]byte, sz)
+	for i := range data {
+		data[i] = byte(i % 128)
+	}
+	return data
+}
+
 func main() {
 	var err error
 
@@ -163,10 +171,11 @@ func main() {
 
 	start := time.Now()
 	i := 0
+	data := mkdata(uint64(100))
 	for true {
 		// null(nfs, cred_unix, cred_none, root_fh)
 		s := strconv.Itoa(i)
-		smallfile(clnt, root_fh, "x"+s, []byte{})
+		smallfile(clnt, root_fh, "x"+s, data)
 		i++
 		t := time.Now()
 		elapsed := t.Sub(start)

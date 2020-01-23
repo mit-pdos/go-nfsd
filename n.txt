@@ -217,8 +217,9 @@ No improvement with loop back; something else is the bottleneck
 
 null: 33551 getattr in 1000000 usec
 
-[goose-nfs (master)]$ go run ./cmd/null/main.go 
+[goose-nfs (master)]$ go run ./cmd/clnt-smallfile/main.go 
 root fh {[1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]}
-clnt: 4080 small in 1000000 usec
+clnt: 3777 small in 1000000 usec
+
 
 
