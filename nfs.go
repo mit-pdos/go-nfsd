@@ -20,7 +20,7 @@ import (
 	"strconv"
 )
 
-const ICACHESZ uint64 = 10000
+const ICACHESZ uint64 = 100
 
 type Nfs struct {
 	Name       *string

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"container/list"
 	"sync"
 
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -31,11 +32,14 @@ func (slot *Cslot) Unlock() {
 type entry struct {
 	ref  uint32 // the slot's reference count
 	slot Cslot
+	lru  *list.Element
+	id   uint64
 }
 
 type Cache struct {
 	mu      *sync.Mutex
 	entries map[uint64]*entry
+	lru     *list.List
 	sz      uint64
 	cnt     uint64
 }
@@ -45,6 +49,7 @@ func MkCache(sz uint64) *Cache {
 	return &Cache{
 		mu:      new(sync.Mutex),
 		entries: entries,
+		lru:     list.New(),
 		cnt:     0,
 		sz:      sz,
 	}
@@ -57,21 +62,16 @@ func (c *Cache) PrintCache() {
 }
 
 func (c *Cache) evict() bool {
-	var victim = false
-	var addr uint64 = 0
-	for a, entry := range c.entries {
-		if entry.ref == 0 {
-			victim = true
-			addr = a
-			break
-		}
+	e := c.lru.Front()
+	if e == nil {
+		return false
 	}
-	if victim {
-		util.DPrintf(5, "evict: %d\n", addr)
-		delete(c.entries, addr)
-		c.cnt = c.cnt - 1
-	}
-	return victim
+	entry := e.Value.(*entry)
+	c.lru.Remove(e)
+	util.DPrintf(1, "evict: %d\n", entry.id)
+	delete(c.entries, entry.id)
+	c.cnt = c.cnt - 1
+	return true
 }
 
 // Lookup the cache slot for id.  Create the slot if id isn't in the
@@ -81,6 +81,12 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 	c.mu.Lock()
 	e := c.entries[id]
 	if e != nil {
+		if id != e.id {
+			panic("LookupSlot")
+		}
+		if e.ref == 0 {
+			c.lru.Remove(e.lru)
+		}
 		e.ref = e.ref + 1
 		c.mu.Unlock()
 		return &e.slot
@@ -95,7 +101,7 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 		}
 	}
 	s := Cslot{mu: new(sync.Mutex), Obj: nil}
-	enew := &entry{ref: 1, slot: s}
+	enew := &entry{ref: 1, slot: s, lru: nil, id: id}
 	c.entries[id] = enew
 	c.cnt = c.cnt + 1
 	c.mu.Unlock()
@@ -109,6 +115,9 @@ func (c *Cache) FreeSlot(id uint64) {
 	entry := c.entries[id]
 	if entry != nil {
 		entry.ref = entry.ref - 1
+		if entry.ref == 0 {
+			entry.lru = c.lru.PushBack(entry)
+		}
 		c.mu.Unlock()
 		return
 	}
