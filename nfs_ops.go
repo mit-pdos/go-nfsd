@@ -10,6 +10,16 @@ import (
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
+//
+// The general plan for implementing each NFS RPC is as follows: start
+// a transaction, acquire locks for inodes, perform the requested
+// operation, and commit.  Some RPCs require locks to be acquired
+// incrementally, because we don't know which inodes the RPC will
+// need.  If locking an inode would violate lock ordering, then the
+// transaction aborts, and retries (but this time locking inodes in
+// lock order).
+//
+
 func errRet(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3,
 	inodes []*inode.Inode) {
 	*status = err
