@@ -12,6 +12,11 @@ import (
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
+//
+// fstxn implements transactions using buftxn.  It adds to buftxn
+// support for (1) block and inode allocation and (2) an inode cache.
+//
+
 type FsState struct {
 	Fs     *fs.FsSuper
 	Txn    *txn.Txn
