@@ -3,25 +3,21 @@
 
 * TODO 
 
-Test for reallocating inode before shrunk
-
 directories ls: if lock ordering problem, return what we have read so far
 
 error codes
-  write cnt = 0 should return which error happened
+  e.g., write cnt = 0 should return which error happened
 
 check that inodes are not modified on disk on abort
   e.g., nlink on failure to add to dir
 
-mtime
+test for reallocating inode before shrunk
 
-performance measurements
+mtime
 
 end-to-end tests for recovery
 
 goosify
-
-log-by-pass writes
 
 simplify allocator, plan 1
   goal: avoid locking regions; no search for free object as part of txn
@@ -38,12 +34,11 @@ simplify allocator, plan 1
   after txn commits, put freed IDs into the in-memory allocator state
   on recovery, populate in-memory allocator state from on-disk bitmap
 
-simplify allocator, plan 2
-  support only single-bit range, instead of arbitrary
-  NFS client generates single-block write RPCs, even for largefile
-
 smallfile() in cmd/clnt-smallfile/main.go and cmd/smallfile/main.go
   make nfs_clnt.go support both, avoiding redundancy
+
+log-by-pass writes
+
 
 * Some performance
 
@@ -98,6 +93,9 @@ fs-smallfile: 2606.6 file/sec
 [goose-nfs (master)]$ ./run-goose-nfs.sh go run ./cmd/fs-largefile/main.go
 go run ./cmd/fs-largefile/main.go
 fs-largefile: 50 MB througput 112.85 MB/s
+
+Most time is spent in Go's GC
+Linux sends several 4-KB NFS Write RPCs in parallel
 
 # in-server goose-nfsd
 [goose-nfs (master)]$ go run ./cmd/smallfile/main.go 
