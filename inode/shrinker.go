@@ -14,7 +14,8 @@ import (
 //
 // Freeing of a file.  If file is large (i.e,., has indirect blocks),
 // freeing is done in separate thread, using perhaps multiple
-// transactions to ensure that free fits in the log.
+// transactions to ensure that the indirect blocks modified due to a
+// free fit in the write-ahead log.
 //
 
 type ShrinkerSt struct {
