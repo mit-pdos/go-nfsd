@@ -1,6 +1,7 @@
-Add cache below txn/logging layer
+#  -*- mode: org -*-
+#+STARTUP: indent
 
-Add an icache, but simpler now
+* TODO 
 
 Test for reallocating inode before shrunk
 
@@ -8,10 +9,6 @@ directories ls: if lock ordering problem, return what we have read so far
 
 error codes
   write cnt = 0 should return which error happened
-
-log absorption
-
-test out of fs space
 
 check that inodes are not modified on disk on abort
   e.g., nlink on failure to add to dir
@@ -26,7 +23,7 @@ goosify
 
 log-by-pass writes
 
-simplify allocator
+simplify allocator, plan 1
   goal: avoid locking regions; no search for free object as part of txn
     txn never issues reads to bitmaps (except at recovery time)
     txn contains single-bit writes to freed or allocated blocks
@@ -41,84 +38,13 @@ simplify allocator
   after txn commits, put freed IDs into the in-memory allocator state
   on recovery, populate in-memory allocator state from on-disk bitmap
 
-== some performance
+simplify allocator, plan 2
+  support only single-bit range, instead of arbitrary
+  NFS client generates single-block write RPCs, even for largefile
 
---- small ---
+* Some performance
 
-Linux:
-export /srv/nfs
-sudo mount --bind /tmp/nfs /srv/nfs/bench
-sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs/bench/
-10440 files per 1000034 usec
-   much time spent in LookupName (0.93s out of 2.37)
-
-Goose:
-
-[goose-nfs (master)]$ go test -v -cpuprofile cpu.prof -memprofil
-goos: linux
-goarch: amd64
-pkg: github.com/mit-pdos/goose-nfsd
-BenchmarkSmall-8           26823             40653 ns/op
-PASS
-ok      github.com/mit-pdos/goose-nfsd  3.316s
-
-
-[goose-nfs (master)]$  ~/hack/fscq-impl/bench/smallfile /mnt/nfs
-3068 files per 1000284 usec
-[goose-nfs (master)]$ ls /mnt/nfs
-
---- large ---
-
-Linux:
-
-[goose-nfs (master)]$ showmount -e
-Export list for fk6x1:
-/srv/nfs/bench localhost
-/srv/nfs       localhost
-[goose-nfs (master)]$ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile /mnt/nfs
-makefile 50 MB 40476 usec throughput 1264947.1 KB/s
-writefile 50 MB 30536 usec throughput 1676709.5 KB/s
-
-Goose:
-
-[goose-nfs (master)]$ sudo mount -t nfs -o vers=3 localhost:/ /mnt/nfs
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
-makefile 50 MB 468844 usec throughput 109204.8 KB/s
-writefile 50 MB 308590 usec throughput 165915.9 KB/s
-[goose-nfs (master)]$
-
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
-makefile 50 MB 408314 usec throughput 125393.7 KB/s
-writefile 50 MB 238106 usec throughput 215030.3 KB/s
-
-[goose-nfs (master)]$ go test -v  -bench Large -run=^$ 
-goos: linux
-goarch: amd64
-pkg: github.com/mit-pdos/goose-nfsd
-BenchmarkLargeFile-8           7         150782653 ns/op
-
---- running on ext4 over image in tmpfs
-
-$ dd if=/dev/zero of=nfs3.img bs=4K count=100000
-$ mkfs -t ext4 nfs3.img
-$ sudo mount -t ext4 -o loop /tmp/nfs3.img /srv/nfs/benchb
-$ sudo systemctl start nfs-server.service
-$ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
-$ sudo chmod 777 /srv/nfs/bench
-
-
-ext4 with log-by-pass and delayed allocation
-
-[goose-nfs (master)]$  ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
-4478 files per 1000176 usec
-
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile /mnt/nfs
-makefile 50 MB 98050 usec throughput 522182.6 KB/s
-writefile 50 MB 102683 usec throughput 498622.0 KB/s
-
---- running on ext3 over image in tmpfs
+** running on ext3 over image in tmpfs
 
 [tmp]$ rm nfs3.img 
 [tmp]$ dd if=/dev/zero of=nfs3.img bs=4K count=100000
@@ -132,69 +58,7 @@ writefile 50 MB 102683 usec throughput 498622.0 KB/s
 makefile 50 MB 295276 usec throughput 173397.1 KB/s
 writefile 50 MB 168222 usec throughput 304359.7 KB/s
 
-[bench (master)]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs
-4286 files per 1000016 usec
-[bench (master)]$
-
---- running goose-nfsd over file disk image in tmpfs
-
-[tmp]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
-makefile 50 MB 484000 usec throughput 105785.1 KB/s
-writefile 50 MB 366641 usec throughput 139646.1 KB/s
-
-[tmp]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
-2776 files per 1000213 usec
-
-with eager logging (i.e., broadcast logger at end of memWrite)
-
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
-makefile 50 MB 492391 usec throughput 103982.4 KB/s
-writefile 50 MB 546629 usec throughput 93665.0 KB/s
-
-[goose-nfs (master)]$ sudo mount -t nfs -o vers=3 localhost:/ /mnt/nfs
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile /mnt/nfs/
-2721 files per 1000128 usec
-
-with Nickolai's change (and delayed logging):
-
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/largefile  /mnt/nfs
-makefile 50 MB 458552 usec throughput 111655.8 KB/s
-writefile 50 MB 315942 usec throughput 162055.1 KB/s
-
-with buffer cache:
-
-makefile 50 MB 450128 usec throughput 113745.4 KB/s
-writefile 50 MB 266116 usec throughput 192397.3 KB/s
-
-[goose-nfs (master)]$ ~/hack/fscq-impl/bench/smallfile  /mnt/nfs
-2922 files per 1000115 usec
-
---- parallel small file test
-
-[goose-nfs (master)]$ go test -run SmallFile
-Smallfile 11138 file in 1000000 usec with 1 threads
-Smallfile 13468 file in 1000000 usec with 2 threads
-Smallfile 15045 file in 1000000 usec with 3 threads
-Smallfile 16204 file in 1000000 usec with 4 threads
-
---- parallel lookup
-
-Lookup: 311704 file in 1000000 usec with 1 threads
-Lookup: 274567 file in 1000000 usec with 2 threads
-Lookup: 269901 file in 1000000 usec with 3 threads
-Lookup: 260851 file in 1000000 usec with 4 threads
-
-Not surprising result: read-only operations commit like write
-operations
-
-With sharded lockmap:
-
-Lookup: 284640 file in 1000000 usec with 1 threads
-Lookup: 440071 file in 1000000 usec with 2 threads
-Lookup: 509882 file in 1000000 usec with 3 threads
-Lookup: 540488 file in 1000000 usec with 4 threads
-
-With read-only trans:
+** parallel lookup 
 
 [goose-nfs (master)]$ go run ./cmd/lookup/main.go
 Lookup: 385771 file in 1000000 usec with 1 threads
@@ -202,24 +66,39 @@ Lookup: 593760 file in 1000000 usec with 2 threads
 Lookup: 771640 file in 1000000 usec with 3 threads
 Lookup: 809043 file in 1000000 usec with 4 threads
 
-[goose-nfs (master)]$ go run ./cmd/smallfile/main.go
-Smallfile: 14204 file in 1000000 usec with 1 threads
-Smallfile: 20968 file in 1000000 usec with 2 threads
-Smallfile: 23580 file in 1000000 usec with 3 threads
-Smallfile: 24799 file in 1000000 usec with 4 threads
-
-No improvement with loop back; something else is the bottleneck
-- run top (see how much idle time)
-  server at 61%
-- put client and server on same core
-  seems to make no difference; in fact, best performance with no taskset
-- buffered read on reading
-
-null: 33551 getattr in 1000000 usec
+** NULL RPC
 
 [goose-nfs (master)]$ go run ./cmd/clnt-smallfile/main.go 
+null: 33551 getattr in 1000000 usec
+
+** <2020-01-24 Fri>: smallfile (including remove)
+
+# Linux loopback
+$ ./run-linux.sh  go run ./cmd/fs-smallfile/main.go
+fs-smallfile: 3168.5 file/sec
+
+# goose-nfsd over loopback
+[goose-nfs (master)]$ ./run-goose-nfs.sh  go run ./cmd/fs-smallfile/main.go
+2020/01/24 06:52:03 MkFsSuper: open file disk /dev/shm/goose.img
+2020/01/24 06:52:04 NFS Null
+2020/01/24 06:52:04 Null
+2020/01/24 06:52:04 Null
+2020/01/24 06:52:04 Mount /
+2020/01/24 06:52:04 NFS Null
+go run ./cmd/fs-smallfile/main.go
+fs-smallfile: 2606.6 file/sec
+
+# in-server goose-nfsd
+[goose-nfs (master)]$ go run ./cmd/smallfile/main.go 
+2020/01/24 06:54:43 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+smallfile: 8443.1 file/swith 1 threads
+
+# NFS client
+
+[goose-nfs (master)]$ ./run-goose-clnt.sh  go run ./cmd/clnt-smallfile/main.go 
+2020/01/24 07:01:49 MkFsSuper: open file disk /dev/shm/goose.img
+go run ./cmd/clnt-smallfile/main.go
+2020/01/24 07:01:50 Mount /
 root fh {[1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]}
-clnt: 3777 small in 1000000 usec
-
-
+clnt-smallfile: 2784.5 file/s
 
