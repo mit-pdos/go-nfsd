@@ -45,8 +45,6 @@ simplify allocator, plan 2
 smallfile() in cmd/clnt-smallfile/main.go and cmd/smallfile/main.go
   make nfs_clnt.go support both, avoiding redundancy
 
-clean up small-file delete
-
 * Some performance
 
 ** running on ext3 over image in tmpfs
@@ -82,6 +80,10 @@ null: 33551 getattr in 1000000 usec
 $ ./run-linux.sh  go run ./cmd/fs-smallfile/main.go
 fs-smallfile: 3168.5 file/sec
 
+[goose-nfs (master)]$ ./run-linux.sh  go run ./cmd/fs-largefile/main.go
+run go run ./cmd/fs-largefile/main.go
+fs-largefile: 50 MB througput 208.43 MB/s
+
 # goose-nfsd over loopback
 [goose-nfs (master)]$ ./run-goose-nfs.sh  go run ./cmd/fs-smallfile/main.go
 2020/01/24 06:52:03 MkFsSuper: open file disk /dev/shm/goose.img
@@ -93,10 +95,18 @@ fs-smallfile: 3168.5 file/sec
 go run ./cmd/fs-smallfile/main.go
 fs-smallfile: 2606.6 file/sec
 
+[goose-nfs (master)]$ ./run-goose-nfs.sh go run ./cmd/fs-largefile/main.go
+go run ./cmd/fs-largefile/main.go
+fs-largefile: 50 MB througput 112.85 MB/s
+
 # in-server goose-nfsd
 [goose-nfs (master)]$ go run ./cmd/smallfile/main.go 
 2020/01/24 06:54:43 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
 smallfile: 8443.1 file/swith 1 threads
+
+[goose-nfs (master)]$ go run ./cmd/largefile/main.go 
+2020/01/24 09:20:06 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+largefile: 50 MB througput 322.07 MB/s
 
 # NFS client
 

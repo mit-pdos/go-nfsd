@@ -25,7 +25,6 @@ import (
 var quiet = flag.Bool("quiet", false, "disable logging")
 
 const DISKSZ uint64 = 10 * 1000
-const BENCHDISKSZ uint64 = 100 * 1000
 
 func checkFlags() {
 	if *quiet {
@@ -627,31 +626,4 @@ func TestRestart(t *testing.T) {
 	ts.Lookup("x", true)
 	ts.Create("y")
 	ts.Lookup("y", true)
-}
-
-func BenchmarkLargeFile(b *testing.B) {
-	const FILESIZE uint64 = 50 * 1024 * 1024
-	const WSIZE uint64 = disk.BlockSize
-
-	data := mkdata(WSIZE)
-	clnt := MkNfsClient(BENCHDISKSZ)
-	defer clnt.Shutdown()
-	dir := fh.MkRootFh3()
-	for i := 0; i < b.N; i++ {
-		name := "x"
-		clnt.CreateOp(dir, name)
-		reply := clnt.LookupOp(dir, name)
-		fh := reply.Resok.Object
-		n := FILESIZE / WSIZE
-		for j := uint64(0); j < n; j++ {
-			clnt.WriteOp(fh, j*WSIZE, data, nfstypes.UNSTABLE)
-		}
-		clnt.CommitOp(fh, n*WSIZE)
-		attr := clnt.GetattrOp(fh)
-		if uint64(attr.Resok.Obj_attributes.Size) != FILESIZE {
-			panic("large")
-		}
-		clnt.RemoveOp(dir, "x")
-	}
-
 }
