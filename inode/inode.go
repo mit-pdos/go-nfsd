@@ -206,7 +206,7 @@ func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
 	if inum != 0 {
 		ip = GetInodeLocked(op, inum)
 		if ip.Kind == NF3FREE {
-			util.DPrintf(5, "allocInode: allocate inode %d\n", inum)
+			util.DPrintf(1, "allocInode: allocate inode %d\n", inum)
 			ip.Inum = inum
 			ip.Kind = kind
 			ip.Nlink = 1

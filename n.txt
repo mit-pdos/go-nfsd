@@ -8,9 +8,6 @@ directories ls: if lock ordering problem, return what we have read so far
 error codes
   e.g., write cnt = 0 should return which error happened
 
-check that inodes are not modified on disk on abort
-  e.g., nlink on failure to add to dir
-
 test for reallocating inode before shrunk
 
 mtime

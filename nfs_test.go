@@ -596,13 +596,10 @@ func TestBigUnlink(t *testing.T) {
 	}
 }
 
-func TestTooLargeFile(t *testing.T) {
-	ts := newTest(t)
-	defer ts.Close()
-
-	ts.Create("x")
-	sz := uint64(4096 * 50)
-	x := ts.Lookup("x", true)
+func (ts *TestState) maketoolargefile(name string, wsize int) {
+	ts.Create(name)
+	sz := uint64(4096 * wsize)
+	x := ts.Lookup(name, true)
 	for i := uint64(0); ; i++ {
 		data := mkdataval(byte(i), sz)
 		reply := ts.clnt.WriteOp(x, i*sz, data, nfstypes.FILE_SYNC)
@@ -613,6 +610,13 @@ func TestTooLargeFile(t *testing.T) {
 			break
 		}
 	}
+}
+
+func TestTooLargeFile(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+
+	ts.maketoolargefile("x", 50)
 	ts.Remove("x")
 }
 
@@ -626,4 +630,30 @@ func TestRestart(t *testing.T) {
 	ts.Lookup("x", true)
 	ts.Create("y")
 	ts.Lookup("y", true)
+}
+
+func TestAbort(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+
+	ts.maketoolargefile("x", 50)
+	// y will consume the few remaining blocks, because the large
+	// write to x failed, freeing up the blocks from the aborted
+	// write.
+	ts.maketoolargefile("y", 1)
+	// an inode for d can allocated but there is no block for the dir
+	// mkdir will allocate inode 4
+	attr := ts.clnt.MkDirOp(fh.MkRootFh3(), "d")
+	assert.Equal(ts.t, nfstypes.NFS3ERR_NOSPC, attr.Status)
+	// d better not exist
+	ts.Lookup("d", false)
+	ts.clnt.Shutdown()
+	ts.clnt.srv = MakeNfs(ts.clnt.srv.Name, DISKSZ)
+	ts.Remove("y")
+	ts.Create("y")
+	ts.MkDir("d")
+	fh3 := ts.Lookup("d", true)
+	fh := fh.MakeFh(fh3)
+	// inode 4 should be free and used
+	assert.Equal(ts.t, fh.Ino, fs.Inum(4))
 }

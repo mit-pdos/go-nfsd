@@ -68,7 +68,7 @@ func (c *Cache) evict() bool {
 	}
 	entry := e.Value.(*entry)
 	c.lru.Remove(e)
-	util.DPrintf(1, "evict: %d\n", entry.id)
+	util.DPrintf(5, "evict: %d\n", entry.id)
 	delete(c.entries, entry.id)
 	c.cnt = c.cnt - 1
 	return true
