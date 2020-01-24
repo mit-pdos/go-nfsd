@@ -12,7 +12,9 @@ import (
 )
 
 //
-// Freeing of a file, run in separate thread/transaction
+// Freeing of a file.  If file is large (i.e,., has indirect blocks),
+// freeing is done in separate thread, using perhaps multiple
+// transactions to ensure that free fits in the log.
 //
 
 type ShrinkerSt struct {
@@ -48,11 +50,19 @@ func singletonTrans(ip *Inode) []*Inode {
 	return []*Inode{ip}
 }
 
+// 5: inode block, 2xbitmap block, indirect block, double indirect
+func enoughLogSpace(op *fstxn.FsTxn) bool {
+	return op.NumberDirty()+5 < op.LogSz()
+}
+
+func (ip *Inode) smallFileFits(op *fstxn.FsTxn) bool {
+	return ip.blks[INDIRECT] == 0 && op.NumberDirty()+NDIRECT+2 < op.LogSz()
+}
+
 func (ip *Inode) shrink(op *fstxn.FsTxn, bn uint64) uint64 {
 	cursz := util.RoundUp(ip.Size, disk.BlockSize)
 	util.DPrintf(1, "shrink: bn %d cursz %d\n", bn, cursz)
-	// 4: inode block, 2xbitmap block, indirect block, double indirect
-	for bn > cursz && op.NumberDirty()+4 < op.LogSz() {
+	for bn > cursz && enoughLogSpace(op) {
 		bn = bn - 1
 		if bn < NDIRECT {
 			op.FreeBlock(ip.blks[bn])

@@ -42,6 +42,11 @@ simplify allocator, plan 2
   support only single-bit range, instead of arbitrary
   NFS client generates single-block write RPCs, even for largefile
 
+smallfile() in cmd/clnt-smallfile/main.go and cmd/smallfile/main.go
+  make nfs_clnt.go support both, avoiding redundancy
+
+clean up small-file delete
+
 * Some performance
 
 ** running on ext3 over image in tmpfs
