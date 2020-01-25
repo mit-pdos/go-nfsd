@@ -74,27 +74,28 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	return reply
 }
 
-// Lookup must lock child inode to find gen number, but child maybe a
-// directory. We must lock directories in ascending inum order.
-func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
-	var reply nfstypes.LOOKUP3res
-	var ip *inode.Inode
+// Lock the inode for dfh and the inode for name.  name may be a
+// directory (e.g., "."). We must lock directories in ascending inum
+// order.
+func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+	var err nfstypes.Nfsstat3 = nfstypes.NFS3_OK
 	var inodes []*inode.Inode
+	var ip *inode.Inode
 	var op *fstxn.FsTxn
-	var done bool = false
+
 	for ip == nil {
 		op = fstxn.Begin(nfs.fsstate)
-		util.DPrintf(1, "NFS Lookup %v\n", args)
-		dip := inode.GetInode(op, args.What.Dir)
+		util.DPrintf(1, "getInodesLocked %v %v\n", dfh, name)
+		dip := inode.GetInode(op, dfh)
 		if dip == nil {
-			errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
-			done = true
+			util.DPrintf(1, "getInodesLocked stale\n")
+			err = nfstypes.NFS3ERR_STALE
 			break
 		}
-		inum, _ := dir.LookupName(dip, op, args.What.Name)
+		inum, _ := dir.LookupName(dip, op, name)
 		if inum == fs.NULLINUM {
-			errRet(op, &reply.Status, nfstypes.NFS3ERR_NOENT, []*inode.Inode{dip})
-			done = true
+			util.DPrintf(1, "getInodesLocked noent\n")
+			err = nfstypes.NFS3ERR_NOENT
 			break
 		}
 		inodes = []*inode.Inode{dip}
@@ -104,9 +105,9 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 			if inum < dip.Inum {
 				// Abort. Try to lock inodes in order
 				inode.Abort(op, []*inode.Inode{dip})
-				parent := fh.MakeFh(args.What.Dir)
+				parent := fh.MakeFh(dfh)
 				op = fstxn.Begin(nfs.fsstate)
-				inodes = lookupOrdered(op, args.What.Name, parent, inum)
+				inodes = lookupOrdered(op, name, parent, inum)
 				if inodes == nil {
 					ip = nil
 				} else {
@@ -118,10 +119,19 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 			}
 		}
 	}
-	if done {
+	return op, inodes, err
+}
+
+// Lookup must lock child inode to find gen number
+func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
+	var reply nfstypes.LOOKUP3res
+
+	op, inodes, err := nfs.getInodesLocked(args.What.Dir, args.What.Name)
+	if err != nfstypes.NFS3_OK {
+		errRet(op, &reply.Status, err, inodes)
 		return reply
 	}
-	fh := fh.Fh{Ino: ip.Inum, Gen: ip.Gen}
+	fh := fh.Fh{Ino: inodes[0].Inum, Gen: inodes[0].Gen}
 	reply.Resok.Object = fh.MakeFh3()
 	commitReply(op, &reply.Status, inodes)
 	return reply
@@ -316,66 +326,32 @@ func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
 
 func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	var reply nfstypes.REMOVE3res
-	var ip *inode.Inode
-	var dip *inode.Inode
-	var inodes []*inode.Inode
-	var op *fstxn.FsTxn
-	var done bool = false
-	for ip == nil {
-		op = fstxn.Begin(nfs.fsstate)
-		util.DPrintf(1, "NFS Remove %v\n", args)
-		dip = inode.GetInode(op, args.Object.Dir)
-		if dip == nil {
-			util.DPrintf(0, "RemName stale\n")
-			errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
-			done = true
-			break
-		}
-		if dir.IllegalName(args.Object.Name) {
-			util.DPrintf(0, "RemName inval\n")
-			errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, []*inode.Inode{dip})
-			done = true
-			break
-		}
-		inum, _ := dir.LookupName(dip, op, args.Object.Name)
-		if inum == fs.NULLINUM {
-			util.DPrintf(0, "RemName noentl\n")
-			errRet(op, &reply.Status, nfstypes.NFS3ERR_NOENT, []*inode.Inode{dip})
-			done = true
-			break
-		}
-		if inum < dip.Inum {
-			util.DPrintf(0, "abort noentl\n")
-			// Abort. Try to lock inodes in order
-			inode.Abort(op, []*inode.Inode{dip})
-			op := fstxn.Begin(nfs.fsstate)
-			parent := fh.MakeFh(args.Object.Dir)
-			inodes = lookupOrdered(op, args.Object.Name, parent, inum)
-			ip = inodes[0]
-			dip = inodes[1]
-		} else {
-			ip = inode.GetInodeLocked(op, inum)
-			inodes = twoInodes(ip, dip)
-		}
-	}
-	if done {
+	util.DPrintf(1, "NFS Remove %v\n", args)
+	if dir.IllegalName(args.Object.Name) {
+		util.DPrintf(0, "Remove inval name\n")
+		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
-	if ip.Kind != nfstypes.NF3REG {
-		util.DPrintf(0, "RemName not file\n")
+	op, inodes, err := nfs.getInodesLocked(args.Object.Dir, args.Object.Name)
+	if err != nfstypes.NFS3_OK {
+		errRet(op, &reply.Status, err, inodes)
+		return reply
+	}
+	if inodes[0].Kind != nfstypes.NF3REG {
+		util.DPrintf(0, "Remove not file\n")
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inodes)
 		return reply
 	}
-	ok := dir.RemName(dip, op, args.Object.Name)
+	ok := dir.RemName(inodes[1], op, args.Object.Name)
 	if !ok {
-		util.DPrintf(0, "RemName failed\n")
+		util.DPrintf(0, "Remove failed\n")
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
 		return reply
 	}
-	ip.DecLink(op)
+	inodes[0].DecLink(op)
 	commitReply(op, &reply.Status, inodes)
 	if reply.Status != nfstypes.NFS3_OK {
-		util.DPrintf(0, "RemName %v\n", reply.Status)
+		util.DPrintf(0, "Remove %v\n", reply.Status)
 	}
 	return reply
 }
