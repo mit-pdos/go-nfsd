@@ -119,6 +119,11 @@ func (ts *TestState) MkDir(name string) {
 	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
 }
 
+func (ts *TestState) RmDir(name string, err nfstypes.Nfsstat3) {
+	attr := ts.clnt.RmDirOp(fh.MkRootFh3(), name)
+	assert.Equal(ts.t, err, attr.Status)
+}
+
 func (ts *TestState) ReadDirPlus() nfstypes.Dirlistplus3 {
 	reply := ts.clnt.ReadDirPlusOp(fh.MkRootFh3(), inode.NDIRECT*disk.BlockSize)
 	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
@@ -282,7 +287,9 @@ func TestOneDir(t *testing.T) {
 	ts.LookupFh(fh3, "f")
 	ts.RenameFail("d2", "d3")
 
-	// Rmdir("d")
+	ts.RmDir("d", nfstypes.NFS3ERR_NOENT)
+	ts.RmDir("d2", nfstypes.NFS3_OK)
+	ts.RmDir("d3", nfstypes.NFS3ERR_INVAL)
 }
 
 // Many files

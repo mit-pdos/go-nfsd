@@ -81,6 +81,13 @@ func (clnt *NfsClient) MkDirOp(dir nfstypes.Nfs_fh3, name string) nfstypes.MKDIR
 	return attr
 }
 
+func (clnt *NfsClient) RmDirOp(dir nfstypes.Nfs_fh3, name string) nfstypes.RMDIR3res {
+	where := nfstypes.Diropargs3{Dir: dir, Name: nfstypes.Filename3(name)}
+	args := nfstypes.RMDIR3args{Object: where}
+	attr := clnt.srv.NFSPROC3_RMDIR(args)
+	return attr
+}
+
 func (clnt *NfsClient) CommitOp(fh nfstypes.Nfs_fh3, cnt uint64) *nfstypes.COMMIT3res {
 	args := nfstypes.COMMIT3args{
 		File:   fh,

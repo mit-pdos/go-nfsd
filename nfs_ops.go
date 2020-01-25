@@ -324,42 +324,54 @@ func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
 	return reply
 }
 
+func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+	if dir.IllegalName(name) {
+		util.DPrintf(0, "Remove inval name\n")
+		return nil, []*inode.Inode{}, nfstypes.NFS3ERR_INVAL
+	}
+	op, inodes, err := nfs.getInodesLocked(dfh, name)
+	if err != nfstypes.NFS3_OK {
+		return op, inodes, err
+	}
+	if inodes[0].Kind != kind {
+		util.DPrintf(0, "Remove not %v\n", kind)
+		return op, inodes, nfstypes.NFS3ERR_INVAL
+	}
+	if kind == nfstypes.NF3DIR && !dir.IsDirEmpty(inodes[0], op) {
+		return op, inodes, nfstypes.NFS3ERR_INVAL
+	}
+	ok := dir.RemName(inodes[1], op, name)
+	if !ok {
+		util.DPrintf(0, "Remove failed\n")
+		return op, inodes, nfstypes.NFS3ERR_IO
+	}
+	inodes[0].DecLink(op)
+	return op, inodes, nfstypes.NFS3_OK
+}
+
 func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	var reply nfstypes.REMOVE3res
 	util.DPrintf(1, "NFS Remove %v\n", args)
-	if dir.IllegalName(args.Object.Name) {
-		util.DPrintf(0, "Remove inval name\n")
-		reply.Status = nfstypes.NFS3ERR_INVAL
-		return reply
-	}
-	op, inodes, err := nfs.getInodesLocked(args.Object.Dir, args.Object.Name)
+	op, inodes, err := nfs.doRemove(args.Object.Dir, args.Object.Name, nfstypes.NF3REG)
 	if err != nfstypes.NFS3_OK {
+		util.DPrintf(0, "Remove %v\n", err)
 		errRet(op, &reply.Status, err, inodes)
 		return reply
 	}
-	if inodes[0].Kind != nfstypes.NF3REG {
-		util.DPrintf(0, "Remove not file\n")
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inodes)
-		return reply
-	}
-	ok := dir.RemName(inodes[1], op, args.Object.Name)
-	if !ok {
-		util.DPrintf(0, "Remove failed\n")
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
-		return reply
-	}
-	inodes[0].DecLink(op)
 	commitReply(op, &reply.Status, inodes)
-	if reply.Status != nfstypes.NFS3_OK {
-		util.DPrintf(0, "Remove %v\n", reply.Status)
-	}
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	var reply nfstypes.RMDIR3res
-	util.DPrintf(1, "NFS RmDir %v\n", args)
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	util.DPrintf(1, "NFS RMDir %v\n", args)
+	op, inodes, err := nfs.doRemove(args.Object.Dir, args.Object.Name, nfstypes.NF3DIR)
+	if err != nfstypes.NFS3_OK {
+		util.DPrintf(1, "Rmdir %v\n", err)
+		errRet(op, &reply.Status, err, inodes)
+		return reply
+	}
+	commitReply(op, &reply.Status, inodes)
 	return reply
 }
 
