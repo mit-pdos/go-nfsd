@@ -20,6 +20,13 @@ import (
 // lock order).
 //
 
+func twoInodes(ino1, ino2 *inode.Inode) []*inode.Inode {
+	inodes := make([]*inode.Inode, 2)
+	inodes[0] = ino1
+	inodes[1] = ino2
+	return inodes
+}
+
 func errRet(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3,
 	inodes []*inode.Inode) {
 	*status = err
@@ -236,47 +243,64 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
+func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+	op := fstxn.Begin(nfs.fsstate)
+	dip := inode.GetInode(op, dfh)
+	if dip == nil {
+		return op, nil, nfstypes.NFS3ERR_STALE
+	}
+	inum1, _ := dir.LookupName(dip, op, name)
+	if inum1 != fs.NULLINUM {
+		return op, []*inode.Inode{dip}, nfstypes.NFS3ERR_EXIST
+	}
+	inum, ip := inode.AllocInode(op, kind)
+	if inum == fs.NULLINUM {
+		return op, []*inode.Inode{dip}, nfstypes.NFS3ERR_NOSPC
+	}
+	if kind == nfstypes.NF3DIR {
+		ok := dir.InitDir(ip, op, dip.Inum)
+		if !ok {
+			ip.DecLink(op)
+			return op, twoInodes(dip, ip), nfstypes.NFS3ERR_NOSPC
+		}
+		dip.Nlink = dip.Nlink + 1 // for ..
+		dip.WriteInode(op)
+	}
+	ok := dir.AddName(dip, op, inum, name)
+	if !ok {
+		ip.DecLink(op)
+		return op, twoInodes(dip, ip), nfstypes.NFS3ERR_IO
+	}
+	return op, twoInodes(dip, ip), nfstypes.NFS3_OK
+}
+
 // XXX deal with how
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	var reply nfstypes.CREATE3res
-	op := fstxn.Begin(nfs.fsstate)
 	util.DPrintf(1, "NFS Create %v\n", args)
-	dip := inode.GetInode(op, args.Where.Dir)
-	if dip == nil {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
+	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3REG)
+	if err != nfstypes.NFS3_OK {
+		util.DPrintf(1, "Create %v\n", err)
+		errRet(op, &reply.Status, err, inodes)
 		return reply
 	}
-	inum1, _ := dir.LookupName(dip, op, args.Where.Name)
-	if inum1 != fs.NULLINUM {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_EXIST, []*inode.Inode{dip})
-		return reply
-	}
-	inum, ip := inode.AllocInode(op, nfstypes.NF3REG)
-	if inum == fs.NULLINUM {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, []*inode.Inode{dip})
-		return reply
-	}
-	ok := dir.AddName(dip, op, inum, args.Where.Name)
-	if !ok {
-		inode.FreeInum(op, inum)
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, []*inode.Inode{dip})
-		return reply
-	}
-	commitReply(op, &reply.Status, []*inode.Inode{dip, ip})
+	commitReply(op, &reply.Status, inodes)
 	return reply
-}
-
-func twoInodes(ino1, ino2 *inode.Inode) []*inode.Inode {
-	inodes := make([]*inode.Inode, 2)
-	inodes[0] = ino1
-	inodes[1] = ino2
-	return inodes
 }
 
 func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	var reply nfstypes.MKDIR3res
-	op := fstxn.Begin(nfs.fsstate)
+
 	util.DPrintf(1, "NFS MakeDir %v\n", args)
+	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR)
+	if err != nfstypes.NFS3_OK {
+		util.DPrintf(1, "Create %v\n", err)
+		errRet(op, &reply.Status, err, inodes)
+		return reply
+	}
+	commitReply(op, &reply.Status, inodes)
+	return reply
+
 	dip := inode.GetInode(op, args.Where.Dir)
 	if dip == nil {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
