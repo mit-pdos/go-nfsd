@@ -88,6 +88,21 @@ func (clnt *NfsClient) RmDirOp(dir nfstypes.Nfs_fh3, name string) nfstypes.RMDIR
 	return attr
 }
 
+func (clnt *NfsClient) SymLinkOp(dir nfstypes.Nfs_fh3, name string, path nfstypes.Nfspath3) nfstypes.SYMLINK3res {
+	where := nfstypes.Diropargs3{Dir: dir, Name: nfstypes.Filename3(name)}
+	sattr := nfstypes.Sattr3{}
+	symlink := nfstypes.Symlinkdata3{Symlink_attributes: sattr, Symlink_data: path}
+	args := nfstypes.SYMLINK3args{Where: where, Symlink: symlink}
+	attr := clnt.srv.NFSPROC3_SYMLINK(args)
+	return attr
+}
+
+func (clnt *NfsClient) ReadLinkOp(fh nfstypes.Nfs_fh3) nfstypes.READLINK3res {
+	args := nfstypes.READLINK3args{Symlink: fh}
+	attr := clnt.srv.NFSPROC3_READLINK(args)
+	return attr
+}
+
 func (clnt *NfsClient) CommitOp(fh nfstypes.Nfs_fh3, cnt uint64) *nfstypes.COMMIT3res {
 	args := nfstypes.COMMIT3args{
 		File:   fh,

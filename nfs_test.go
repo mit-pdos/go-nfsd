@@ -124,6 +124,17 @@ func (ts *TestState) RmDir(name string, err nfstypes.Nfsstat3) {
 	assert.Equal(ts.t, err, attr.Status)
 }
 
+func (ts *TestState) SymLink(name string, target string) {
+	attr := ts.clnt.SymLinkOp(fh.MkRootFh3(), name, nfstypes.Nfspath3(target))
+	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
+}
+
+func (ts *TestState) ReadLink(fh nfstypes.Nfs_fh3) string {
+	attr := ts.clnt.ReadLinkOp(fh)
+	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
+	return string(attr.Resok.Data)
+}
+
 func (ts *TestState) ReadDirPlus() nfstypes.Dirlistplus3 {
 	reply := ts.clnt.ReadDirPlusOp(fh.MkRootFh3(), inode.NDIRECT*disk.BlockSize)
 	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
@@ -317,6 +328,17 @@ func TestManyFiles1(t *testing.T) {
 		s := strconv.Itoa(i)
 		ts.Remove("x" + s)
 	}
+}
+
+func TestSymLink(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+
+	ts.Create("x")
+	ts.SymLink("y", "x")
+	fh := ts.Lookup("y", true)
+	p := ts.ReadLink(fh)
+	assert.Equal(ts.t, "x", p)
 }
 
 func TestRename(t *testing.T) {

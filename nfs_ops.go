@@ -152,31 +152,35 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 	return reply
 }
 
-func (nfs *Nfs) NFSPROC3_READLINK(args nfstypes.READLINK3args) nfstypes.READLINK3res {
-	var reply nfstypes.READLINK3res
-	util.DPrintf(1, "NFS ReadLink %v\n", args)
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
-	return reply
+func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count uint64) (*fstxn.FsTxn, []*inode.Inode, []byte, bool, nfstypes.Nfsstat3) {
+	op := fstxn.Begin(nfs.fsstate)
+	ip := inode.GetInode(op, fh)
+	if ip == nil {
+		return op, nil, nil, false, nfstypes.NFS3ERR_STALE
+	}
+	if ip.Kind != kind {
+		return op, []*inode.Inode{ip}, nil, false, nfstypes.NFS3ERR_INVAL
+	}
+	if ip.Kind == nfstypes.NF3LNK {
+		count = ip.Size
+	}
+	data, eof := ip.Read(op, offset, count)
+	return op, []*inode.Inode{ip}, data, eof, nfstypes.NFS3_OK
 }
 
 func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	var reply nfstypes.READ3res
-	op := fstxn.Begin(nfs.fsstate)
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
-	ip := inode.GetInode(op, args.File)
-	if ip == nil {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
+	op, inode, data, eof, err := nfs.doRead(args.File, nfstypes.NF3REG,
+		uint64(args.Offset), uint64(args.Count))
+	if err != nfstypes.NFS3_OK {
+		errRet(op, &reply.Status, err, inode)
 		return reply
 	}
-	if ip.Kind != nfstypes.NF3REG {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, []*inode.Inode{ip})
-		return reply
-	}
-	data, eof := ip.Read(op, uint64(args.Offset), uint64(args.Count))
 	reply.Resok.Count = nfstypes.Count3(len(data))
 	reply.Resok.Data = data
 	reply.Resok.Eof = eof
-	commitReply(op, &reply.Status, []*inode.Inode{ip})
+	commitReply(op, &reply.Status, inode)
 	return reply
 }
 
@@ -243,7 +247,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
-func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
 	op := fstxn.Begin(nfs.fsstate)
 	dip := inode.GetInode(op, dfh)
 	if dip == nil {
@@ -266,6 +270,13 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 		dip.Nlink = dip.Nlink + 1 // for ..
 		dip.WriteInode(op)
 	}
+	if kind == nfstypes.NF3LNK {
+		_, ok := ip.Write(op, uint64(0), uint64(len(data)), data)
+		if !ok {
+			ip.DecLink(op)
+			return op, twoInodes(dip, ip), nfstypes.NFS3ERR_NOSPC
+		}
+	}
 	ok := dir.AddName(dip, op, inum, name)
 	if !ok {
 		ip.DecLink(op)
@@ -278,7 +289,7 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	var reply nfstypes.CREATE3res
 	util.DPrintf(1, "NFS Create %v\n", args)
-	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3REG)
+	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3REG, nil)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Create %v\n", err)
 		errRet(op, &reply.Status, err, inodes)
@@ -292,7 +303,7 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	var reply nfstypes.MKDIR3res
 
 	util.DPrintf(1, "NFS MakeDir %v\n", args)
-	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR)
+	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR, nil)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Create %v\n", err)
 		errRet(op, &reply.Status, err, inodes)
@@ -300,44 +311,36 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	}
 	commitReply(op, &reply.Status, inodes)
 	return reply
-
-	dip := inode.GetInode(op, args.Where.Dir)
-	if dip == nil {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
-		return reply
-	}
-	inum1, _ := dir.LookupName(dip, op, args.Where.Name)
-	if inum1 != fs.NULLINUM {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_EXIST, []*inode.Inode{dip})
-		return reply
-	}
-	inum, ip := inode.AllocInode(op, nfstypes.NF3DIR)
-	if inum == fs.NULLINUM {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, []*inode.Inode{dip})
-		return reply
-	}
-	ok := dir.InitDir(ip, op, dip.Inum)
-	if !ok {
-		ip.DecLink(op)
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, twoInodes(dip, ip))
-		return reply
-	}
-	ok1 := dir.AddName(dip, op, inum, args.Where.Name)
-	if !ok1 {
-		ip.DecLink(op)
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, twoInodes(dip, ip))
-		return reply
-	}
-	dip.Nlink = dip.Nlink + 1 // for ..
-	dip.WriteInode(op)
-	commitReply(op, &reply.Status, twoInodes(dip, ip))
-	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_SYMLINK(args nfstypes.SYMLINK3args) nfstypes.SYMLINK3res {
 	var reply nfstypes.SYMLINK3res
-	util.DPrintf(1, "NFS MakeDir %v\n", args)
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	util.DPrintf(1, "NFS SymLink %v\n", args)
+
+	data := []byte(args.Symlink.Symlink_data)
+	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3LNK, data)
+	if err != nfstypes.NFS3_OK {
+		util.DPrintf(1, "doCreate %v\n", err)
+		errRet(op, &reply.Status, err, inodes)
+		return reply
+	}
+
+	commitReply(op, &reply.Status, inodes)
+	return reply
+}
+
+func (nfs *Nfs) NFSPROC3_READLINK(args nfstypes.READLINK3args) nfstypes.READLINK3res {
+	var reply nfstypes.READLINK3res
+	util.DPrintf(1, "NFS ReadLink %v\n", args)
+	op, inode, data, _, err := nfs.doRead(args.Symlink, nfstypes.NF3LNK,
+		uint64(0), uint64(0))
+	if err != nfstypes.NFS3_OK {
+		util.DPrintf(1, "NFS ReadLink err %v\n", err)
+		errRet(op, &reply.Status, err, inode)
+		return reply
+	}
+	reply.Resok.Data = nfstypes.Nfspath3(string(data))
+	commitReply(op, &reply.Status, inode)
 	return reply
 }
 
@@ -388,7 +391,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 
 func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	var reply nfstypes.RMDIR3res
-	util.DPrintf(1, "NFS RMDir %v\n", args)
+	util.DPrintf(1, "NFS Rmdir %v\n", args)
 	op, inodes, err := nfs.doRemove(args.Object.Dir, args.Object.Name, nfstypes.NF3DIR)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Rmdir %v\n", err)
@@ -580,7 +583,7 @@ func (nfs *Nfs) NFSPROC3_LINK(args nfstypes.LINK3args) nfstypes.LINK3res {
 
 func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3res {
 	var reply nfstypes.READDIR3res
-	util.DPrintf(1, "NFS Link %v\n", args)
+	util.DPrintf(1, "NFS ReadDir %v\n", args)
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
