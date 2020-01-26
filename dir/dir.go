@@ -11,8 +11,8 @@ import (
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
-const DIRENTSZ uint64 = 32
-const MAXNAMELEN = DIRENTSZ - 8
+const DIRENTSZ uint64 = 1024
+const MAXNAMELEN = DIRENTSZ - 16 // uint64 for inum + uint64 for len(name)
 
 type dir inode.Inode
 

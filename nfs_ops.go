@@ -1,6 +1,8 @@
 package goose_nfs
 
 import (
+	"time"
+
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
@@ -63,21 +65,51 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	return reply
 }
 
+func nfstimeNow() nfstypes.Nfstime3 {
+	now := time.Now()
+	t := nfstypes.Nfstime3{
+		Seconds:  nfstypes.Uint32(now.Second()),
+		Nseconds: nfstypes.Uint32(now.Nanosecond()),
+	}
+	return t
+}
+
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
 	var reply nfstypes.SETATTR3res
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
-	trans := fstxn.Begin(nfs.fsstate)
-	ip := inode.GetInode(trans, args.Object)
+	op := fstxn.Begin(nfs.fsstate)
+	ip := inode.GetInode(op, args.Object)
 	if ip == nil {
-		errRet(trans, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
 		return reply
 	}
-	if args.New_attributes.Size.Set_it {
-		ip.Resize(trans, uint64(args.New_attributes.Size.Size))
-		commitReply(trans, &reply.Status, []*inode.Inode{ip})
+	if args.New_attributes.Mode.Set_it {
+		util.DPrintf(1, "NFS SetAttr ignore mode %v\n", args)
+	} else if args.New_attributes.Size.Set_it {
+		ip.Resize(op, uint64(args.New_attributes.Size.Size))
+	} else if args.New_attributes.Atime.Set_it != nfstypes.DONT_CHANGE {
+		util.DPrintf(1, "NFS SetAttr Atime %v\n", args)
+		if args.New_attributes.Atime.Set_it == nfstypes.SET_TO_CLIENT_TIME {
+			ip.Atime = args.New_attributes.Atime.Atime
+		} else {
+			ip.Atime = nfstimeNow()
+
+		}
+		ip.WriteInode(op)
+	} else if args.New_attributes.Mtime.Set_it != nfstypes.DONT_CHANGE {
+		util.DPrintf(1, "NFS SetAttr Mtime %v\n", args)
+		if args.New_attributes.Mtime.Set_it == nfstypes.SET_TO_CLIENT_TIME {
+			ip.Mtime = args.New_attributes.Mtime.Mtime
+		} else {
+			ip.Mtime = nfstimeNow()
+
+		}
+		ip.WriteInode(op)
 	} else {
-		errRet(trans, &reply.Status, nfstypes.NFS3ERR_NOTSUPP, []*inode.Inode{ip})
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOTSUPP, []*inode.Inode{ip})
+		return reply
 	}
+	commitReply(op, &reply.Status, []*inode.Inode{ip})
 	return reply
 }
 

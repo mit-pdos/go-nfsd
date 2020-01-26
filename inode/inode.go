@@ -19,7 +19,7 @@ import (
 const NF3FREE nfstypes.Ftype3 = 0
 
 const (
-	NBLKINO   uint64 = 5 // # blk in an inode's blks array
+	NBLKINO   uint64 = 3 // # blk in an inode's blks array
 	NDIRECT   uint64 = NBLKINO - 2
 	INDIRECT  uint64 = NBLKINO - 2
 	DINDIRECT uint64 = NBLKINO - 1
@@ -37,6 +37,8 @@ type Inode struct {
 	Nlink uint32
 	Gen   uint64
 	Size  uint64
+	Atime nfstypes.Nfstime3
+	Mtime nfstypes.Nfstime3
 	blks  []uint64
 }
 
@@ -79,10 +81,8 @@ func (ip *Inode) MkFattr() nfstypes.Fattr3 {
 			Specdata2: nfstypes.Uint32(0)},
 		Fsid:   nfstypes.Uint64(0),
 		Fileid: nfstypes.Fileid3(0),
-		Atime: nfstypes.Nfstime3{Seconds: nfstypes.Uint32(0),
-			Nseconds: nfstypes.Uint32(0)},
-		Mtime: nfstypes.Nfstime3{Seconds: nfstypes.Uint32(0),
-			Nseconds: nfstypes.Uint32(0)},
+		Atime:  ip.Atime,
+		Mtime:  ip.Mtime,
 		Ctime: nfstypes.Nfstime3{Seconds: nfstypes.Uint32(0),
 			Nseconds: nfstypes.Uint32(0)},
 	}
@@ -95,6 +95,10 @@ func (ip *Inode) Encode() []byte {
 	enc.PutInt32(ip.Nlink)
 	enc.PutInt(ip.Gen)
 	enc.PutInt(ip.Size)
+	enc.PutInt32(uint32(ip.Atime.Seconds))
+	enc.PutInt32(uint32(ip.Atime.Nseconds))
+	enc.PutInt32(uint32(ip.Mtime.Seconds))
+	enc.PutInt32(uint32(ip.Mtime.Nseconds))
 	enc.PutInts(ip.blks)
 	return d
 }
@@ -114,6 +118,10 @@ func Decode(buf *buf.Buf, inum fs.Inum) *Inode {
 	ip.Nlink = dec.GetInt32()
 	ip.Gen = dec.GetInt()
 	ip.Size = dec.GetInt()
+	ip.Atime.Seconds = nfstypes.Uint32(dec.GetInt32())
+	ip.Atime.Nseconds = nfstypes.Uint32(dec.GetInt32())
+	ip.Mtime.Seconds = nfstypes.Uint32(dec.GetInt32())
+	ip.Mtime.Nseconds = nfstypes.Uint32(dec.GetInt32())
 	ip.blks = dec.GetInts(NBLKINO)
 	return ip
 }
