@@ -244,7 +244,7 @@ func FreeInum(op *fstxn.FsTxn, inum fs.Inum) {
 
 // Done with ip and remove inode if Nlink = 0.
 func (ip *Inode) Put(op *fstxn.FsTxn) {
-	util.DPrintf(5, "put inode %d Nlink %d\n", ip.Inum, ip.Nlink)
+	util.DPrintf(5, "put inode # %d Nlink %d\n", ip.Inum, ip.Nlink)
 	// shrinker may put an FREE inode
 	if ip.Nlink == 0 && ip.Kind != NF3FREE {
 		ip.Resize(op, 0)

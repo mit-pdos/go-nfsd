@@ -40,6 +40,6 @@ func CommitFh(op *fstxn.FsTxn, fh fh.Fh, inodes []*Inode) bool {
 // An aborted transaction may free an inode, which results in dirty
 // buffers that need to be written to log. So, call commit.
 func Abort(op *fstxn.FsTxn, inodes []*Inode) bool {
-	util.DPrintf(5, "Abort\n")
+	util.DPrintf(1, "Abort %v\n", inodes)
 	return commitWait(op, inodes, true, true)
 }

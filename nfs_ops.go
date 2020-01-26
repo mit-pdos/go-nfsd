@@ -131,13 +131,13 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 			err = nfstypes.NFS3ERR_STALE
 			break
 		}
+		inodes = []*inode.Inode{dip}
 		inum, _ := dir.LookupName(dip, op, name)
 		if inum == fs.NULLINUM {
 			util.DPrintf(1, "getInodesLocked noent\n")
 			err = nfstypes.NFS3ERR_NOENT
 			break
 		}
-		inodes = []*inode.Inode{dip}
 		if inum == dip.Inum {
 			ip = dip
 		} else {
@@ -165,6 +165,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	var reply nfstypes.LOOKUP3res
 
+	util.DPrintf(1, "NFS Lookup %v\n", args)
 	op, inodes, err := nfs.getInodesLocked(args.What.Dir, args.What.Name)
 	if err != nfstypes.NFS3_OK {
 		errRet(op, &reply.Status, err, inodes)
