@@ -11,7 +11,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
-const DIRENTSZ uint64 = 1024
+const DIRENTSZ uint64 = 512
 const MAXNAMELEN = DIRENTSZ - 16 // uint64 for inum + uint64 for len(name)
 
 type dir inode.Inode
@@ -124,6 +124,7 @@ func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
 	if begin != 0 {
 		begin += DIRENTSZ
 	}
+	var n uint64 = uint64(0)
 	for off := begin; off < dip.Size; {
 		data, _ := dip.Read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
@@ -143,7 +144,8 @@ func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
 			ip.ReleaseInode(op)
 		}
 		off = off + DIRENTSZ
-		if off-begin >= count {
+		n += uint64(16 + len(de.name)) // XXX first 3 entries of Entryplus3
+		if n >= count {
 			eof = false
 			break
 		}

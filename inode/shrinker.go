@@ -116,7 +116,7 @@ func shrinker(inum fs.Inum, oldsz uint64) {
 			break
 		}
 	}
-	util.DPrintf(1, "Shrinker: done shrinking %d to bn %d\n", inum, bn)
+	util.DPrintf(1, "Shrinker: done shrinking # %d to bn %d\n", inum, bn)
 	shrinkst.mu.Lock()
 	shrinkst.nthread = shrinkst.nthread - 1
 	shrinkst.condShut.Signal()

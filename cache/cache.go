@@ -115,7 +115,7 @@ func (c *Cache) FreeSlot(id uint64) {
 	entry := c.entries[id]
 	if entry != nil {
 		entry.ref = entry.ref - 1
-		util.DPrintf(10, "freeslot %d %d\n", id, entry.ref)
+		util.DPrintf(5, "freeslot %d %d\n", id, entry.ref)
 		if entry.ref == 0 {
 			entry.lru = c.lru.PushBack(entry)
 		}

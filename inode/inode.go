@@ -1,6 +1,9 @@
 package inode
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/tchajed/goose/machine"
 	"github.com/tchajed/goose/machine/disk"
 
@@ -12,8 +15,6 @@ import (
 	"github.com/mit-pdos/goose-nfsd/marshal"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
-
-	"fmt"
 )
 
 const NF3FREE nfstypes.Ftype3 = 0
@@ -42,6 +43,15 @@ type Inode struct {
 	blks  []uint64
 }
 
+func NfstimeNow() nfstypes.Nfstime3 {
+	now := time.Now()
+	t := nfstypes.Nfstime3{
+		Seconds:  nfstypes.Uint32(now.Unix()),
+		Nseconds: nfstypes.Uint32(now.Nanosecond()),
+	}
+	return t
+}
+
 func MkNullInode() *Inode {
 	return &Inode{
 		Inum:  fs.NULLINUM,
@@ -49,6 +59,8 @@ func MkNullInode() *Inode {
 		Nlink: uint32(1),
 		Gen:   uint64(0),
 		Size:  uint64(0),
+		Atime: NfstimeNow(),
+		Mtime: NfstimeNow(),
 		blks:  make([]uint64, NBLKINO),
 	}
 }
@@ -60,6 +72,8 @@ func MkRootInode() *Inode {
 		Nlink: uint32(1),
 		Gen:   uint64(0),
 		Size:  uint64(0),
+		Atime: NfstimeNow(),
+		Mtime: NfstimeNow(),
 		blks:  make([]uint64, NBLKINO),
 	}
 }
@@ -155,7 +169,7 @@ func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 		cslot.Obj = i
 	}
 	i := cslot.Obj.(*Inode)
-	util.DPrintf(5, "getInodeLocked %v\n", i)
+	util.DPrintf(1, "getInodeLocked %v\n", i)
 	return i
 }
 
@@ -211,7 +225,7 @@ func (ip *Inode) WriteInode(op *fstxn.FsTxn) {
 func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
 	var ip *Inode
 	inum := op.AllocINum()
-	if inum != 0 {
+	if inum != fs.NULLINUM {
 		ip = GetInodeLocked(op, inum)
 		if ip.Kind == NF3FREE {
 			util.DPrintf(1, "allocInode: allocate inode %d\n", inum)
@@ -219,6 +233,8 @@ func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
 			ip.Kind = kind
 			ip.Nlink = 1
 			ip.Gen = ip.Gen + 1
+			ip.Atime = NfstimeNow()
+			ip.Mtime = NfstimeNow()
 		} else {
 			panic("allocInode")
 		}
@@ -244,7 +260,7 @@ func FreeInum(op *fstxn.FsTxn, inum fs.Inum) {
 
 // Done with ip and remove inode if Nlink = 0.
 func (ip *Inode) Put(op *fstxn.FsTxn) {
-	util.DPrintf(5, "put inode # %d Nlink %d\n", ip.Inum, ip.Nlink)
+	util.DPrintf(1, "put inode # %d Nlink %d\n", ip.Inum, ip.Nlink)
 	// shrinker may put an FREE inode
 	if ip.Nlink == 0 && ip.Kind != NF3FREE {
 		ip.Resize(op, 0)
@@ -291,6 +307,7 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root uint64, level uint64, off uint64,
 
 	buf := op.ReadBlock(blkno)
 	nxtroot := machine.UInt64Get(buf.Blk[bo : bo+8])
+	util.DPrintf(1, "%d next root %v level %d\n", blkno, nxtroot, level)
 	b, newroot1 := ip.indbmap(op, nxtroot, level-1, ind, grow)
 	if newroot1 != 0 {
 		machine.UInt64Put(buf.Blk[bo:bo+8], newroot1)
@@ -446,12 +463,13 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 		off += nbytes
 		cnt += nbytes
 	}
-	util.DPrintf(5, "Write: off %d cnt %d size %d\n", offset, cnt, ip.Size)
+	util.DPrintf(1, "Write: off %d cnt %d size %d\n", offset, cnt, ip.Size)
 	if alloc || cnt > 0 {
 		if offset+cnt > ip.Size {
 			ip.Size = offset + cnt
 		}
 		ip.WriteInode(op)
+		return cnt, true
 	}
 	return cnt, ok
 }

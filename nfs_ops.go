@@ -1,8 +1,6 @@
 package goose_nfs
 
 import (
-	"time"
-
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
@@ -38,7 +36,6 @@ func errRet(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3,
 
 func commitReply(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, inodes []*inode.Inode) {
 	ok := inode.Commit(op, inodes)
-	util.DPrintf(1, "commitReply %v %v", ok, status)
 	if ok {
 		*status = nfstypes.NFS3_OK
 	} else {
@@ -65,15 +62,6 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	return reply
 }
 
-func nfstimeNow() nfstypes.Nfstime3 {
-	now := time.Now()
-	t := nfstypes.Nfstime3{
-		Seconds:  nfstypes.Uint32(now.Second()),
-		Nseconds: nfstypes.Uint32(now.Nanosecond()),
-	}
-	return t
-}
-
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
 	var reply nfstypes.SETATTR3res
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
@@ -92,7 +80,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		if args.New_attributes.Atime.Set_it == nfstypes.SET_TO_CLIENT_TIME {
 			ip.Atime = args.New_attributes.Atime.Atime
 		} else {
-			ip.Atime = nfstimeNow()
+			ip.Atime = inode.NfstimeNow()
 
 		}
 		ip.WriteInode(op)
@@ -101,7 +89,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		if args.New_attributes.Mtime.Set_it == nfstypes.SET_TO_CLIENT_TIME {
 			ip.Mtime = args.New_attributes.Mtime.Mtime
 		} else {
-			ip.Mtime = nfstimeNow()
+			ip.Mtime = inode.NfstimeNow()
 
 		}
 		ip.WriteInode(op)

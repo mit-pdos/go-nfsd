@@ -70,11 +70,11 @@ func (ts *TestState) Getattr(fh nfstypes.Nfs_fh3, sz uint64) {
 	assert.Equal(ts.t, nfstypes.Size3(sz), attr.Resok.Obj_attributes.Size)
 }
 
-func (ts *TestState) GetattrDir(fh nfstypes.Nfs_fh3) uint64 {
+func (ts *TestState) GetattrDir(fh nfstypes.Nfs_fh3) nfstypes.Fattr3 {
 	attr := ts.clnt.GetattrOp(fh)
 	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
 	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, nfstypes.NF3DIR)
-	return uint64(attr.Resok.Obj_attributes.Size)
+	return attr.Resok.Obj_attributes
 }
 
 func (ts *TestState) GetattrFail(fh nfstypes.Nfs_fh3) {
@@ -211,7 +211,6 @@ func TestRoot(t *testing.T) {
 	ts.GetattrDir(fhdot)
 	fhdotdot := ts.LookupFh(fh, "..")
 	ts.GetattrDir(fhdotdot)
-	// assert.Equal(ts.t, fhdot.ino, fhdotdot.ino)
 }
 
 func TestReadDir(t *testing.T) {
@@ -234,8 +233,8 @@ func TestOneFile(t *testing.T) {
 
 	sz := uint64(8192)
 	ts.Create("x")
-	sz1 := ts.GetattrDir(fh.MkRootFh3())
-	assert.Equal(t, 3*dir.DIRENTSZ, sz1)
+	attr := ts.GetattrDir(fh.MkRootFh3())
+	assert.Equal(t, 3*dir.DIRENTSZ, uint64(attr.Size))
 	fh := ts.Lookup("x", true)
 	ts.Getattr(fh, 0)
 	data := mkdata(sz)
@@ -629,15 +628,16 @@ func (ts *TestState) maketoolargefile(name string, wsize int) {
 	ts.Create(name)
 	sz := uint64(4096 * wsize)
 	x := ts.Lookup(name, true)
-	for i := uint64(0); ; i++ {
-		data := mkdataval(byte(i), sz)
-		reply := ts.clnt.WriteOp(x, i*sz, data, nfstypes.FILE_SYNC)
+	for i := uint64(0); ; {
+		data := mkdataval(byte(i%128), sz)
+		reply := ts.clnt.WriteOp(x, i, data, nfstypes.FILE_SYNC)
 		if reply.Status == nfstypes.NFS3_OK {
-			assert.Equal(ts.t, reply.Resok.Count, nfstypes.Count3(len(data)))
+			assert.LessOrEqual(ts.t, uint64(reply.Resok.Count), uint64(len(data)))
 		} else {
 			assert.Equal(ts.t, reply.Status, nfstypes.NFS3ERR_NOSPC)
 			break
 		}
+		i += uint64(reply.Resok.Count)
 	}
 }
 
@@ -666,23 +666,19 @@ func TestAbort(t *testing.T) {
 	defer ts.Close()
 
 	ts.maketoolargefile("x", 50)
-	// y will consume the few remaining blocks, because the large
-	// write to x failed, freeing up the blocks from the aborted
-	// write.
-	ts.maketoolargefile("y", 1)
 	// an inode for d can allocated but there is no block for the dir
-	// mkdir will allocate inode 4
+	// mkdir will allocate inode 3
 	attr := ts.clnt.MkDirOp(fh.MkRootFh3(), "d")
 	assert.Equal(ts.t, nfstypes.NFS3ERR_NOSPC, attr.Status)
 	// d better not exist
 	ts.Lookup("d", false)
 	ts.clnt.Shutdown()
 	ts.clnt.srv = MakeNfs(ts.clnt.srv.Name, DISKSZ)
-	ts.Remove("y")
-	ts.Create("y")
+	ts.Remove("x")
+	ts.MkDir("d1") // reallocate inode 2 (x's inode)
 	ts.MkDir("d")
 	fh3 := ts.Lookup("d", true)
 	fh := fh.MakeFh(fh3)
-	// inode 4 should be free and used
-	assert.Equal(ts.t, fh.Ino, fs.Inum(4))
+	// inode 3 should be used for d
+	assert.Equal(ts.t, fh.Ino, fs.Inum(3))
 }
