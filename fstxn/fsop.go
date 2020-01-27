@@ -120,6 +120,9 @@ func (op *FsTxn) AllocBlock() uint64 {
 
 func (op *FsTxn) FreeBlock(blkno uint64) {
 	util.DPrintf(1, "free block %v\n", blkno)
+	if blkno == 0 {
+		return
+	}
 	op.ZeroBlock(blkno)
 	op.balloc.FreeNum(op.buftxn, blkno)
 }
