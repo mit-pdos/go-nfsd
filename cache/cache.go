@@ -100,8 +100,12 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 			return nil
 		}
 	}
-	s := Cslot{mu: new(sync.Mutex), Obj: nil}
-	enew := &entry{ref: 1, slot: s, lru: nil, id: id}
+	enew := &entry{
+		ref:  1,
+		slot: Cslot{mu: new(sync.Mutex), Obj: nil},
+		lru:  nil,
+		id:   id,
+	}
 	c.entries[id] = enew
 	c.cnt = c.cnt + 1
 	c.mu.Unlock()
