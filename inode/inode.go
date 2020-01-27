@@ -94,7 +94,7 @@ func (ip *Inode) MkFattr() nfstypes.Fattr3 {
 		Rdev: nfstypes.Specdata3{Specdata1: nfstypes.Uint32(0),
 			Specdata2: nfstypes.Uint32(0)},
 		Fsid:   nfstypes.Uint64(0),
-		Fileid: nfstypes.Fileid3(0),
+		Fileid: nfstypes.Fileid3(ip.Inum),
 		Atime:  ip.Atime,
 		Mtime:  ip.Mtime,
 		Ctime: nfstypes.Nfstime3{Seconds: nfstypes.Uint32(0),
