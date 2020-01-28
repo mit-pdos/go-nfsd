@@ -32,7 +32,7 @@ func mkdata(sz uint64) []byte {
 }
 
 func main() {
-	const N = 1000 * 1000 * 10
+	const N = 10 * time.Second
 	path := "/mnt/nfs/x"
 
 	start := time.Now()
@@ -44,9 +44,9 @@ func main() {
 		i++
 		t := time.Now()
 		elapsed := t.Sub(start)
-		if elapsed.Microseconds() >= N {
+		if elapsed >= N {
 			break
 		}
 	}
-	fmt.Printf("fs-smallfile: %v file/sec\n", float64(i)/(N/(1000*1000)))
+	fmt.Printf("fs-smallfile: %v file/sec\n", float64(i)/N.Seconds())
 }

@@ -69,7 +69,7 @@ func largeFile() {
 
 	t := time.Now()
 	elapsed := t.Sub(start)
-	tput := float64(FILESIZE/MB) / (float64(elapsed.Microseconds()) / 1000000)
+	tput := float64(FILESIZE/MB) / elapsed.Seconds()
 	fmt.Printf("largefile: %v MB througput %.2f MB/s\n", FILESIZE/MB, tput)
 
 	clnt.RemoveOp(dir, name)

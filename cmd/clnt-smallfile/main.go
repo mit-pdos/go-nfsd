@@ -185,7 +185,7 @@ func main() {
 	nfs := pmap_client("localhost", rfc1813.NFS_PROGRAM, rfc1813.NFS_V3)
 	clnt := &nfsclnt{clnt: nfs, cred: cred_unix, verf: cred_none}
 
-	const N = 1000 * 1000 * 10
+	const N = 10 * time.Second
 
 	start := time.Now()
 	i := 0
@@ -197,9 +197,9 @@ func main() {
 		i++
 		t := time.Now()
 		elapsed := t.Sub(start)
-		if elapsed.Microseconds() >= N {
+		if elapsed >= N {
 			break
 		}
 	}
-	fmt.Printf("clnt-smallfile: %v file/s\n", float64(i)/(N/(1000*1000)))
+	fmt.Printf("clnt-smallfile: %v file/s\n", float64(i)/N.Seconds())
 }

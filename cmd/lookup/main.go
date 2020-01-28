@@ -42,7 +42,7 @@ func Lookup(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) {
 }
 
 func PLookup() {
-	const N = 1000000
+	const N = 1 * time.Second
 	const NTHREAD = 4
 	for i := 1; i <= NTHREAD; i++ {
 		res := goose_nfs.Parallel(i, BENCHDISKSZ,
@@ -55,14 +55,14 @@ func PLookup() {
 					i++
 					t := time.Now()
 					elapsed := t.Sub(start)
-					if elapsed.Microseconds() >= N {
+					if elapsed >= N {
 						break
 					}
 				}
 				return i
 			})
 		fmt.Printf("Lookup: %d file in %d usec with %d threads\n",
-			res, N, i)
+			res, N.Nanoseconds()/1e3, i)
 
 	}
 }

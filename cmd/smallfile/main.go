@@ -64,7 +64,7 @@ func mkdata(sz uint64) []byte {
 }
 
 func PSmallFile() {
-	const N = 1000 * 1000 * 10
+	const N = 10 * time.Second
 	const NTHREAD = 1
 	for i := 1; i <= NTHREAD; i++ {
 		res := goose_nfs.Parallel(i, BENCHDISKSZ,
@@ -78,14 +78,14 @@ func PSmallFile() {
 					i++
 					t := time.Now()
 					elapsed := t.Sub(start)
-					if elapsed.Microseconds() >= N {
+					if elapsed >= N {
 						break
 					}
 				}
 				return i
 			})
-		fmt.Printf("smallfile: %v file/swith %d threads\n",
-			float64(res)/(N/(1000*1000)), i)
+		fmt.Printf("smallfile: %v file/s with %d threads\n",
+			float64(res)/N.Seconds(), i)
 
 	}
 }
