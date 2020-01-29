@@ -52,7 +52,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
 	txn := fstxn.Begin(nfs.fsstate)
-	ip := inode.GetInode(txn, args.Object)
+	ip := inode.GetInodeFh(txn, args.Object)
 	if ip == nil {
 		errRet(txn, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
 		return reply
@@ -66,7 +66,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	var reply nfstypes.SETATTR3res
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
 	op := fstxn.Begin(nfs.fsstate)
-	ip := inode.GetInode(op, args.Object)
+	ip := inode.GetInodeFh(op, args.Object)
 	if ip == nil {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
 		return reply
@@ -113,7 +113,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 	for ip == nil {
 		op = fstxn.Begin(nfs.fsstate)
 		util.DPrintf(1, "getInodesLocked %v %v\n", dfh, name)
-		dip := inode.GetInode(op, dfh)
+		dip := inode.GetInodeFh(op, dfh)
 		if dip == nil {
 			util.DPrintf(1, "getInodesLocked stale\n")
 			err = nfstypes.NFS3ERR_STALE
@@ -175,7 +175,7 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 
 func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count uint64) (*fstxn.FsTxn, []*inode.Inode, []byte, bool, nfstypes.Nfsstat3) {
 	op := fstxn.Begin(nfs.fsstate)
-	ip := inode.GetInode(op, fh)
+	ip := inode.GetInodeFh(op, fh)
 	if ip == nil {
 		return op, nil, nil, false, nfstypes.NFS3ERR_STALE
 	}
@@ -211,7 +211,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	op := fstxn.Begin(nfs.fsstate)
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
-	ip := inode.GetInode(op, args.File)
+	ip := inode.GetInodeFh(op, args.File)
 	fh := fh.MakeFh(args.File)
 	if ip == nil {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
@@ -270,7 +270,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 
 func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
 	op := fstxn.Begin(nfs.fsstate)
-	dip := inode.GetInode(op, dfh)
+	dip := inode.GetInodeFh(op, dfh)
 	if dip == nil {
 		return op, nil, nfstypes.NFS3ERR_STALE
 	}
@@ -479,7 +479,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		}
 
 		if fh.Equal(args.From.Dir, args.To.Dir) {
-			dipfrom = inode.GetInode(op, args.From.Dir)
+			dipfrom = inode.GetInodeFh(op, args.From.Dir)
 			if dipfrom == nil {
 				errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
 				done = true
@@ -498,7 +498,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 			dipto = inodes[1]
 		}
 
-		util.DPrintf(5, "from %v to %v\n", dipfrom, dipto)
+		util.DPrintf(1, "from %v to %v\n", dipfrom, dipto)
 
 		frominumLookup, _ := dir.LookupName(dipfrom, op, args.From.Name)
 		frominum = frominumLookup
@@ -507,11 +507,12 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 			done = true
 			break
 		}
+		util.DPrintf(1, "frominum %d toinum %d\n", frominum, toinum)
 
 		toInumLookup, _ := dir.LookupName(dipto, op, args.To.Name)
 		toinum = toInumLookup
 
-		util.DPrintf(5, "frominum %d toinum %d\n", frominum, toinum)
+		util.DPrintf(1, "frominum %d toinum %d\n", frominum, toinum)
 
 		// rename to itself?
 		if dipto == dipfrom && toinum == frominum {
@@ -550,7 +551,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 				from = inodes[1]
 				to = inodes[2]
 			}
-			util.DPrintf(5, "inodes %v\n", inodes)
+			util.DPrintf(1, "inodes %v\n", inodes)
 			if validateRename(op, inodes, fromh, toh,
 				args.From.Name, args.To.Name) {
 				if to.Kind != from.Kind {
@@ -613,7 +614,7 @@ func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.RE
 	var reply nfstypes.READDIRPLUS3res
 	util.DPrintf(1, "NFS ReadDirPlus %v\n", args)
 	op := fstxn.Begin(nfs.fsstate)
-	ip := inode.GetInode(op, args.Dir)
+	ip := inode.GetInodeFh(op, args.Dir)
 	if ip == nil {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
 		return reply
@@ -660,7 +661,7 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	var reply nfstypes.COMMIT3res
 	util.DPrintf(1, "NFS Commit %v\n", args)
 	op := fstxn.Begin(nfs.fsstate)
-	ip := inode.GetInode(op, args.File)
+	ip := inode.GetInodeFh(op, args.File)
 	fh := fh.MakeFh(args.File)
 	if ip == nil {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)

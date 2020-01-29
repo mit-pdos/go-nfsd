@@ -84,6 +84,10 @@ func (op *FsTxn) Acquire(addr buf.Addr) {
 	op.buftxn.Acquire(addr)
 }
 
+func (op *FsTxn) OwnLock(addr buf.Addr) bool {
+	return op.buftxn.IsLocked(addr)
+}
+
 // assumes caller hold lock on addr
 func (op *FsTxn) ReadBuf(addr buf.Addr) *buf.Buf {
 	return op.buftxn.ReadBuf(addr)

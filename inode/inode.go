@@ -166,9 +166,13 @@ func MaxFileSize() uint64 {
 	return (NDIRECT + maxblks) * disk.BlockSize
 }
 
-func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+func OwnInode(op *fstxn.FsTxn, inum fs.Inum) bool {
 	addr := op.Fs.Inum2Addr(inum)
-	op.Acquire(addr)
+	return op.OwnLock(addr)
+}
+
+func GetInode(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+	addr := op.Fs.Inum2Addr(inum)
 	cslot := op.LookupSlot(inum)
 	if cslot == nil {
 		panic("GetInodeLocked")
@@ -182,6 +186,12 @@ func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	i := cslot.Obj.(*Inode)
 	util.DPrintf(1, "GetInodeLocked %v\n", i)
 	return i
+}
+
+func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+	addr := op.Fs.Inum2Addr(inum)
+	op.Acquire(addr)
+	return GetInode(op, inum)
 }
 
 func getInodeInumFree(op *fstxn.FsTxn, inum fs.Inum) *Inode {
@@ -205,7 +215,7 @@ func GetInodeInum(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	return ip
 }
 
-func GetInode(op *fstxn.FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
+func GetInodeFh(op *fstxn.FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
 	fh := fh.MakeFh(fh3)
 	ip := GetInodeInum(op, fh.Ino)
 	if ip == nil {

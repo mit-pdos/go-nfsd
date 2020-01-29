@@ -134,17 +134,26 @@ func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
 			off = off + DIRENTSZ
 			continue
 		}
-		if de.inum != dip.Inum {
-			ip = inode.GetInodeInum(op, de.inum)
+
+		// Lock inode, if this transaction doesn't own it already
+		var own bool = false
+		if inode.OwnInode(op, de.inum) {
+			own = true
+			ip = inode.GetInode(op, de.inum)
 		} else {
-			ip = dip
+			ip = inode.GetInodeInum(op, de.inum)
+
 		}
+
 		f(ip, de.name, de.inum, off)
-		// XXX hack release inode and inode block
-		if ip != dip {
-			ip.Put(op)
+
+		// Put and release inode early, if this trans didn't
+		// own it before.
+		ip.Put(op)
+		if !own {
 			ip.ReleaseInode(op)
 		}
+
 		off = off + DIRENTSZ
 		n += uint64(16 + len(de.name)) // XXX first 3 entries of Entryplus3
 		if n >= count {
