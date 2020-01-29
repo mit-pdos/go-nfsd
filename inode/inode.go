@@ -311,13 +311,12 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root uint64, level uint64, off uint64,
 	}
 
 	buf := op.ReadBlock(blkno)
-	nxtroot := machine.UInt64Get(buf.Blk[bo : bo+8])
+	nxtroot := buf.Uint64Get(bo)
 	util.DPrintf(1, "%d next root %v level %d\n", blkno, nxtroot, level)
 	b, newroot1 := ip.indbmap(op, nxtroot, level-1, ind, grow)
+	op.AssertValidBlock(newroot1)
 	if newroot1 != 0 {
-		op.AssertValidBlock(newroot1)
-		machine.UInt64Put(buf.Blk[bo:bo+8], newroot1)
-		buf.SetDirty()
+		buf.Uint64Put(bo, newroot1)
 	}
 	if b >= op.Fs.Size {
 		util.DPrintf(0, "indbmap %v %v\n", b, op.Fs.Size)

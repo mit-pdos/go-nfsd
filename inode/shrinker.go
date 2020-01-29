@@ -3,7 +3,6 @@ package inode
 import (
 	"sync"
 
-	"github.com/tchajed/goose/machine"
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/fs"
@@ -139,13 +138,12 @@ func (ip *Inode) indshrink(op *fstxn.FsTxn, root uint64, level uint64, bn uint64
 	ind := bn % divisor
 	boff := off * 8
 	buf := op.ReadBlock(root)
-	nxtroot := machine.UInt64Get(buf.Blk[boff : boff+8])
+	nxtroot := buf.Uint64Get(boff)
+	op.AssertValidBlock(nxtroot)
 	if nxtroot != 0 {
-		op.AssertValidBlock(nxtroot)
 		freeroot := ip.indshrink(op, nxtroot, level-1, ind)
 		if freeroot != 0 {
-			machine.UInt64Put(buf.Blk[boff:boff+8], 0)
-			buf.SetDirty()
+			buf.Uint64Put(boff, 0)
 			op.FreeBlock(freeroot)
 		}
 	}
