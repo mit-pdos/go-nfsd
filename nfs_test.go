@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"strconv"
 	"sync"
 
@@ -519,6 +520,25 @@ func TestFileHole(t *testing.T) {
 
 	null := mkdataval(0, 4096)
 	ts.readcheck(fh, 0, null)
+}
+
+func TestManyHoles(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+
+	sz := uint64(8192)
+	data := mkdata(uint64(sz))
+	n := 4
+	for i := 0; i < 50; i++ {
+		ts.Create("x")
+		fh := ts.Lookup("x", true)
+		for j := 0; j < n; j++ {
+			off := rand.Uint64()
+			off = off % (inode.MaxFileSize() - sz)
+			ts.WriteOff(fh, off, data, nfstypes.FILE_SYNC)
+		}
+		ts.Remove("x")
+	}
 }
 
 func (ts *TestState) evict(names []string) {
