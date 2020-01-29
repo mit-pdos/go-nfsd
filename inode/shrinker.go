@@ -94,8 +94,8 @@ func (ip *Inode) shrink(op *fstxn.FsTxn, bn uint64) uint64 {
 
 func shrinker(inum fs.Inum, oldsz uint64) {
 	var bn = util.RoundUp(oldsz, disk.BlockSize)
-	util.DPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
 	for {
+		util.DPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
 		op := fstxn.Begin(shrinkst.fsstate)
 		ip := getInodeInumFree(op, inum)
 		if ip == nil {

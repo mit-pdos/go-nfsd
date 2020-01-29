@@ -461,7 +461,6 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 		}
 		if byteoff == 0 && nbytes == disk.BlockSize { // block overwrite?
 			addr := op.Fs.Block2addr(blkno)
-			op.Acquire(addr)
 			op.OverWrite(addr, data[0:nbytes])
 		} else {
 			buffer := op.ReadBlock(blkno)
