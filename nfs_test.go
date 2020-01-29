@@ -103,6 +103,13 @@ func (ts *TestState) Write(fh nfstypes.Nfs_fh3, data []byte, how nfstypes.Stable
 	ts.WriteOff(fh, uint64(0), data, how)
 }
 
+func (ts *TestState) ReadEof(fh nfstypes.Nfs_fh3, off uint64, sz uint64) {
+	reply := ts.clnt.ReadOp(fh, off, sz)
+	assert.Equal(ts.t, nfstypes.NFS3_OK, reply.Status)
+	assert.Equal(ts.t, nfstypes.Count3(0), reply.Resok.Count)
+	assert.Equal(ts.t, reply.Resok.Eof, true)
+}
+
 func (ts *TestState) Read(fh nfstypes.Nfs_fh3, off uint64, sz uint64) []byte {
 	reply := ts.clnt.ReadOp(fh, off, sz)
 	assert.Equal(ts.t, nfstypes.NFS3_OK, reply.Status)
@@ -541,6 +548,35 @@ func TestManyHoles(t *testing.T) {
 	}
 }
 
+func (ts *TestState) writeLargeFile(name string, N uint64) nfstypes.Nfs_fh3 {
+	ts.Create(name)
+	sz := uint64(4096)
+	x := ts.Lookup(name, true)
+	for i := uint64(0); i < N; i++ {
+		data := mkdataval(byte(i), sz)
+		ts.WriteOff(x, i*sz, data, nfstypes.UNSTABLE)
+	}
+	ts.Commit(x, sz*N)
+	return x
+}
+
+func TestClearHole(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+
+	const N = inode.NDIRECT + disk.BlockSize/8 + 10
+
+	sz := uint64(4096)
+	data := mkdataval(byte(1), sz)
+	clear := mkdataval(byte(0), sz)
+	fh := ts.writeLargeFile("x", N)
+	ts.Setattr(fh, 2*sz)
+	ts.readcheck(fh, sz, data)
+	ts.ReadEof(fh, 2*sz, sz)
+	ts.WriteOff(fh, 20*sz, data, nfstypes.FILE_SYNC)
+	ts.readcheck(fh, 2*sz, clear)
+}
+
 func (ts *TestState) evict(names []string) {
 	const N uint64 = bcache.BCACHESZ * 2
 	var wg sync.WaitGroup
@@ -587,18 +623,12 @@ func TestConcurEvict(t *testing.T) {
 func TestWriteLargeFile(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
+
 	// allocate a double indirect block
 	const N = inode.NDIRECT + disk.BlockSize/8 + 10
 
-	ts.Create("x")
 	sz := uint64(4096)
-	x := ts.Lookup("x", true)
-	for i := uint64(0); i < N; i++ {
-		data := mkdataval(byte(i), sz)
-		ts.WriteOff(x, i*sz, data, nfstypes.UNSTABLE)
-	}
-	ts.Commit(x, sz*N)
-
+	x := ts.writeLargeFile("x", N)
 	for i := uint64(0); i < N; i++ {
 		data := mkdataval(byte(i), sz)
 		ts.readcheck(x, i*sz, data)
