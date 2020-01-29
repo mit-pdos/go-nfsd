@@ -63,23 +63,27 @@ func MkFsSuper(sz uint64, name *string) *FsSuper {
 		Maxaddr:      sz}
 }
 
-func (fs *FsSuper) BitmapBlockStart() uint64 {
-	return fs.nLog
+func (fs *FsSuper) MaxBnum() buf.Bnum {
+	return buf.Bnum(fs.Maxaddr)
 }
 
-func (fs *FsSuper) BitmapInodeStart() uint64 {
-	return fs.BitmapBlockStart() + fs.NBlockBitmap
+func (fs *FsSuper) BitmapBlockStart() buf.Bnum {
+	return buf.Bnum(fs.nLog)
 }
 
-func (fs *FsSuper) InodeStart() uint64 {
-	return fs.BitmapInodeStart() + fs.NInodeBitmap
+func (fs *FsSuper) BitmapInodeStart() buf.Bnum {
+	return fs.BitmapBlockStart() + buf.Bnum(fs.NBlockBitmap)
 }
 
-func (fs *FsSuper) DataStart() uint64 {
-	return fs.InodeStart() + fs.nInodeBlk
+func (fs *FsSuper) InodeStart() buf.Bnum {
+	return fs.BitmapInodeStart() + buf.Bnum(fs.NInodeBitmap)
 }
 
-func (fs *FsSuper) Block2addr(blkno uint64) buf.Addr {
+func (fs *FsSuper) DataStart() buf.Bnum {
+	return fs.InodeStart() + buf.Bnum(fs.nInodeBlk)
+}
+
+func (fs *FsSuper) Block2addr(blkno buf.Bnum) buf.Addr {
 	return buf.MkAddr(blkno, 0, NBITBLOCK)
 }
 
@@ -88,7 +92,8 @@ func (fs *FsSuper) NInode() Inum {
 }
 
 func (fs *FsSuper) Inum2Addr(inum Inum) buf.Addr {
-	return buf.MkAddr(fs.InodeStart()+uint64(inum)/INODEBLK, (uint64(inum)%INODEBLK)*INODESZ*8, INODESZ*8)
+	return buf.MkAddr(fs.InodeStart()+buf.Bnum(uint64(inum)/INODEBLK),
+		(uint64(inum)%INODEBLK)*INODESZ*8, INODESZ*8)
 }
 
 func (fs *FsSuper) DiskBlockSize(addr buf.Addr) bool {

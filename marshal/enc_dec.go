@@ -3,6 +3,8 @@ package marshal
 import (
 	"github.com/tchajed/goose/machine"
 	"github.com/tchajed/goose/machine/disk"
+
+	"github.com/mit-pdos/goose-nfsd/buf"
 )
 
 type enc struct {
@@ -26,11 +28,11 @@ func (enc *enc) PutInt(x uint64) {
 	enc.off = enc.off + 8
 }
 
-func (enc *enc) PutInts(xs []uint64) {
+func (enc *enc) PutBnums(xs []buf.Bnum) {
 	// we could be slightly more efficient here by not repeatedly updating
 	// the offset
 	for _, x := range xs {
-		enc.PutInt(x)
+		enc.PutInt(uint64(x))
 	}
 }
 
@@ -57,10 +59,10 @@ func (dec *dec) GetInt32() uint32 {
 	return x
 }
 
-func (dec *dec) GetInts(len uint64) []uint64 {
-	xs := make([]uint64, len)
+func (dec *dec) GetBnums(len uint64) []buf.Bnum {
+	xs := make([]buf.Bnum, len)
 	for i := range xs {
-		xs[i] = dec.GetInt()
+		xs[i] = buf.Bnum(dec.GetInt())
 	}
 	return xs
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -56,7 +57,7 @@ func enoughLogSpace(op *fstxn.FsTxn) bool {
 }
 
 func (ip *Inode) smallFileFits(op *fstxn.FsTxn) bool {
-	return ip.blks[INDIRECT] == 0 && op.NumberDirty()+NDIRECT+2 < op.LogSz()
+	return ip.blks[INDIRECT] == buf.NULLBNUM && op.NumberDirty()+NDIRECT+2 < op.LogSz()
 }
 
 func (ip *Inode) freeIndex(op *fstxn.FsTxn, index uint64) {
@@ -126,8 +127,8 @@ func shrinker(inum fs.Inum, oldsz uint64) {
 
 // Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn
 // have been cleared
-func (ip *Inode) indshrink(op *fstxn.FsTxn, root uint64, level uint64, bn uint64) uint64 {
-	if root == 0 {
+func (ip *Inode) indshrink(op *fstxn.FsTxn, root buf.Bnum, level uint64, bn uint64) buf.Bnum {
+	if root == buf.NULLBNUM {
 		return 0
 	}
 	if level == 0 {
@@ -137,19 +138,19 @@ func (ip *Inode) indshrink(op *fstxn.FsTxn, root uint64, level uint64, bn uint64
 	off := (bn / divisor)
 	ind := bn % divisor
 	boff := off * 8
-	buf := op.ReadBlock(root)
-	nxtroot := buf.Uint64Get(boff)
+	b := op.ReadBlock(root)
+	nxtroot := b.BnumGet(boff)
 	op.AssertValidBlock(nxtroot)
 	if nxtroot != 0 {
 		freeroot := ip.indshrink(op, nxtroot, level-1, ind)
 		if freeroot != 0 {
-			buf.Uint64Put(boff, 0)
+			b.BnumPut(boff, 0)
 			op.FreeBlock(freeroot)
 		}
 	}
 	if off == 0 && ind == 0 {
 		return root
 	} else {
-		return 0
+		return buf.NULLBNUM
 	}
 }

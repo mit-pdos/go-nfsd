@@ -40,7 +40,7 @@ type Inode struct {
 	Size  uint64
 	Atime nfstypes.Nfstime3
 	Mtime nfstypes.Nfstime3
-	blks  []uint64
+	blks  []buf.Bnum
 }
 
 func NfstimeNow() nfstypes.Nfstime3 {
@@ -61,7 +61,7 @@ func MkNullInode() *Inode {
 		Size:  uint64(0),
 		Atime: NfstimeNow(),
 		Mtime: NfstimeNow(),
-		blks:  make([]uint64, NBLKINO),
+		blks:  make([]buf.Bnum, NBLKINO),
 	}
 }
 
@@ -74,7 +74,7 @@ func MkRootInode() *Inode {
 		Size:  uint64(0),
 		Atime: NfstimeNow(),
 		Mtime: NfstimeNow(),
-		blks:  make([]uint64, NBLKINO),
+		blks:  make([]buf.Bnum, NBLKINO),
 	}
 }
 
@@ -123,7 +123,7 @@ func (ip *Inode) Encode() []byte {
 	enc.PutInt32(uint32(ip.Atime.Nseconds))
 	enc.PutInt32(uint32(ip.Mtime.Seconds))
 	enc.PutInt32(uint32(ip.Mtime.Nseconds))
-	enc.PutInts(ip.blks)
+	enc.PutBnums(ip.blks)
 	return d
 }
 
@@ -146,7 +146,7 @@ func Decode(buf *buf.Buf, inum fs.Inum) *Inode {
 	ip.Atime.Nseconds = nfstypes.Uint32(dec.GetInt32())
 	ip.Mtime.Seconds = nfstypes.Uint32(dec.GetInt32())
 	ip.Mtime.Nseconds = nfstypes.Uint32(dec.GetInt32())
-	ip.blks = dec.GetInts(NBLKINO)
+	ip.blks = dec.GetBnums(NBLKINO)
 	return ip
 }
 
@@ -292,14 +292,14 @@ func putInodes(op *fstxn.FsTxn, inodes []*Inode) {
 
 // Returns blkno for indirect bn and newroot if root was allocated. If
 // blkno is 0, failure.
-func (ip *Inode) indbmap(op *fstxn.FsTxn, root uint64, level uint64, off uint64, grow bool) (uint64, uint64) {
-	var newroot uint64 = 0
-	var blkno uint64 = root
+func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint64, grow bool) (buf.Bnum, buf.Bnum) {
+	var newroot buf.Bnum = buf.NULLBNUM
+	var blkno buf.Bnum = root
 
-	if blkno == 0 { // no root?
+	if blkno == buf.NULLBNUM { // no root?
 		newroot = op.AllocBlock()
-		if newroot == 0 {
-			return 0, 0
+		if newroot == buf.NULLBNUM {
+			return buf.NULLBNUM, buf.NULLBNUM
 		}
 		blkno = newroot
 	}
@@ -316,21 +316,18 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root uint64, level uint64, off uint64,
 	bo := o * 8
 	ind := off % divisor
 
-	if root != 0 && off == 0 && grow { // old root from previous file?
+	if root != buf.NULLBNUM && off == 0 && grow { // old root from previous file?
 		op.ZeroBlock(blkno)
 	}
 
 	buf := op.ReadBlock(blkno)
-	nxtroot := buf.Uint64Get(bo)
+	nxtroot := buf.BnumGet(bo)
 	util.DPrintf(1, "%d next root %v level %d\n", blkno, nxtroot, level)
 	b, newroot1 := ip.indbmap(op, nxtroot, level-1, ind, grow)
 	op.AssertValidBlock(newroot1)
+	op.AssertValidBlock(b)
 	if newroot1 != 0 {
-		buf.Uint64Put(bo, newroot1)
-	}
-	if b >= op.Fs.Size {
-		util.DPrintf(0, "indbmap %v %v\n", b, op.Fs.Size)
-		panic("indbmap")
+		buf.BnumPut(bo, newroot1)
 	}
 	return b, newroot
 }
@@ -361,7 +358,7 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 // Map logical block number bn to a physical block number, allocating
 // blocks if no block exists for bn. Reuse block from previous
 // versions of this inode, but zero them.
-func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (uint64, bool) {
+func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (buf.Bnum, bool) {
 	var alloc bool = false
 	sz := util.RoundUp(ip.Size, disk.BlockSize)
 	grow := bn > sz
@@ -369,9 +366,9 @@ func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (uint64, bool) {
 		if ip.blks[bn] != 0 && grow {
 			op.ZeroBlock(ip.blks[bn])
 		}
-		if ip.blks[bn] == 0 {
+		if ip.blks[bn] == buf.NULLBNUM {
 			blkno := op.AllocBlock()
-			if blkno == 0 {
+			if blkno == buf.NULLBNUM {
 				return 0, false
 			}
 			alloc = true
@@ -416,7 +413,7 @@ func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byt
 		byteoff := off % disk.BlockSize
 		nbytes := util.Min(disk.BlockSize-byteoff, count-n)
 		blkno, alloc := ip.bmap(op, boff)
-		if blkno == 0 {
+		if blkno == buf.NULLBNUM {
 			return data, false
 		}
 		if alloc { // fill in a hole
@@ -450,7 +447,7 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 	}
 	for boff := off / disk.BlockSize; n > uint64(0); boff++ {
 		blkno, new := ip.bmap(op, boff)
-		if blkno == 0 {
+		if blkno == buf.NULLBNUM {
 			ok = false
 			break
 		}

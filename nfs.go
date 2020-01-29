@@ -122,47 +122,48 @@ func makeFs(super *fs.FsSuper) {
 	rootbuf := buf.MkBuf(raddr, rootblk)
 	rootbuf.WriteDirect(super.Disk)
 
-	markAlloc(super, super.DataStart(), super.Maxaddr)
+	markAlloc(super, super.DataStart(), super.MaxBnum())
 }
 
-func markAlloc(super *fs.FsSuper, n uint64, m uint64) {
+func markAlloc(super *fs.FsSuper, n buf.Bnum, m buf.Bnum) {
 	util.DPrintf(5, "markAlloc: [0, %d) and [%d,%d)\n", n, m,
 		super.NBlockBitmap*alloc.NBITBLOCK)
-	if n >= alloc.NBITBLOCK || m >= alloc.NBITBLOCK*super.NBlockBitmap ||
+	if n >= buf.Bnum(alloc.NBITBLOCK) ||
+		m >= buf.Bnum(alloc.NBITBLOCK*super.NBlockBitmap) ||
 		m < n {
 		panic("markAlloc: configuration makes no sense")
 	}
 	blk := make(disk.Block, disk.BlockSize)
-	for bn := uint64(0); bn < n; bn++ {
+	for bn := uint64(0); bn < uint64(n); bn++ {
 		byte := bn / 8
 		bit := bn % 8
 		blk[byte] = blk[byte] | 1<<bit
 	}
-	super.Disk.Write(super.BitmapBlockStart(), blk)
+	super.Disk.Write(uint64(super.BitmapBlockStart()), blk)
 
 	blk1 := blk
-	blkno := m/alloc.NBITBLOCK + super.BitmapBlockStart()
+	blkno := m/buf.Bnum(alloc.NBITBLOCK) + super.BitmapBlockStart()
 	if blkno > super.BitmapBlockStart() {
 		blk1 = make(disk.Block, disk.BlockSize)
 	}
-	for bn := m % alloc.NBITBLOCK; bn < alloc.NBITBLOCK; bn++ {
+	for bn := uint64(m) % alloc.NBITBLOCK; bn < alloc.NBITBLOCK; bn++ {
 		byte := bn / 8
 		bit := bn % 8
 		blk1[byte] = blk1[byte] | 1<<bit
 	}
-	super.Disk.Write(blkno, blk1)
+	super.Disk.Write(uint64(blkno), blk1)
 
 	// mark inode 0 and 1 as allocated
 	blk2 := make(disk.Block, disk.BlockSize)
 	blk2[0] = blk2[0] | 1<<0
 	blk2[0] = blk2[0] | 1<<1
-	super.Disk.Write(super.BitmapInodeStart(), blk2)
+	super.Disk.Write(uint64(super.BitmapInodeStart()), blk2)
 }
 
 // For boot up
 func ReadRootInode(super *fs.FsSuper) *inode.Inode {
 	addr := super.Inum2Addr(fs.ROOTINUM)
-	blk := super.Disk.Read(addr.Blkno)
+	blk := super.Disk.Read(uint64(addr.Blkno))
 	buf := buf.MkBufLoad(addr, blk)
 	i := inode.Decode(buf, fs.ROOTINUM)
 	return i
