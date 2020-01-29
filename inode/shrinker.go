@@ -60,28 +60,30 @@ func (ip *Inode) smallFileFits(op *fstxn.FsTxn) bool {
 	return ip.blks[INDIRECT] == 0 && op.NumberDirty()+NDIRECT+2 < op.LogSz()
 }
 
+func (ip *Inode) freeIndex(op *fstxn.FsTxn, index uint64) {
+	op.FreeBlock(ip.blks[index])
+	ip.blks[index] = 0
+}
+
 func (ip *Inode) shrink(op *fstxn.FsTxn, bn uint64) uint64 {
 	cursz := util.RoundUp(ip.Size, disk.BlockSize)
 	util.DPrintf(1, "shrink: bn %d cursz %d\n", bn, cursz)
 	for bn > cursz && enoughLogSpace(op) {
 		bn = bn - 1
 		if bn < NDIRECT {
-			op.FreeBlock(ip.blks[bn])
-			ip.blks[bn] = 0
+			ip.freeIndex(op, bn)
 		} else {
 			var off = bn - NDIRECT
 			if off < NBLKBLK {
 				freeroot := ip.indshrink(op, ip.blks[INDIRECT], 1, off)
 				if freeroot != 0 {
-					op.FreeBlock(ip.blks[INDIRECT])
-					ip.blks[INDIRECT] = 0
+					ip.freeIndex(op, INDIRECT)
 				}
 			} else {
 				off = off - NBLKBLK
 				freeroot := ip.indshrink(op, ip.blks[DINDIRECT], 2, off)
 				if freeroot != 0 {
-					op.FreeBlock(ip.blks[DINDIRECT])
-					ip.blks[DINDIRECT] = 0
+					ip.freeIndex(op, DINDIRECT)
 				}
 			}
 		}
@@ -126,6 +128,9 @@ func shrinker(inum fs.Inum, oldsz uint64) {
 // Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn
 // have been cleared
 func (ip *Inode) indshrink(op *fstxn.FsTxn, root uint64, level uint64, bn uint64) uint64 {
+	if root == 0 {
+		return 0
+	}
 	if level == 0 {
 		return root
 	}
@@ -136,6 +141,7 @@ func (ip *Inode) indshrink(op *fstxn.FsTxn, root uint64, level uint64, bn uint64
 	buf := op.ReadBlock(root)
 	nxtroot := machine.UInt64Get(buf.Blk[boff : boff+8])
 	if nxtroot != 0 {
+		op.AssertValidBlock(nxtroot)
 		freeroot := ip.indshrink(op, nxtroot, level-1, ind)
 		if freeroot != 0 {
 			machine.UInt64Put(buf.Blk[boff:boff+8], 0)

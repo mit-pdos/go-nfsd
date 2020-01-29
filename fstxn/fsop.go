@@ -111,15 +111,23 @@ func (op *FsTxn) FreeINum(inum fs.Inum) {
 	op.ialloc.FreeNum(op.buftxn, uint64(inum))
 }
 
+func (op *FsTxn) AssertValidBlock(blkno uint64) {
+	if blkno > 0 && (blkno < op.Fs.DataStart() || blkno >= op.Fs.Maxaddr) {
+		panic("invalid blkno")
+	}
+}
+
 func (op *FsTxn) AllocBlock() uint64 {
 	util.DPrintf(5, "alloc block\n")
 	n := op.balloc.AllocNum(op.buftxn)
+	op.AssertValidBlock(n)
 	util.DPrintf(1, "alloc block -> %v\n", n)
 	return n
 }
 
 func (op *FsTxn) FreeBlock(blkno uint64) {
-	util.DPrintf(1, "free block %v\n", blkno)
+	util.DPrintf(5, "free block %v\n", blkno)
+	op.AssertValidBlock(blkno)
 	if blkno == 0 {
 		return
 	}
@@ -129,6 +137,7 @@ func (op *FsTxn) FreeBlock(blkno uint64) {
 
 func (op *FsTxn) ReadBlock(blkno uint64) *buf.Buf {
 	util.DPrintf(10, "ReadBlock %d\n", blkno)
+	op.AssertValidBlock(blkno)
 	addr := op.Fs.Block2addr(blkno)
 	return op.buftxn.ReadBufLocked(addr)
 }

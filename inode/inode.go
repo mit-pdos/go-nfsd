@@ -78,6 +78,16 @@ func MkRootInode() *Inode {
 	}
 }
 
+func (ip *Inode) initInode(inum fs.Inum, kind nfstypes.Ftype3) {
+	util.DPrintf(1, "initInode: inode # %d\n", inum)
+	ip.Inum = inum
+	ip.Kind = kind
+	ip.Nlink = 1
+	ip.Gen = ip.Gen + 1
+	ip.Atime = NfstimeNow()
+	ip.Mtime = NfstimeNow()
+}
+
 func (ip *Inode) String() string {
 	return fmt.Sprintf("# %d k %d n %d g %d sz %d %v", ip.Inum, ip.Kind, ip.Nlink, ip.Gen, ip.Size, ip.blks)
 }
@@ -166,10 +176,11 @@ func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	if cslot.Obj == nil {
 		buf := op.ReadBuf(addr)
 		i := Decode(buf, inum)
+		util.DPrintf(1, "GetInodeLocked # %v: read inode from disk\n", inum)
 		cslot.Obj = i
 	}
 	i := cslot.Obj.(*Inode)
-	util.DPrintf(1, "getInodeLocked %v\n", i)
+	util.DPrintf(1, "GetInodeLocked %v\n", i)
 	return i
 }
 
@@ -228,15 +239,9 @@ func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
 	if inum != fs.NULLINUM {
 		ip = GetInodeLocked(op, inum)
 		if ip.Kind == NF3FREE {
-			util.DPrintf(1, "allocInode: allocate inode %d\n", inum)
-			ip.Inum = inum
-			ip.Kind = kind
-			ip.Nlink = 1
-			ip.Gen = ip.Gen + 1
-			ip.Atime = NfstimeNow()
-			ip.Mtime = NfstimeNow()
+			ip.initInode(inum, kind)
 		} else {
-			panic("allocInode")
+			panic("AllocInode")
 		}
 		ip.WriteInode(op)
 	}
@@ -310,6 +315,7 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root uint64, level uint64, off uint64,
 	util.DPrintf(1, "%d next root %v level %d\n", blkno, nxtroot, level)
 	b, newroot1 := ip.indbmap(op, nxtroot, level-1, ind, grow)
 	if newroot1 != 0 {
+		op.AssertValidBlock(newroot1)
 		machine.UInt64Put(buf.Blk[bo:bo+8], newroot1)
 		buf.SetDirty()
 	}

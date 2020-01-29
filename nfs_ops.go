@@ -372,7 +372,7 @@ func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
 	return reply
 }
 
-func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, isdir bool) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
 	if dir.IllegalName(name) {
 		util.DPrintf(0, "Remove inval name\n")
 		return nil, []*inode.Inode{}, nfstypes.NFS3ERR_INVAL
@@ -381,11 +381,11 @@ func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 	if err != nfstypes.NFS3_OK {
 		return op, inodes, err
 	}
-	if inodes[0].Kind != kind {
-		util.DPrintf(0, "Remove not %v\n", kind)
+	if isdir && inodes[0].Kind != nfstypes.NF3DIR {
+		util.DPrintf(0, "Remove not a directory %v\n", inodes[0].Kind)
 		return op, inodes, nfstypes.NFS3ERR_INVAL
 	}
-	if kind == nfstypes.NF3DIR && !dir.IsDirEmpty(inodes[0], op) {
+	if isdir && !dir.IsDirEmpty(inodes[0], op) {
 		return op, inodes, nfstypes.NFS3ERR_INVAL
 	}
 	ok := dir.RemName(inodes[1], op, name)
@@ -400,7 +400,7 @@ func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	var reply nfstypes.REMOVE3res
 	util.DPrintf(1, "NFS Remove %v\n", args)
-	op, inodes, err := nfs.doRemove(args.Object.Dir, args.Object.Name, nfstypes.NF3REG)
+	op, inodes, err := nfs.doRemove(args.Object.Dir, args.Object.Name, false)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(0, "Remove %v\n", err)
 		errRet(op, &reply.Status, err, inodes)
@@ -413,7 +413,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	var reply nfstypes.RMDIR3res
 	util.DPrintf(1, "NFS Rmdir %v\n", args)
-	op, inodes, err := nfs.doRemove(args.Object.Dir, args.Object.Name, nfstypes.NF3DIR)
+	op, inodes, err := nfs.doRemove(args.Object.Dir, args.Object.Name, true)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Rmdir %v\n", err)
 		errRet(op, &reply.Status, err, inodes)

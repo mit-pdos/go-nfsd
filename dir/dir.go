@@ -67,7 +67,7 @@ func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum,
 	}
 	de := &dirEnt{inum: inum, name: string(name)}
 	ent := encodeDirEnt(de)
-	util.DPrintf(5, "AddNameDir: %v %v %v %d\n", name, de, ent, finalOff)
+	util.DPrintf(5, "AddNameDir # %v: %v %v %v off %d\n", dip.Inum, name, de, ent, finalOff)
 	n, _ := dip.Write(op, finalOff, DIRENTSZ, ent)
 	return finalOff, n == DIRENTSZ
 }
@@ -77,6 +77,7 @@ func RemNameDir(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (uin
 	if inum == fs.NULLINUM {
 		return 0, false
 	}
+	util.DPrintf(5, "RemNameDir # %v: %v %v off %d\n", dip.Inum, name, inum, off)
 	de := &dirEnt{inum: fs.NULLINUM, name: ""}
 	ent := encodeDirEnt(de)
 	n, _ := dip.Write(op, off, DIRENTSZ, ent)
@@ -128,6 +129,7 @@ func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
 	for off := begin; off < dip.Size; {
 		data, _ := dip.Read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
+		util.DPrintf(5, "Apply: # %v %v off %d\n", dip.Inum, de, off)
 		if de.inum == fs.NULLINUM {
 			off = off + DIRENTSZ
 			continue
