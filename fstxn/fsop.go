@@ -140,7 +140,7 @@ func (op *FsTxn) FreeBlock(blkno buf.Bnum) {
 }
 
 func (op *FsTxn) ReadBlock(blkno buf.Bnum) *buf.Buf {
-	util.DPrintf(10, "ReadBlock %d\n", blkno)
+	util.DPrintf(1, "ReadBlock %d\n", blkno)
 	op.AssertValidBlock(blkno)
 	addr := op.Fs.Block2addr(blkno)
 	return op.buftxn.ReadBufLocked(addr)
