@@ -81,7 +81,7 @@ func (nfs *Nfs) helpShrinker(op *fstxn.FsTxn, ip *inode.Inode,
 
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
 	var reply nfstypes.SETATTR3res
-	var ok bool
+	var err = nfstypes.NFS3ERR_NOTSUPP
 
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
 	op := fstxn.Begin(nfs.fsstate)
@@ -92,15 +92,23 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	}
 	if args.New_attributes.Mode.Set_it {
 		util.DPrintf(1, "NFS SetAttr ignore mode %v\n", args)
-	} else if args.New_attributes.Size.Set_it {
-		ip, ok = nfs.helpShrinker(op, ip, args.Object)
-		if !ok {
-			reply.Status = nfstypes.NFS3ERR_SERVERFAULT
-			return reply
-
+	}
+	if args.New_attributes.Uid.Set_it {
+		util.DPrintf(1, "NFS SetAttr ignore uid %v\n", args)
+	}
+	if args.New_attributes.Gid.Set_it {
+		util.DPrintf(1, "NFS SetAttr ignore gid %v\n", args)
+	}
+	if args.New_attributes.Size.Set_it {
+		ip, ok := nfs.helpShrinker(op, ip, args.Object)
+		if ok {
+			ip.Resize(op, uint64(args.New_attributes.Size.Size))
+			err = nfstypes.NFS3_OK
+		} else {
+			err = nfstypes.NFS3ERR_SERVERFAULT
 		}
-		ip.Resize(op, uint64(args.New_attributes.Size.Size))
-	} else if args.New_attributes.Atime.Set_it != nfstypes.DONT_CHANGE {
+	}
+	if args.New_attributes.Atime.Set_it != nfstypes.DONT_CHANGE {
 		util.DPrintf(1, "NFS SetAttr Atime %v\n", args)
 		if args.New_attributes.Atime.Set_it == nfstypes.SET_TO_CLIENT_TIME {
 			ip.Atime = args.New_attributes.Atime.Atime
@@ -109,7 +117,9 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 
 		}
 		ip.WriteInode(op)
-	} else if args.New_attributes.Mtime.Set_it != nfstypes.DONT_CHANGE {
+		err = nfstypes.NFS3_OK
+	}
+	if args.New_attributes.Mtime.Set_it != nfstypes.DONT_CHANGE {
 		util.DPrintf(1, "NFS SetAttr Mtime %v\n", args)
 		if args.New_attributes.Mtime.Set_it == nfstypes.SET_TO_CLIENT_TIME {
 			ip.Mtime = args.New_attributes.Mtime.Mtime
@@ -118,11 +128,13 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 
 		}
 		ip.WriteInode(op)
-	} else {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOTSUPP, inode.OneInode(ip))
-		return reply
+		err = nfstypes.NFS3_OK
 	}
-	commitReply(op, &reply.Status, inode.OneInode(ip))
+	if err == nfstypes.NFS3_OK {
+		commitReply(op, &reply.Status, inode.OneInode(ip))
+	} else {
+		errRet(op, &reply.Status, err, inode.OneInode(ip))
+	}
 	return reply
 }
 
