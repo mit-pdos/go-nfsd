@@ -40,7 +40,7 @@ type Inode struct {
 	Size  uint64
 
 	// if ShrinkSize > Size, then the inode is in the process
-	// of shrinking to Size. ShrinkSize is in blocks
+	// of shrinking to Size. ShrinkSize is in block units
 	ShrinkSize uint64
 
 	Atime nfstypes.Nfstime3
@@ -302,7 +302,7 @@ func putInodes(op *fstxn.FsTxn, inodes []*Inode) {
 
 // Returns blkno for indirect bn and newroot if root was allocated. If
 // blkno is 0, failure.
-func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint64, grow bool) (buf.Bnum, buf.Bnum) {
+func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint64) (buf.Bnum, buf.Bnum) {
 	var newroot buf.Bnum = buf.NULLBNUM
 	var blkno buf.Bnum = root
 
@@ -315,9 +315,6 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint6
 	}
 
 	if level == 0 { // leaf?
-		if root != 0 && grow { // old leaf?
-			op.ZeroBlock(blkno)
-		}
 		return blkno, newroot
 	}
 
@@ -326,14 +323,10 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint6
 	bo := o * 8
 	ind := off % divisor
 
-	if root != buf.NULLBNUM && off == 0 && grow { // old root from previous file?
-		op.ZeroBlock(blkno)
-	}
-
 	buf := op.ReadBlock(blkno)
 	nxtroot := buf.BnumGet(bo)
 	util.DPrintf(1, "%d next root %v level %d\n", blkno, nxtroot, level)
-	b, newroot1 := ip.indbmap(op, nxtroot, level-1, ind, grow)
+	b, newroot1 := ip.indbmap(op, nxtroot, level-1, ind)
 	op.AssertValidBlock(newroot1)
 	op.AssertValidBlock(b)
 	if newroot1 != 0 {
@@ -342,8 +335,10 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint6
 	return b, newroot
 }
 
-// Create a new thread to free blocks in a separate transaction, if
-// many shrinking involves freeing many blocks.
+// Resize updates the inode, but may not free immediately if the inode
+// shrinks. It creates a new thread to free blocks in a separate
+// transaction, if shrinking involves freeing many blocks.  ShrinkSize
+// tracks shrinking progress, and is initialized with the old size.
 func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 	oldsz := util.RoundUp(ip.Size, disk.BlockSize)
 	util.DPrintf(5, "Resize %v to sz %d\n", oldsz, sz)
@@ -371,16 +366,10 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 }
 
 // Map logical block number bn to a physical block number, allocating
-// blocks if no block exists for bn. Reuse block from previous
-// versions of this inode, but zero them.
+// blocks if no block exists for bn.
 func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (buf.Bnum, bool) {
 	var alloc bool = false
-	sz := util.RoundUp(ip.Size, disk.BlockSize)
-	grow := bn > sz
 	if bn < NDIRECT {
-		if ip.blks[bn] != 0 && grow {
-			op.ZeroBlock(ip.blks[bn])
-		}
 		if ip.blks[bn] == buf.NULLBNUM {
 			blkno := op.AllocBlock()
 			if blkno == buf.NULLBNUM {
@@ -393,14 +382,14 @@ func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (buf.Bnum, bool) {
 	} else {
 		var off = bn - NDIRECT
 		if off < NBLKBLK {
-			blkno, newroot := ip.indbmap(op, ip.blks[INDIRECT], 1, off, grow)
+			blkno, newroot := ip.indbmap(op, ip.blks[INDIRECT], 1, off)
 			if newroot != 0 {
 				ip.blks[INDIRECT] = newroot
 			}
 			return blkno, newroot != 0
 		} else {
 			off -= NBLKBLK
-			blkno, newroot := ip.indbmap(op, ip.blks[DINDIRECT], 2, off, grow)
+			blkno, newroot := ip.indbmap(op, ip.blks[DINDIRECT], 2, off)
 			if newroot != 0 {
 				ip.blks[DINDIRECT] = newroot
 			}
