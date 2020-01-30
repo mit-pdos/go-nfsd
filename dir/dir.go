@@ -1,12 +1,11 @@
 package dir
 
 import (
-	"github.com/tchajed/goose/machine"
+	"github.com/tchajed/marshal"
 
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/inode"
-	"github.com/mit-pdos/goose-nfsd/marshal"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
@@ -166,20 +165,20 @@ func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
 
 // Caller must ensure de.Name fits
 func encodeDirEnt(de *dirEnt) []byte {
-	d := make([]byte, DIRENTSZ)
-	machine.UInt64Put(d[:8], uint64(de.inum))
-	machine.UInt64Put(d[8:16], uint64(len(de.name)))
-	marshal.PutBytes(d[16:], []byte(de.name))
-	return d
+	enc := marshal.NewEnc(DIRENTSZ)
+	enc.PutInt(uint64(de.inum))
+	enc.PutInt(uint64(len(de.name)))
+	enc.PutBytes([]byte(de.name))
+	return enc.Finish()
 }
 
 func decodeDirEnt(d []byte) *dirEnt {
-	de := &dirEnt{
-		inum: 0,
-		name: "",
+	dec := marshal.NewDec(d)
+	inum := dec.GetInt()
+	l := dec.GetInt()
+	name := string(dec.GetBytes(l))
+	return &dirEnt{
+		inum: fs.Inum(inum),
+		name: name,
 	}
-	de.inum = fs.Inum(machine.UInt64Get(d[:8]))
-	l := machine.UInt64Get(d[8:16])
-	de.name = string(d[16 : 16+l])
-	return de
 }
