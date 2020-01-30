@@ -92,12 +92,13 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	}
 	if args.New_attributes.Mode.Set_it {
 		util.DPrintf(1, "NFS SetAttr ignore mode %v\n", args)
+		err = nfstypes.NFS3_OK
 	}
 	if args.New_attributes.Uid.Set_it {
-		util.DPrintf(1, "NFS SetAttr ignore uid %v\n", args)
+		util.DPrintf(1, "NFS SetAttr uid not supported %v\n", args)
 	}
 	if args.New_attributes.Gid.Set_it {
-		util.DPrintf(1, "NFS SetAttr ignore gid %v\n", args)
+		util.DPrintf(1, "NFS SetAttr gid not supported %v\n", args)
 	}
 	if args.New_attributes.Size.Set_it {
 		ip, ok := nfs.helpShrinker(op, ip, args.Object)
