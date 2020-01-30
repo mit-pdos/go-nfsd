@@ -61,7 +61,7 @@ func MkNullInode() *Inode {
 	return &Inode{
 		Inum:       fs.NULLINUM,
 		Kind:       nfstypes.NF3DIR,
-		Nlink:      uint32(1),
+		Nlink:      uint32(0),
 		Gen:        uint64(0),
 		Size:       uint64(0),
 		ShrinkSize: uint64(0),
@@ -300,41 +300,6 @@ func putInodes(op *fstxn.FsTxn, inodes []*Inode) {
 	}
 }
 
-// Returns blkno for indirect bn and newroot if root was allocated. If
-// blkno is 0, failure.
-func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint64) (buf.Bnum, buf.Bnum) {
-	var newroot buf.Bnum = buf.NULLBNUM
-	var blkno buf.Bnum = root
-
-	if blkno == buf.NULLBNUM { // no root?
-		newroot = op.AllocBlock()
-		if newroot == buf.NULLBNUM {
-			return buf.NULLBNUM, buf.NULLBNUM
-		}
-		blkno = newroot
-	}
-
-	if level == 0 { // leaf?
-		return blkno, newroot
-	}
-
-	divisor := pow(level - 1)
-	o := off / divisor
-	bo := o * 8
-	ind := off % divisor
-
-	buf := op.ReadBlock(blkno)
-	nxtroot := buf.BnumGet(bo)
-	util.DPrintf(1, "%d next root %v level %d\n", blkno, nxtroot, level)
-	b, newroot1 := ip.indbmap(op, nxtroot, level-1, ind)
-	op.AssertValidBlock(newroot1)
-	op.AssertValidBlock(b)
-	if newroot1 != 0 {
-		buf.BnumPut(bo, newroot1)
-	}
-	return b, newroot
-}
-
 // Resize updates the inode, but may not free immediately if the inode
 // shrinks. It creates a new thread to free blocks in a separate
 // transaction, if shrinking involves freeing many blocks.  ShrinkSize
@@ -363,6 +328,36 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 			machine.Spawn(func() { shrinker(ip.Inum) })
 		}
 	}
+}
+
+// Returns blkno for indirect bn and a new root if a root was
+// allocated. If blkno is 0, failure.
+func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint64) (buf.Bnum, buf.Bnum) {
+	if root == buf.NULLBNUM { // no root?
+		root = op.AllocBlock()
+		if root == buf.NULLBNUM {
+			return root, root
+		}
+	}
+	if level == 0 { // leaf?
+		return root, root
+	}
+
+	divisor := pow(level - 1)
+	o := off / divisor
+	bo := o * 8
+	ind := off % divisor
+
+	buf := op.ReadBlock(root)
+	nxtroot := buf.BnumGet(bo)
+	util.DPrintf(1, "%d next root %v level %d\n", root, nxtroot, level)
+	blkno, newnextroot := ip.indbmap(op, nxtroot, level-1, ind)
+	op.AssertValidBlock(newnextroot)
+	op.AssertValidBlock(blkno)
+	if newnextroot != 0 {
+		buf.BnumPut(bo, newnextroot)
+	}
+	return blkno, root
 }
 
 // Map logical block number bn to a physical block number, allocating
