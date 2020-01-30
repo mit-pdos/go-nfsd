@@ -1,9 +1,10 @@
 package fh
 
 import (
+	"github.com/tchajed/marshal"
+
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/tchajed/goose/machine"
 )
 
 type Fh struct {
@@ -12,23 +13,25 @@ type Fh struct {
 }
 
 func MakeFh(fh3 nfstypes.Nfs_fh3) Fh {
-	i := machine.UInt64Get(fh3.Data[0:8])
-	g := machine.UInt64Get(fh3.Data[8:])
+	dec := marshal.NewDec(fh3.Data)
+	i := dec.GetInt()
+	g := dec.GetInt()
 	return Fh{Ino: fs.Inum(i), Gen: g}
 }
 
 func (fh Fh) MakeFh3() nfstypes.Nfs_fh3 {
-	fh3 := nfstypes.Nfs_fh3{Data: make([]byte, 16)}
-	machine.UInt64Put(fh3.Data[0:8], uint64(fh.Ino))
-	machine.UInt64Put(fh3.Data[8:], fh.Gen)
+	enc := marshal.NewEnc(16)
+	enc.PutInt(uint64(fh.Ino))
+	enc.PutInt(uint64(fh.Gen))
+	fh3 := nfstypes.Nfs_fh3{Data: enc.Finish()}
 	return fh3
 }
 
 func MkRootFh3() nfstypes.Nfs_fh3 {
-	d := make([]byte, 16)
-	machine.UInt64Put(d[0:8], uint64(fs.ROOTINUM))
-	machine.UInt64Put(d[8:16], 1)
-	return nfstypes.Nfs_fh3{Data: d}
+	enc := marshal.NewEnc(16)
+	enc.PutInt(uint64(fs.ROOTINUM))
+	enc.PutInt(uint64(1))
+	return nfstypes.Nfs_fh3{Data: enc.Finish()}
 }
 
 func Equal(h1 nfstypes.Nfs_fh3, h2 nfstypes.Nfs_fh3) bool {
