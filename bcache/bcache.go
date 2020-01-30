@@ -55,6 +55,10 @@ func (bc *Bcache) Write(bn uint64, b disk.Block) {
 	bc.d.Write(bn, b)
 }
 
+func (bc *Bcache) Close() {
+	bc.d.Close()
+}
+
 func (bc *Bcache) Barrier() {
 	bc.d.Barrier()
 }

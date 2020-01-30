@@ -6,13 +6,13 @@ import (
 
 	"github.com/tchajed/goose/machine"
 	"github.com/tchajed/goose/machine/disk"
+	"github.com/tchajed/marshal"
 
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/dcache"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
-	"github.com/mit-pdos/goose-nfsd/marshal"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
@@ -100,7 +100,7 @@ func (ip *Inode) MkFattr() nfstypes.Fattr3 {
 
 func (ip *Inode) Encode() []byte {
 	d := make([]byte, fs.INODESZ)
-	enc := marshal.NewEnc(d)
+	enc := marshal.NewEnc(fs.INODESZ)
 	enc.PutInt32(uint32(ip.Kind))
 	enc.PutInt32(ip.Nlink)
 	enc.PutInt(ip.Gen)
@@ -110,7 +110,7 @@ func (ip *Inode) Encode() []byte {
 	enc.PutInt32(uint32(ip.Atime.Nseconds))
 	enc.PutInt32(uint32(ip.Mtime.Seconds))
 	enc.PutInt32(uint32(ip.Mtime.Nseconds))
-	enc.PutBnums(ip.blks)
+	enc.PutInts(ip.blks)
 	return d
 }
 
@@ -135,7 +135,7 @@ func Decode(buf *buf.Buf, inum fs.Inum) *Inode {
 	ip.Atime.Nseconds = nfstypes.Uint32(dec.GetInt32())
 	ip.Mtime.Seconds = nfstypes.Uint32(dec.GetInt32())
 	ip.Mtime.Nseconds = nfstypes.Uint32(dec.GetInt32())
-	ip.blks = dec.GetBnums(NBLKINO)
+	ip.blks = dec.GetInts(NBLKINO)
 	return ip
 }
 
