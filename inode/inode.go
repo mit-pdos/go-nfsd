@@ -57,20 +57,6 @@ func NfstimeNow() nfstypes.Nfstime3 {
 	return t
 }
 
-func MkNullInode() *Inode {
-	return &Inode{
-		Inum:       fs.NULLINUM,
-		Kind:       nfstypes.NF3DIR,
-		Nlink:      uint32(0),
-		Gen:        uint64(0),
-		Size:       uint64(0),
-		ShrinkSize: uint64(0),
-		Atime:      NfstimeNow(),
-		Mtime:      NfstimeNow(),
-		blks:       make([]buf.Bnum, NBLKINO),
-	}
-}
-
 func MkRootInode() *Inode {
 	return &Inode{
 		Inum:       fs.ROOTINUM,
