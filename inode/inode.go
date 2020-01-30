@@ -309,8 +309,9 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 	}
 }
 
-// Returns blkno for indirect bn and a new root if a root was
-// allocated. If blkno is 0, failure.
+// Returns blkno and root index block for off. If blkno is 0, failure.
+// Caller must compare root with returned root to decide if a root has
+// been allocated.
 func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint64) (buf.Bnum, buf.Bnum) {
 	if root == buf.NULLBNUM { // no root?
 		root = op.AllocBlock()
@@ -333,7 +334,7 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint6
 	blkno, newnextroot := ip.indbmap(op, nxtroot, level-1, ind)
 	op.AssertValidBlock(newnextroot)
 	op.AssertValidBlock(blkno)
-	if newnextroot != 0 {
+	if newnextroot != nxtroot {
 		buf.BnumPut(bo, newnextroot)
 	}
 	return blkno, root
@@ -342,34 +343,35 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint6
 // Map logical block number bn to a physical block number, allocating
 // blocks if no block exists for bn.
 func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (buf.Bnum, bool) {
-	var alloc bool = false
+	var blkno = buf.NULLBNUM
+	var alloc = false
 	if bn < NDIRECT {
 		if ip.blks[bn] == buf.NULLBNUM {
-			blkno := op.AllocBlock()
-			if blkno == buf.NULLBNUM {
-				return 0, false
+			ip.blks[bn] = op.AllocBlock()
+			if ip.blks[bn] != buf.NULLBNUM {
+				alloc = true
 			}
-			alloc = true
-			ip.blks[bn] = blkno
 		}
-		return ip.blks[bn], alloc
+		blkno = ip.blks[bn]
 	} else {
 		var off = bn - NDIRECT
+		var root = buf.NULLBNUM
 		if off < NBLKBLK {
-			blkno, newroot := ip.indbmap(op, ip.blks[INDIRECT], 1, off)
-			if newroot != 0 {
-				ip.blks[INDIRECT] = newroot
+			blkno, root = ip.indbmap(op, ip.blks[INDIRECT], 1, off)
+			alloc = root != ip.blks[INDIRECT]
+			if alloc {
+				ip.blks[INDIRECT] = root
 			}
-			return blkno, newroot != 0
 		} else {
 			off -= NBLKBLK
-			blkno, newroot := ip.indbmap(op, ip.blks[DINDIRECT], 2, off)
-			if newroot != 0 {
-				ip.blks[DINDIRECT] = newroot
+			blkno, root = ip.indbmap(op, ip.blks[DINDIRECT], 2, off)
+			alloc = root != ip.blks[INDIRECT]
+			if alloc {
+				ip.blks[DINDIRECT] = root
 			}
-			return blkno, newroot != 0
 		}
 	}
+	return blkno, alloc
 }
 
 // Returns number of bytes read and eof
