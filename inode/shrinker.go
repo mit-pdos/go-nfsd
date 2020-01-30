@@ -47,10 +47,6 @@ func (shrinker *ShrinkerSt) Shutdown() {
 	shrinker.mu.Unlock()
 }
 
-func OneInode(ip *Inode) []*Inode {
-	return []*Inode{ip}
-}
-
 // 5: inode block, 2xbitmap block, indirect block, double indirect
 func enoughLogSpace(op *fstxn.FsTxn) bool {
 	return op.NumberDirty()+5 < op.LogSz()

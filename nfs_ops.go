@@ -47,7 +47,6 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 	util.DPrintf(0, "NFS Null\n")
 }
 
-// XXX factor out lookup ip, test, and maybe fail pattern
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3res {
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
@@ -58,7 +57,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 		return reply
 	}
 	reply.Resok.Obj_attributes = ip.MkFattr()
-	commitReply(txn, &reply.Status, []*inode.Inode{ip})
+	commitReply(txn, &reply.Status, inode.OneInode(ip))
 	return reply
 }
 
@@ -120,10 +119,10 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		}
 		ip.WriteInode(op)
 	} else {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOTSUPP, []*inode.Inode{ip})
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOTSUPP, inode.OneInode(ip))
 		return reply
 	}
-	commitReply(op, &reply.Status, []*inode.Inode{ip})
+	commitReply(op, &reply.Status, inode.OneInode(ip))
 	return reply
 }
 
@@ -145,7 +144,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 			err = nfstypes.NFS3ERR_STALE
 			break
 		}
-		inodes = []*inode.Inode{dip}
+		inodes = inode.OneInode(dip)
 		inum, _ := dir.LookupName(dip, op, name)
 		if inum == fs.NULLINUM {
 			util.DPrintf(1, "getInodesLocked noent\n")
@@ -157,7 +156,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 		} else {
 			if inum < dip.Inum {
 				// Abort. Try to lock inodes in order
-				inode.Abort(op, []*inode.Inode{dip})
+				inode.Abort(op, inode.OneInode(dip))
 				parent := fh.MakeFh(dfh)
 				op = fstxn.Begin(nfs.fsstate)
 				inodes = lookupOrdered(op, name, parent, inum)
@@ -206,13 +205,13 @@ func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count 
 		return op, nil, nil, false, nfstypes.NFS3ERR_STALE
 	}
 	if ip.Kind != kind {
-		return op, []*inode.Inode{ip}, nil, false, nfstypes.NFS3ERR_INVAL
+		return op, inode.OneInode(ip), nil, false, nfstypes.NFS3ERR_INVAL
 	}
 	if ip.Kind == nfstypes.NF3LNK {
 		count = ip.Size
 	}
 	data, eof := ip.Read(op, offset, count)
-	return op, []*inode.Inode{ip}, data, eof, nfstypes.NFS3_OK
+	return op, inode.OneInode(ip), data, eof, nfstypes.NFS3_OK
 }
 
 func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
@@ -246,11 +245,11 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		return reply
 	}
 	if ip.Kind != nfstypes.NF3REG {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, []*inode.Inode{ip})
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inode.OneInode(ip))
 		return reply
 	}
 	if uint64(args.Count) >= op.LogSzBytes() {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, []*inode.Inode{ip})
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inode.OneInode(ip))
 		return reply
 	}
 
@@ -264,20 +263,20 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	count, writeOk := ip.Write(op, uint64(args.Offset), uint64(args.Count),
 		args.Data)
 	if !writeOk {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, []*inode.Inode{ip})
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, inode.OneInode(ip))
 		return reply
 	}
 	if args.Stable == nfstypes.FILE_SYNC {
 		// RFC: "FILE_SYNC, the server must commit the
 		// data written plus all file system metadata
 		// to stable storage before returning results."
-		ok = inode.Commit(op, []*inode.Inode{ip})
+		ok = inode.Commit(op, inode.OneInode(ip))
 	} else if args.Stable == nfstypes.DATA_SYNC {
 		// RFC: "DATA_SYNC, then the server must commit
 		// all of the data to stable storage and
 		// enough of the metadata to retrieve the data
 		// before returning."
-		ok = inode.CommitData(op, []*inode.Inode{ip}, fh)
+		ok = inode.CommitData(op, inode.OneInode(ip), fh)
 	} else {
 		// RFC:	"UNSTABLE, the server is free to commit
 		// any part of the data and the metadata to
@@ -291,7 +290,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		// the value of verf and that it will not
 		// commit the data and metadata at a level
 		// less than that requested by the client."
-		ok = inode.CommitUnstable(op, []*inode.Inode{ip}, fh)
+		ok = inode.CommitUnstable(op, inode.OneInode(ip), fh)
 	}
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
@@ -311,11 +310,11 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 	}
 	inum1, _ := dir.LookupName(dip, op, name)
 	if inum1 != fs.NULLINUM {
-		return op, []*inode.Inode{dip}, nfstypes.NFS3ERR_EXIST
+		return op, inode.OneInode(dip), nfstypes.NFS3ERR_EXIST
 	}
 	inum, ip := inode.AllocInode(op, kind)
 	if inum == fs.NULLINUM {
-		return op, []*inode.Inode{dip}, nfstypes.NFS3ERR_NOSPC
+		return op, inode.OneInode(dip), nfstypes.NFS3ERR_NOSPC
 	}
 	if kind == nfstypes.NF3DIR {
 		ok := dir.InitDir(ip, op, dip.Inum)
@@ -654,7 +653,7 @@ func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.RE
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
 		return reply
 	}
-	inodes := []*inode.Inode{ip}
+	inodes := inode.OneInode(ip)
 	if ip.Kind != nfstypes.NF3DIR {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inodes)
 		return reply
@@ -703,18 +702,18 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 		return reply
 	}
 	if ip.Kind != nfstypes.NF3REG {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, []*inode.Inode{ip})
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inode.OneInode(ip))
 		return reply
 	}
 	if uint64(args.Offset)+uint64(args.Count) > ip.Size {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, []*inode.Inode{ip})
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inode.OneInode(ip))
 		return reply
 	}
-	ok := inode.CommitFh(op, fh, []*inode.Inode{ip})
+	ok := inode.CommitFh(op, fh, inode.OneInode(ip))
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, []*inode.Inode{ip})
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inode.OneInode(ip))
 	}
 	return reply
 }

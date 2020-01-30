@@ -155,6 +155,10 @@ func MaxFileSize() uint64 {
 	return (NDIRECT + maxblks) * disk.BlockSize
 }
 
+func OneInode(ip *Inode) []*Inode {
+	return []*Inode{ip}
+}
+
 func OwnInode(op *fstxn.FsTxn, inum fs.Inum) bool {
 	addr := op.Fs.Inum2Addr(inum)
 	return op.OwnLock(addr)
