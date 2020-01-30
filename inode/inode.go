@@ -99,7 +99,6 @@ func (ip *Inode) MkFattr() nfstypes.Fattr3 {
 }
 
 func (ip *Inode) Encode() []byte {
-	d := make([]byte, fs.INODESZ)
 	enc := marshal.NewEnc(fs.INODESZ)
 	enc.PutInt32(uint32(ip.Kind))
 	enc.PutInt32(ip.Nlink)
@@ -111,7 +110,7 @@ func (ip *Inode) Encode() []byte {
 	enc.PutInt32(uint32(ip.Mtime.Seconds))
 	enc.PutInt32(uint32(ip.Mtime.Nseconds))
 	enc.PutInts(ip.blks)
-	return d
+	return enc.Finish()
 }
 
 func Decode(buf *buf.Buf, inum fs.Inum) *Inode {
