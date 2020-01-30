@@ -47,7 +47,7 @@ func (shrinker *ShrinkerSt) Shutdown() {
 	shrinker.mu.Unlock()
 }
 
-func singletonTrans(ip *Inode) []*Inode {
+func OneInode(ip *Inode) []*Inode {
 	return []*Inode{ip}
 }
 
@@ -56,8 +56,15 @@ func enoughLogSpace(op *fstxn.FsTxn) bool {
 	return op.NumberDirty()+5 < op.LogSz()
 }
 
-func (ip *Inode) smallFileFits(op *fstxn.FsTxn) bool {
-	return ip.blks[INDIRECT] == buf.NULLBNUM && op.NumberDirty()+NDIRECT+2 < op.LogSz()
+func (ip *Inode) shrinkFits(op *fstxn.FsTxn) bool {
+	nblk := util.RoundUp(ip.Size, disk.BlockSize) - ip.ShrinkSize
+	return op.NumberDirty()+nblk < op.LogSz()
+}
+
+func (ip *Inode) IsShrinking() bool {
+	cursz := util.RoundUp(ip.Size, disk.BlockSize)
+	s := ip.ShrinkSize > cursz
+	return s
 }
 
 func (ip *Inode) freeIndex(op *fstxn.FsTxn, index uint64) {
@@ -65,15 +72,15 @@ func (ip *Inode) freeIndex(op *fstxn.FsTxn, index uint64) {
 	ip.blks[index] = 0
 }
 
-func (ip *Inode) shrink(op *fstxn.FsTxn, bn uint64) uint64 {
-	cursz := util.RoundUp(ip.Size, disk.BlockSize)
-	util.DPrintf(1, "shrink: bn %d cursz %d\n", bn, cursz)
-	for bn > cursz && enoughLogSpace(op) {
-		bn = bn - 1
-		if bn < NDIRECT {
-			ip.freeIndex(op, bn)
+func (ip *Inode) Shrink(op *fstxn.FsTxn) {
+	util.DPrintf(1, "Shrink: from %d to %d\n", ip.ShrinkSize,
+		util.RoundUp(ip.Size, disk.BlockSize))
+	for ip.IsShrinking() && enoughLogSpace(op) {
+		ip.ShrinkSize--
+		if ip.ShrinkSize < NDIRECT {
+			ip.freeIndex(op, ip.ShrinkSize)
 		} else {
-			var off = bn - NDIRECT
+			var off = ip.ShrinkSize - NDIRECT
 			if off < NBLKBLK {
 				freeroot := ip.indshrink(op, ip.blks[INDIRECT], 1, off)
 				if freeroot != 0 {
@@ -89,36 +96,24 @@ func (ip *Inode) shrink(op *fstxn.FsTxn, bn uint64) uint64 {
 		}
 	}
 	ip.WriteInode(op)
-	return bn
 }
 
-func shrinker(inum fs.Inum, oldsz uint64) {
-	var bn = util.RoundUp(oldsz, disk.BlockSize)
-	for {
-		util.DPrintf(1, "Shrinker: shrink %d from bn %d\n", inum, bn)
+func shrinker(inum fs.Inum) {
+	var more = true
+	for more {
 		op := fstxn.Begin(shrinkst.fsstate)
 		ip := getInodeInumFree(op, inum)
 		if ip == nil {
 			panic("shrink")
 		}
-		if ip.Size >= oldsz { // file has grown again or resize didn't commit
-			ok := Commit(op, singletonTrans(ip))
-			if !ok {
-				panic("shrink")
-			}
-			break
-		}
-		cursz := util.RoundUp(ip.Size, disk.BlockSize)
-		bn = ip.shrink(op, bn)
-		ok := Commit(op, singletonTrans(ip))
+		ip.Shrink(op)
+		more = ip.IsShrinking()
+		ok := Commit(op, OneInode(ip))
 		if !ok {
 			panic("shrink")
 		}
-		if bn <= cursz {
-			break
-		}
 	}
-	util.DPrintf(1, "Shrinker: done shrinking # %d to bn %d\n", inum, bn)
+	util.DPrintf(1, "Shrinker: done shrinking # %d\n", inum)
 	shrinkst.mu.Lock()
 	shrinkst.nthread = shrinkst.nthread - 1
 	shrinkst.condShut.Signal()

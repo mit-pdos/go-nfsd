@@ -20,7 +20,7 @@ import (
 const NF3FREE nfstypes.Ftype3 = 0
 
 const (
-	NBLKINO   uint64 = 3 // # blk in an inode's blks array
+	NBLKINO   uint64 = 10 // # blk in an inode's blks array
 	NDIRECT   uint64 = NBLKINO - 2
 	INDIRECT  uint64 = NBLKINO - 2
 	DINDIRECT uint64 = NBLKINO - 1
@@ -38,6 +38,11 @@ type Inode struct {
 	Nlink uint32
 	Gen   uint64
 	Size  uint64
+
+	// if ShrinkSize > Size, then the inode is in the process
+	// of shrinking to Size. ShrinkSize is in blocks
+	ShrinkSize uint64
+
 	Atime nfstypes.Nfstime3
 	Mtime nfstypes.Nfstime3
 	blks  []buf.Bnum
@@ -54,27 +59,29 @@ func NfstimeNow() nfstypes.Nfstime3 {
 
 func MkNullInode() *Inode {
 	return &Inode{
-		Inum:  fs.NULLINUM,
-		Kind:  nfstypes.NF3DIR,
-		Nlink: uint32(1),
-		Gen:   uint64(0),
-		Size:  uint64(0),
-		Atime: NfstimeNow(),
-		Mtime: NfstimeNow(),
-		blks:  make([]buf.Bnum, NBLKINO),
+		Inum:       fs.NULLINUM,
+		Kind:       nfstypes.NF3DIR,
+		Nlink:      uint32(1),
+		Gen:        uint64(0),
+		Size:       uint64(0),
+		ShrinkSize: uint64(0),
+		Atime:      NfstimeNow(),
+		Mtime:      NfstimeNow(),
+		blks:       make([]buf.Bnum, NBLKINO),
 	}
 }
 
 func MkRootInode() *Inode {
 	return &Inode{
-		Inum:  fs.ROOTINUM,
-		Kind:  nfstypes.NF3DIR,
-		Nlink: uint32(1),
-		Gen:   uint64(0),
-		Size:  uint64(0),
-		Atime: NfstimeNow(),
-		Mtime: NfstimeNow(),
-		blks:  make([]buf.Bnum, NBLKINO),
+		Inum:       fs.ROOTINUM,
+		Kind:       nfstypes.NF3DIR,
+		Nlink:      uint32(1),
+		Gen:        uint64(0),
+		Size:       uint64(0),
+		ShrinkSize: uint64(0),
+		Atime:      NfstimeNow(),
+		Mtime:      NfstimeNow(),
+		blks:       make([]buf.Bnum, NBLKINO),
 	}
 }
 
@@ -89,7 +96,7 @@ func (ip *Inode) initInode(inum fs.Inum, kind nfstypes.Ftype3) {
 }
 
 func (ip *Inode) String() string {
-	return fmt.Sprintf("# %d k %d n %d g %d sz %d %v", ip.Inum, ip.Kind, ip.Nlink, ip.Gen, ip.Size, ip.blks)
+	return fmt.Sprintf("# %d k %d n %d g %d sz %d ssz %d %v", ip.Inum, ip.Kind, ip.Nlink, ip.Gen, ip.Size, ip.ShrinkSize, ip.blks)
 }
 
 func (ip *Inode) MkFattr() nfstypes.Fattr3 {
@@ -119,6 +126,7 @@ func (ip *Inode) Encode() []byte {
 	enc.PutInt32(ip.Nlink)
 	enc.PutInt(ip.Gen)
 	enc.PutInt(ip.Size)
+	enc.PutInt(ip.ShrinkSize)
 	enc.PutInt32(uint32(ip.Atime.Seconds))
 	enc.PutInt32(uint32(ip.Atime.Nseconds))
 	enc.PutInt32(uint32(ip.Mtime.Seconds))
@@ -129,12 +137,13 @@ func (ip *Inode) Encode() []byte {
 
 func Decode(buf *buf.Buf, inum fs.Inum) *Inode {
 	ip := &Inode{
-		Inum:  0,
-		Kind:  0,
-		Nlink: 0,
-		Gen:   0,
-		Size:  0,
-		blks:  nil,
+		Inum:       0,
+		Kind:       0,
+		Nlink:      0,
+		Gen:        0,
+		Size:       0,
+		ShrinkSize: 0,
+		blks:       nil,
 	}
 	dec := marshal.NewDec(buf.Blk)
 	ip.Inum = inum
@@ -142,6 +151,7 @@ func Decode(buf *buf.Buf, inum fs.Inum) *Inode {
 	ip.Nlink = dec.GetInt32()
 	ip.Gen = dec.GetInt()
 	ip.Size = dec.GetInt()
+	ip.ShrinkSize = dec.GetInt()
 	ip.Atime.Seconds = nfstypes.Uint32(dec.GetInt32())
 	ip.Atime.Nseconds = nfstypes.Uint32(dec.GetInt32())
 	ip.Mtime.Seconds = nfstypes.Uint32(dec.GetInt32())
@@ -332,17 +342,22 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint6
 	return b, newroot
 }
 
-// Lazily resize file. Bmap allocates/zeros blocks on demand.  Create
-// a new thread to free blocks in a separate transaction.
+// Create a new thread to free blocks in a separate transaction, if
+// many shrinking involves freeing many blocks.
 func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
-	util.DPrintf(5, "resize %v to sz %d\n", ip, sz)
-	oldsz := ip.Size
+	oldsz := util.RoundUp(ip.Size, disk.BlockSize)
+	util.DPrintf(5, "Resize %v to sz %d\n", oldsz, sz)
 	ip.Size = sz
+	sz = util.RoundUp(sz, disk.BlockSize)
+	if sz < oldsz {
+		ip.ShrinkSize = oldsz
+	} else {
+		ip.ShrinkSize = sz
+	}
 	ip.WriteInode(op)
 	if sz < oldsz {
-		if ip.smallFileFits(op) {
-			bn := util.RoundUp(oldsz, disk.BlockSize)
-			ip.shrink(op, bn)
+		if ip.shrinkFits(op) {
+			ip.Shrink(op)
 			util.DPrintf(1, "small file delete inside trans\n")
 		} else {
 			// for large files, start a separate thread
@@ -350,7 +365,7 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 			shrinkst.mu.Lock()
 			shrinkst.nthread = shrinkst.nthread + 1
 			shrinkst.mu.Unlock()
-			machine.Spawn(func() { shrinker(ip.Inum, oldsz) })
+			machine.Spawn(func() { shrinker(ip.Inum) })
 		}
 	}
 }

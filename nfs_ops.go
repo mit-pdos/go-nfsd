@@ -62,8 +62,28 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	return reply
 }
 
+// If caller changes file size and shrinking is in progress (because
+// an earlier call truncated the file), then help/wait with/for
+// shrinking.
+func (nfs *Nfs) helpShrinker(op *fstxn.FsTxn, ip *inode.Inode,
+	fh nfstypes.Nfs_fh3) (*inode.Inode, bool) {
+	var ok bool = true
+	for ip.IsShrinking() {
+		ip.Shrink(op)
+		ok = inode.Commit(op, inode.OneInode(ip))
+		if !ok {
+			break
+		}
+		op = fstxn.Begin(nfs.fsstate)
+		ip = inode.GetInodeFh(op, fh)
+	}
+	return ip, ok
+}
+
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
 	var reply nfstypes.SETATTR3res
+	var ok bool
+
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
 	op := fstxn.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(op, args.Object)
@@ -74,6 +94,12 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	if args.New_attributes.Mode.Set_it {
 		util.DPrintf(1, "NFS SetAttr ignore mode %v\n", args)
 	} else if args.New_attributes.Size.Set_it {
+		ip, ok = nfs.helpShrinker(op, ip, args.Object)
+		if !ok {
+			reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+			return reply
+
+		}
 		ip.Resize(op, uint64(args.New_attributes.Size.Size))
 	} else if args.New_attributes.Atime.Set_it != nfstypes.DONT_CHANGE {
 		util.DPrintf(1, "NFS SetAttr Atime %v\n", args)
@@ -208,6 +234,8 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 // XXX Mtime
 func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	var reply nfstypes.WRITE3res
+	var ok = true
+
 	op := fstxn.Begin(nfs.fsstate)
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
@@ -225,13 +253,20 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, []*inode.Inode{ip})
 		return reply
 	}
+
+	// XXX only when this RPC might grow file?
+	ip, ok = nfs.helpShrinker(op, ip, args.File)
+	if !ok {
+		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+		return reply
+	}
+
 	count, writeOk := ip.Write(op, uint64(args.Offset), uint64(args.Count),
 		args.Data)
 	if !writeOk {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, []*inode.Inode{ip})
 		return reply
 	}
-	var ok = true
 	if args.Stable == nfstypes.FILE_SYNC {
 		// RFC: "FILE_SYNC, the server must commit the
 		// data written plus all file system metadata

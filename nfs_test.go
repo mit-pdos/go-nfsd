@@ -571,10 +571,18 @@ func TestClearHole(t *testing.T) {
 	clear := mkdataval(byte(0), sz)
 	fh := ts.writeLargeFile("x", N)
 	ts.Setattr(fh, 2*sz)
-	ts.readcheck(fh, sz, data)
-	ts.ReadEof(fh, 2*sz, sz)
 	ts.WriteOff(fh, 20*sz, data, nfstypes.FILE_SYNC)
 	ts.readcheck(fh, 2*sz, clear)
+	ts.readcheck(fh, sz, data)
+	ts.Remove("x")
+
+	fh = ts.writeLargeFile("y", N)
+	ts.Setattr(fh, 2*sz)             // shrink
+	ts.Setattr(fh, N*disk.BlockSize) // grow
+	ts.readcheck(fh, 2*sz, clear)
+	ts.readcheck(fh, sz, data)
+	ts.Setattr(fh, 2*sz) // shrink
+	ts.ReadEof(fh, 2*sz, sz)
 }
 
 func (ts *TestState) evict(names []string) {

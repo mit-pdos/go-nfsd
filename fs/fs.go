@@ -13,7 +13,7 @@ const (
 	INODEBLK     uint64 = disk.BlockSize / INODESZ
 	NINODEBITMAP uint64 = 1
 
-	INODESZ uint64 = 64 // on-disk size
+	INODESZ uint64 = 128 // on-disk size
 
 	HDRMETA  = uint64(8) // space for the end position
 	HDRADDRS = (disk.BlockSize - HDRMETA) / 8
