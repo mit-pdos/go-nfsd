@@ -112,3 +112,34 @@ go run ./cmd/clnt-smallfile/main.go
 root fh {[1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]}
 clnt-smallfile: 2784.5 file/s
 
+* <2020-01-30 Thu>: Some testing
+
+- ltp fsstress:
+
+[fsstress (master)]$ 
+[3]+  Done                    ~/src_other/ltp/testcases/kernel/fs/fsstress/fsstress -v -l 1000 -n 1000 -p 2 -d /mnt/nfs > out
+
+- ltp fsx-linus
+
+Ran for 40 min without errors (testcalls = 2616578)
+
+[fsx-linux (master)]$ ./fsx-linux -P d /mnt/nfs/x
+truncating to largest ever: 0x13e76
+truncating to largest ever: 0x2e52c
+truncating to largest ever: 0x3c2c2
+truncating to largest ever: 0x3f15f
+truncating to largest ever: 0x3fcb9
+truncating to largest ever: 0x3fe96
+truncating to largest ever: 0x3ff9d
+truncating to largest ever: 0x3ffff
+skipping zero size read
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size read
+ ...
