@@ -27,7 +27,7 @@ func (fh Fh) MakeFh3() nfstypes.Nfs_fh3 {
 func MkRootFh3() nfstypes.Nfs_fh3 {
 	d := make([]byte, 16)
 	machine.UInt64Put(d[0:8], uint64(fs.ROOTINUM))
-	machine.UInt64Put(d[8:16], 0)
+	machine.UInt64Put(d[8:16], 1)
 	return nfstypes.Nfs_fh3{Data: d}
 }
 

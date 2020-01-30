@@ -57,20 +57,6 @@ func NfstimeNow() nfstypes.Nfstime3 {
 	return t
 }
 
-func MkRootInode() *Inode {
-	return &Inode{
-		Inum:       fs.ROOTINUM,
-		Kind:       nfstypes.NF3DIR,
-		Nlink:      uint32(1),
-		Gen:        uint64(0),
-		Size:       uint64(0),
-		ShrinkSize: uint64(0),
-		Atime:      NfstimeNow(),
-		Mtime:      NfstimeNow(),
-		blks:       make([]buf.Bnum, NBLKINO),
-	}
-}
-
 func (ip *Inode) initInode(inum fs.Inum, kind nfstypes.Ftype3) {
 	util.DPrintf(1, "initInode: inode # %d\n", inum)
 	ip.Inum = inum
@@ -79,6 +65,13 @@ func (ip *Inode) initInode(inum fs.Inum, kind nfstypes.Ftype3) {
 	ip.Gen = ip.Gen + 1
 	ip.Atime = NfstimeNow()
 	ip.Mtime = NfstimeNow()
+}
+
+func MkRootInode() *Inode {
+	i := &Inode{}
+	i.blks = make([]buf.Bnum, NBLKINO)
+	i.initInode(fs.ROOTINUM, nfstypes.NF3DIR)
+	return i
 }
 
 func (ip *Inode) String() string {
