@@ -1,15 +1,12 @@
-package wal
+package fs
 
 import (
 	"fmt"
-
-	"github.com/tchajed/goose/machine/disk"
-
-	"github.com/mit-pdos/goose-nfsd/fs"
-
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/mit-pdos/goose-nfsd/wal"
+	"github.com/tchajed/goose/machine/disk"
+	"gotest.tools/assert"
 )
 
 func mkData(sz uint64) []byte {
@@ -27,46 +24,46 @@ func checkData(t *testing.T, read, expected []byte) {
 	}
 }
 
-func checkBlk(t *testing.T, fs *fs.FsSuper, blkno uint64, expected []byte) {
+func checkBlk(t *testing.T, fs *FsSuper, blkno uint64, expected []byte) {
 	d := fs.Disk.Read(blkno + uint64(fs.DataStart()))
 	checkData(t, d, expected)
 }
 
 func TestRecoverNone(t *testing.T) {
 	fmt.Printf("TestRecoverNone\n")
-	fs := fs.MkFsSuper(100*1000, nil)
+	fs := MkFsSuper(100*1000, nil)
 
-	b := MkBlockData(0, mkData(disk.BlockSize))
+	b := wal.MkBlockData(0, mkData(disk.BlockSize))
 
-	l := MkLog(fs.Disk)
+	l := wal.MkLog(fs.Disk)
 	l.Shutdown()
 
-	_, ok := l.MemAppend([]BlockData{b})
+	_, ok := l.MemAppend([]wal.BlockData{b})
 	assert.Equal(t, ok, true)
 
 	checkBlk(t, fs, 0, make([]byte, disk.BlockSize))
 
-	l.recover()
+	l.Recover()
 
 	checkBlk(t, fs, 0, make([]byte, disk.BlockSize))
 }
 
 func TestRecoverSimple(t *testing.T) {
 	fmt.Printf("TestRecoverSimple\n")
-	fs := fs.MkFsSuper(100*1000, nil)
+	fs := MkFsSuper(100*1000, nil)
 	d := mkData(disk.BlockSize)
 
-	b := MkBlockData(fs.DataStart(), d)
+	b := wal.MkBlockData(fs.DataStart(), d)
 
-	l := MkLog(fs.Disk)
+	l := wal.MkLog(fs.Disk)
 
-	txn, ok := l.MemAppend([]BlockData{b})
+	txn, ok := l.MemAppend([]wal.BlockData{b})
 	assert.Equal(t, ok, true)
 	l.LogAppendWait(txn)
 
 	l.Shutdown()
 
-	l.recover()
+	l.Recover()
 
 	checkBlk(t, fs, 0, d)
 }
