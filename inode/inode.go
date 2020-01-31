@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tchajed/goose/machine"
 	"github.com/tchajed/goose/machine/disk"
 	"github.com/tchajed/marshal"
 
@@ -307,7 +306,7 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 			shrinkst.mu.Lock()
 			shrinkst.nthread = shrinkst.nthread + 1
 			shrinkst.mu.Unlock()
-			machine.Spawn(func() { shrinker(ip.Inum) })
+			go func() { shrinker(ip.Inum) }()
 		}
 	}
 }
