@@ -9,6 +9,7 @@ import (
 	"github.com/tchajed/marshal"
 
 	"github.com/mit-pdos/goose-nfsd/buf"
+	"github.com/mit-pdos/goose-nfsd/cache"
 	"github.com/mit-pdos/goose-nfsd/dcache"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
@@ -159,17 +160,45 @@ func OneInode(ip *Inode) []*Inode {
 }
 
 func OwnInode(op *fstxn.FsTxn, inum fs.Inum) bool {
-	addr := op.Fs.Inum2Addr(inum)
-	return op.OwnLock(addr)
+	return op.OwnInum(inum)
 }
 
-func GetInode(op *fstxn.FsTxn, inum fs.Inum) *Inode {
-	addr := op.Fs.Inum2Addr(inum)
+func (ip *Inode) ReleaseInode(op *fstxn.FsTxn) {
+	util.DPrintf(1, "ReleaseInode %v\n", ip)
+	cslot := op.LookupSlot(ip.Inum)
+	if cslot == nil {
+		panic("GetInodeLocked")
+	}
+	cslot.Unlock()
+	op.DoneInum(ip.Inum)
+	op.FreeSlot(ip.Inum)
+	op.FreeSlot(ip.Inum)
+}
+
+func releaseInodes(op *fstxn.FsTxn, inodes []*Inode) {
+	for _, ip := range inodes {
+		ip.ReleaseInode(op)
+	}
+}
+
+func LockInode(op *fstxn.FsTxn, inum fs.Inum) *cache.Cslot {
 	cslot := op.LookupSlot(inum)
 	if cslot == nil {
 		panic("GetInodeLocked")
 	}
+	if OwnInode(op, inum) {
+		op.FreeSlot(inum) // up refcnt once per trans
+	} else {
+		cslot.Lock()
+		op.AddInum(inum)
+	}
+	return cslot
+}
+
+func GetInode(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+	cslot := LockInode(op, inum)
 	if cslot.Obj == nil {
+		addr := op.Fs.Inum2Addr(inum)
 		buf := op.ReadBuf(addr)
 		i := Decode(buf, inum)
 		util.DPrintf(1, "GetInodeLocked # %v: read inode from disk\n", inum)
@@ -181,8 +210,6 @@ func GetInode(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 }
 
 func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
-	addr := op.Fs.Inum2Addr(inum)
-	op.Acquire(addr)
 	return GetInode(op, inum)
 }
 
@@ -219,11 +246,6 @@ func GetInodeFh(op *fstxn.FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
 		return nil
 	}
 	return ip
-}
-
-func (ip *Inode) ReleaseInode(op *fstxn.FsTxn) {
-	addr := op.Fs.Inum2Addr(ip.Inum)
-	op.Release(addr)
 }
 
 func (ip *Inode) WriteInode(op *fstxn.FsTxn) {
@@ -273,7 +295,7 @@ func (ip *Inode) Put(op *fstxn.FsTxn) {
 		ip.Resize(op, 0)
 		ip.freeInode(op)
 	}
-	op.FreeSlot(ip.Inum)
+	// op.FreeSlot(ip.Inum)
 }
 
 func putInodes(op *fstxn.FsTxn, inodes []*Inode) {

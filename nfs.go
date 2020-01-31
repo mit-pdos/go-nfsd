@@ -5,6 +5,7 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/addrlock"
 	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/cache"
@@ -57,7 +58,8 @@ func MakeNfs(name *string, sz uint64) *Nfs {
 	icache := cache.MkCache(ICACHESZ)
 	balloc := alloc.MkAlloc(super.BitmapBlockStart(), super.NBlockBitmap)
 	ialloc := alloc.MkAlloc(super.BitmapInodeStart(), super.NInodeBitmap)
-	st := fstxn.MkFsState(super, txn, icache, balloc, ialloc)
+	bitlock := addrlock.MkLockMap()
+	st := fstxn.MkFsState(super, txn, icache, balloc, ialloc, bitlock)
 	nfs := &Nfs{
 		Name:       name,
 		fsstate:    st,

@@ -8,7 +8,9 @@ import (
 func commitWait(op *fstxn.FsTxn, inodes []*Inode, wait bool, abort bool) bool {
 	// putInodes may free an inode so must be done before commit
 	putInodes(op, inodes)
-	return op.CommitWait(wait, abort)
+	ok := op.CommitWait(wait, abort)
+	releaseInodes(op, inodes)
+	return ok
 }
 
 func Commit(op *fstxn.FsTxn, inodes []*Inode) bool {
@@ -33,7 +35,9 @@ func CommitUnstable(op *fstxn.FsTxn, inodes []*Inode, fh fh.Fh) bool {
 // that is only an option if we do log-by-pass writes.
 func CommitFh(op *fstxn.FsTxn, fh fh.Fh, inodes []*Inode) bool {
 	putInodes(op, inodes)
-	return op.Flush()
+	ok := op.Flush()
+	releaseInodes(op, inodes)
+	return ok
 }
 
 // An aborted transaction may free an inode, which results in dirty

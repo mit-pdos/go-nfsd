@@ -3,6 +3,7 @@ package fstxn
 import (
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/addrlock"
 	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/buftxn"
@@ -18,20 +19,22 @@ import (
 //
 
 type FsState struct {
-	Fs     *fs.FsSuper
-	Txn    *txn.Txn
-	Icache *cache.Cache
-	Balloc *alloc.Alloc
-	Ialloc *alloc.Alloc
+	Fs      *fs.FsSuper
+	Txn     *txn.Txn
+	Icache  *cache.Cache
+	Balloc  *alloc.Alloc
+	Ialloc  *alloc.Alloc
+	BitLock *addrlock.LockMap
 }
 
-func MkFsState(fs *fs.FsSuper, txn *txn.Txn, icache *cache.Cache, balloc *alloc.Alloc, ialloc *alloc.Alloc) *FsState {
+func MkFsState(fs *fs.FsSuper, txn *txn.Txn, icache *cache.Cache, balloc *alloc.Alloc, ialloc *alloc.Alloc, bitlock *addrlock.LockMap) *FsState {
 	st := &FsState{
-		Fs:     fs,
-		Txn:    txn,
-		Icache: icache,
-		Balloc: balloc,
-		Ialloc: ialloc,
+		Fs:      fs,
+		Txn:     txn,
+		Icache:  icache,
+		Balloc:  balloc,
+		Ialloc:  ialloc,
+		BitLock: bitlock,
 	}
 	return st
 }
@@ -42,17 +45,43 @@ type FsTxn struct {
 	icache *cache.Cache
 	balloc *alloc.Alloc
 	ialloc *alloc.Alloc
+	inums  []fs.Inum
 }
 
 func Begin(opstate *FsState) *FsTxn {
 	op := &FsTxn{
 		Fs:     opstate.Fs,
-		buftxn: buftxn.Begin(opstate.Txn),
+		buftxn: buftxn.Begin(opstate.Txn, opstate.BitLock),
 		icache: opstate.Icache,
 		balloc: opstate.Balloc,
 		ialloc: opstate.Ialloc,
+		inums:  make([]fs.Inum, 0),
 	}
 	return op
+}
+
+func (op *FsTxn) AddInum(inum fs.Inum) {
+	op.inums = append(op.inums, inum)
+}
+
+func (op *FsTxn) OwnInum(inum fs.Inum) bool {
+	var own = false
+	for _, v := range op.inums {
+		if v == inum {
+			own = true
+			break
+		}
+	}
+	return own
+}
+
+func (op *FsTxn) DoneInum(inum fs.Inum) {
+	for i, v := range op.inums {
+		if v == inum {
+			op.inums[i] = op.inums[len(op.inums)-1]
+			op.inums = op.inums[:len(op.inums)-1]
+		}
+	}
 }
 
 func (op *FsTxn) NumberDirty() uint64 {
@@ -88,12 +117,10 @@ func (op *FsTxn) OwnLock(addr buf.Addr) bool {
 	return op.buftxn.IsLocked(addr)
 }
 
-// assumes caller hold lock on addr
 func (op *FsTxn) ReadBuf(addr buf.Addr) *buf.Buf {
 	return op.buftxn.ReadBuf(addr)
 }
 
-// assumes caller hold lock on addr
 func (op *FsTxn) OverWrite(addr buf.Addr, data []byte) {
 	op.buftxn.OverWrite(addr, data)
 }
@@ -143,7 +170,7 @@ func (op *FsTxn) ReadBlock(blkno buf.Bnum) *buf.Buf {
 	util.DPrintf(5, "ReadBlock %d\n", blkno)
 	op.AssertValidBlock(blkno)
 	addr := op.Fs.Block2addr(blkno)
-	return op.buftxn.ReadBufLocked(addr)
+	return op.buftxn.ReadBuf(addr)
 }
 
 func (op *FsTxn) ZeroBlock(blkno buf.Bnum) {
