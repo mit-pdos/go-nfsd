@@ -13,7 +13,7 @@ env:
   global: GO111MODULE="on"
 
 install:
-  - go get github.com/tchajed/goose
+  - go get github.com/tchajed/goose/cmd/goose
   - go get ./...
 script:
   - diff -u <(echo -n) <(gofmt -d .)
