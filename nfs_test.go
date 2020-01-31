@@ -19,6 +19,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/goose-nfsd/wal"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -649,7 +650,7 @@ func TestBigWrite(t *testing.T) {
 	defer ts.Close()
 
 	ts.Create("x")
-	sz := uint64(4096 * (fs.HDRADDRS / 2))
+	sz := uint64(4096 * (wal.HDRADDRS / 2))
 	x := ts.Lookup("x", true)
 	data := mkdataval(byte(0), sz)
 	ts.Write(x, data, nfstypes.UNSTABLE)
@@ -657,7 +658,7 @@ func TestBigWrite(t *testing.T) {
 
 	// Too big
 	ts.Create("y")
-	sz = uint64(4096 * (fs.HDRADDRS + 10))
+	sz = uint64(4096 * (wal.HDRADDRS + 10))
 	y := ts.Lookup("y", true)
 	data = mkdataval(byte(0), sz)
 	ts.WriteErr(y, data, nfstypes.UNSTABLE, nfstypes.NFS3ERR_INVAL)

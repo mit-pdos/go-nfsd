@@ -6,6 +6,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/fake-bcache/bcache"
 	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/mit-pdos/goose-nfsd/wal"
 )
 
 const (
@@ -14,10 +15,6 @@ const (
 	NINODEBITMAP uint64 = 1
 
 	INODESZ uint64 = 128 // on-disk size
-
-	HDRMETA  = uint64(8) // space for the end position
-	HDRADDRS = (disk.BlockSize - HDRMETA) / 8
-	LOGSIZE  = HDRADDRS + 2 // 2 for log header
 )
 
 type Inum uint64
@@ -57,7 +54,7 @@ func MkFsSuper(sz uint64, name *string) *FsSuper {
 	return &FsSuper{
 		Disk:         bc,
 		Size:         sz,
-		nLog:         LOGSIZE,
+		nLog:         wal.LOGSIZE,
 		NBlockBitmap: nblockbitmap,
 		NInodeBitmap: NINODEBITMAP,
 		nInodeBlk:    (NINODEBITMAP * NBITBLOCK * INODESZ) / disk.BlockSize,
