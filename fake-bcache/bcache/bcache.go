@@ -21,5 +21,6 @@ func (bc *Bcache) Size() uint64 {
 }
 
 func (bc *Bcache) Barrier() {
-	disk.Barrier()
+	// TODO: we should have this as a semantic no-op
+	// disk.Barrier()
 }
