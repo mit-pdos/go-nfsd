@@ -54,7 +54,7 @@ func MkFsSuper(sz uint64, name *string) *FsSuper {
 	return &FsSuper{
 		Disk:         bc,
 		Size:         sz,
-		nLog:         wal.LOGSIZE,
+		nLog:         wal.LOGDISKBLOCKS,
 		NBlockBitmap: nblockbitmap,
 		NInodeBitmap: NINODEBITMAP,
 		nInodeBlk:    (NINODEBITMAP * NBITBLOCK * INODESZ) / disk.BlockSize,
