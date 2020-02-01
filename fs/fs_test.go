@@ -59,7 +59,7 @@ func TestRecoverSimple(t *testing.T) {
 
 	txn, ok := l.MemAppend([]wal.BlockData{b})
 	assert.Equal(t, ok, true)
-	l.LogAppendWait(txn)
+	l.Flush(txn)
 
 	l.Shutdown()
 
