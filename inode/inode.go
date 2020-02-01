@@ -33,6 +33,7 @@ type Inode struct {
 	// in-memory info:
 	Inum   fs.Inum
 	Dcache *dcache.Dcache
+	cslot  *cache.Cslot
 
 	// the on-disk inode:
 	Kind  nfstypes.Ftype3
@@ -165,13 +166,11 @@ func OwnInode(op *fstxn.FsTxn, inum fs.Inum) bool {
 
 func (ip *Inode) ReleaseInode(op *fstxn.FsTxn) {
 	util.DPrintf(1, "ReleaseInode %v\n", ip)
-	cslot := op.LookupSlot(ip.Inum)
-	if cslot == nil {
-		panic("GetInodeLocked")
+	if ip.cslot == nil {
+		panic("ReleaseInode")
 	}
-	cslot.Unlock()
+	ip.cslot.Unlock()
 	op.DoneInum(ip.Inum)
-	op.FreeSlot(ip.Inum)
 	op.FreeSlot(ip.Inum)
 }
 
@@ -186,16 +185,22 @@ func LockInode(op *fstxn.FsTxn, inum fs.Inum) *cache.Cslot {
 	if cslot == nil {
 		panic("GetInodeLocked")
 	}
-	if OwnInode(op, inum) {
-		op.FreeSlot(inum) // up refcnt once per trans
-	} else {
-		cslot.Lock()
-		op.AddInum(inum)
-	}
+	cslot.Lock()
+	op.AddInum(inum)
 	return cslot
 }
 
-func GetInode(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+func GetInodeUnlocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+	cslot := op.LookupSlot(inum)
+	if cslot == nil || cslot.Obj == nil {
+		panic("GetInodeUnlocked")
+	}
+	ip := cslot.Obj.(*Inode)
+	op.FreeSlot(ip.Inum)
+	return ip
+}
+
+func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	cslot := LockInode(op, inum)
 	if cslot.Obj == nil {
 		addr := op.Fs.Inum2Addr(inum)
@@ -204,13 +209,10 @@ func GetInode(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 		util.DPrintf(1, "GetInodeLocked # %v: read inode from disk\n", inum)
 		cslot.Obj = i
 	}
-	i := cslot.Obj.(*Inode)
-	util.DPrintf(1, "GetInodeLocked %v\n", i)
-	return i
-}
-
-func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
-	return GetInode(op, inum)
+	ip := cslot.Obj.(*Inode)
+	ip.cslot = cslot
+	util.DPrintf(1, "GetInodeLocked %v\n", ip)
+	return ip
 }
 
 func getInodeInumFree(op *fstxn.FsTxn, inum fs.Inum) *Inode {
@@ -295,7 +297,6 @@ func (ip *Inode) Put(op *fstxn.FsTxn) {
 		ip.Resize(op, 0)
 		ip.freeInode(op)
 	}
-	// op.FreeSlot(ip.Inum)
 }
 
 func putInodes(op *fstxn.FsTxn, inodes []*Inode) {

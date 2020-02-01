@@ -138,7 +138,7 @@ func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
 		var own bool = false
 		if inode.OwnInode(op, de.inum) {
 			own = true
-			ip = inode.GetInode(op, de.inum)
+			ip = inode.GetInodeUnlocked(op, de.inum)
 		} else {
 			ip = inode.GetInodeInum(op, de.inum)
 
