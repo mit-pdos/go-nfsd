@@ -155,10 +155,6 @@ func MaxFileSize() uint64 {
 	return (NDIRECT + maxblks) * disk.BlockSize
 }
 
-func OneInode(ip *Inode) []*Inode {
-	return []*Inode{ip}
-}
-
 func (ip *Inode) ReleaseInode(op *FsTxn) {
 	util.DPrintf(1, "ReleaseInode %v\n", ip)
 	if ip.cslot == nil {
@@ -201,7 +197,7 @@ func GetInodeLocked(op *FsTxn, inum fs.Inum) *Inode {
 	ip := cslot.Obj.(*Inode)
 	ip.cslot = cslot
 	op.addInode(ip)
-	util.DPrintf(1, "GetInodeLocked %v\n", ip)
+	util.DPrintf(1, "%d: GetInodeLocked %v\n", op.buftxn.Id, ip)
 	return ip
 }
 

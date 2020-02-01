@@ -26,15 +26,14 @@ func twoInodes(ino1, ino2 *inode.Inode) []*inode.Inode {
 	return inodes
 }
 
-func errRet(op *inode.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3,
-	inodes []*inode.Inode) {
+func errRet(op *inode.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3) {
 	*status = err
 	util.DPrintf(1, "errRet %v", err)
-	inode.Abort(op, inodes)
+	inode.Abort(op)
 }
 
-func commitReply(op *inode.FsTxn, status *nfstypes.Nfsstat3, inodes []*inode.Inode) {
-	ok := inode.Commit(op, inodes)
+func commitReply(op *inode.FsTxn, status *nfstypes.Nfsstat3) {
+	ok := inode.Commit(op)
 	if ok {
 		*status = nfstypes.NFS3_OK
 	} else {
@@ -52,11 +51,11 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	txn := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(txn, args.Object)
 	if ip == nil {
-		errRet(txn, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
+		errRet(txn, &reply.Status, nfstypes.NFS3ERR_STALE)
 		return reply
 	}
 	reply.Resok.Obj_attributes = ip.MkFattr()
-	commitReply(txn, &reply.Status, inode.OneInode(ip))
+	commitReply(txn, &reply.Status)
 	return reply
 }
 
@@ -64,18 +63,18 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 // an earlier call truncated the file), then help/wait with/for
 // shrinking.
 func (nfs *Nfs) helpShrinker(op *inode.FsTxn, ip *inode.Inode,
-	fh nfstypes.Nfs_fh3) (*inode.Inode, bool) {
+	fh nfstypes.Nfs_fh3) (*inode.FsTxn, *inode.Inode, bool) {
 	var ok bool = true
 	for ip.IsShrinking() {
 		ip.Shrink(op)
-		ok = inode.Commit(op, inode.OneInode(ip))
+		ok = inode.Commit(op)
 		if !ok {
 			break
 		}
 		op = inode.Begin(nfs.fsstate)
 		ip = inode.GetInodeFh(op, fh)
 	}
-	return ip, ok
+	return op, ip, ok
 }
 
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
@@ -86,7 +85,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	op := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(op, args.Object)
 	if ip == nil {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
 		return reply
 	}
 	if args.New_attributes.Mode.Set_it {
@@ -100,7 +99,8 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		util.DPrintf(1, "NFS SetAttr gid not supported %v\n", args)
 	}
 	if args.New_attributes.Size.Set_it {
-		ip, ok := nfs.helpShrinker(op, ip, args.Object)
+		var ok bool
+		op, ip, ok = nfs.helpShrinker(op, ip, args.Object)
 		if ok {
 			ip.Resize(op, uint64(args.New_attributes.Size.Size))
 			err = nfstypes.NFS3_OK
@@ -131,9 +131,9 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		err = nfstypes.NFS3_OK
 	}
 	if err == nfstypes.NFS3_OK {
-		commitReply(op, &reply.Status, inode.OneInode(ip))
+		commitReply(op, &reply.Status)
 	} else {
-		errRet(op, &reply.Status, err, inode.OneInode(ip))
+		errRet(op, &reply.Status, err)
 	}
 	return reply
 }
@@ -156,7 +156,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 			err = nfstypes.NFS3ERR_STALE
 			break
 		}
-		inodes = inode.OneInode(dip)
+		inodes = []*inode.Inode{dip}
 		inum, _ := dir.LookupName(dip, op, name)
 		if inum == fs.NULLINUM {
 			util.DPrintf(1, "getInodesLocked noent\n")
@@ -168,7 +168,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 		} else {
 			if inum < dip.Inum {
 				// Abort. Try to lock inodes in order
-				inode.Abort(op, inode.OneInode(dip))
+				inode.Abort(op)
 				parent := fh.MakeFh(dfh)
 				op = inode.Begin(nfs.fsstate)
 				inodes = lookupOrdered(op, name, parent, inum)
@@ -193,12 +193,12 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	util.DPrintf(1, "NFS Lookup %v\n", args)
 	op, inodes, err := nfs.getInodesLocked(args.What.Dir, args.What.Name)
 	if err != nfstypes.NFS3_OK {
-		errRet(op, &reply.Status, err, inodes)
+		errRet(op, &reply.Status, err)
 		return reply
 	}
 	fh := fh.Fh{Ino: inodes[0].Inum, Gen: inodes[0].Gen}
 	reply.Resok.Object = fh.MakeFh3()
-	commitReply(op, &reply.Status, inodes)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
@@ -210,35 +210,35 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 	return reply
 }
 
-func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count uint64) (*inode.FsTxn, []*inode.Inode, []byte, bool, nfstypes.Nfsstat3) {
+func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count uint64) (*inode.FsTxn, []byte, bool, nfstypes.Nfsstat3) {
 	op := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(op, fh)
 	if ip == nil {
-		return op, nil, nil, false, nfstypes.NFS3ERR_STALE
+		return op, nil, false, nfstypes.NFS3ERR_STALE
 	}
 	if ip.Kind != kind {
-		return op, inode.OneInode(ip), nil, false, nfstypes.NFS3ERR_INVAL
+		return op, nil, false, nfstypes.NFS3ERR_INVAL
 	}
 	if ip.Kind == nfstypes.NF3LNK {
 		count = ip.Size
 	}
 	data, eof := ip.Read(op, offset, count)
-	return op, inode.OneInode(ip), data, eof, nfstypes.NFS3_OK
+	return op, data, eof, nfstypes.NFS3_OK
 }
 
 func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	var reply nfstypes.READ3res
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
-	op, inode, data, eof, err := nfs.doRead(args.File, nfstypes.NF3REG,
+	op, data, eof, err := nfs.doRead(args.File, nfstypes.NF3REG,
 		uint64(args.Offset), uint64(args.Count))
 	if err != nfstypes.NFS3_OK {
-		errRet(op, &reply.Status, err, inode)
+		errRet(op, &reply.Status, err)
 		return reply
 	}
 	reply.Resok.Count = nfstypes.Count3(len(data))
 	reply.Resok.Data = data
 	reply.Resok.Eof = eof
-	commitReply(op, &reply.Status, inode)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
@@ -253,20 +253,20 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	ip := inode.GetInodeFh(op, args.File)
 	fh := fh.MakeFh(args.File)
 	if ip == nil {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
 		return reply
 	}
 	if ip.Kind != nfstypes.NF3REG {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inode.OneInode(ip))
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
 	if uint64(args.Count) >= op.LogSzBytes() {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inode.OneInode(ip))
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
 
 	// XXX only when this RPC might grow file?
-	ip, ok = nfs.helpShrinker(op, ip, args.File)
+	op, ip, ok = nfs.helpShrinker(op, ip, args.File)
 	if !ok {
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 		return reply
@@ -275,20 +275,20 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	count, writeOk := ip.Write(op, uint64(args.Offset), uint64(args.Count),
 		args.Data)
 	if !writeOk {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC, inode.OneInode(ip))
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC)
 		return reply
 	}
 	if args.Stable == nfstypes.FILE_SYNC {
 		// RFC: "FILE_SYNC, the server must commit the
 		// data written plus all file system metadata
 		// to stable storage before returning results."
-		ok = inode.Commit(op, inode.OneInode(ip))
+		ok = inode.Commit(op)
 	} else if args.Stable == nfstypes.DATA_SYNC {
 		// RFC: "DATA_SYNC, then the server must commit
 		// all of the data to stable storage and
 		// enough of the metadata to retrieve the data
 		// before returning."
-		ok = inode.CommitData(op, inode.OneInode(ip), fh)
+		ok = inode.CommitData(op, fh)
 	} else {
 		// RFC:	"UNSTABLE, the server is free to commit
 		// any part of the data and the metadata to
@@ -302,7 +302,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		// the value of verf and that it will not
 		// commit the data and metadata at a level
 		// less than that requested by the client."
-		ok = inode.CommitUnstable(op, inode.OneInode(ip), fh)
+		ok = inode.CommitUnstable(op, fh)
 	}
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
@@ -314,25 +314,25 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
-func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*inode.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*inode.FsTxn, nfstypes.Nfsstat3) {
 	op := inode.Begin(nfs.fsstate)
 	dip := inode.GetInodeFh(op, dfh)
 	if dip == nil {
-		return op, nil, nfstypes.NFS3ERR_STALE
+		return op, nfstypes.NFS3ERR_STALE
 	}
 	inum1, _ := dir.LookupName(dip, op, name)
 	if inum1 != fs.NULLINUM {
-		return op, inode.OneInode(dip), nfstypes.NFS3ERR_EXIST
+		return op, nfstypes.NFS3ERR_EXIST
 	}
 	inum, ip := inode.AllocInode(op, kind)
 	if inum == fs.NULLINUM {
-		return op, inode.OneInode(dip), nfstypes.NFS3ERR_NOSPC
+		return op, nfstypes.NFS3ERR_NOSPC
 	}
 	if kind == nfstypes.NF3DIR {
 		ok := dir.InitDir(ip, op, dip.Inum)
 		if !ok {
 			ip.DecLink(op)
-			return op, twoInodes(dip, ip), nfstypes.NFS3ERR_NOSPC
+			return op, nfstypes.NFS3ERR_NOSPC
 		}
 		dip.Nlink = dip.Nlink + 1 // for ..
 		dip.WriteInode(op)
@@ -341,28 +341,28 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 		_, ok := ip.Write(op, uint64(0), uint64(len(data)), data)
 		if !ok {
 			ip.DecLink(op)
-			return op, twoInodes(dip, ip), nfstypes.NFS3ERR_NOSPC
+			return op, nfstypes.NFS3ERR_NOSPC
 		}
 	}
 	ok := dir.AddName(dip, op, inum, name)
 	if !ok {
 		ip.DecLink(op)
-		return op, twoInodes(dip, ip), nfstypes.NFS3ERR_IO
+		return op, nfstypes.NFS3ERR_IO
 	}
-	return op, twoInodes(dip, ip), nfstypes.NFS3_OK
+	return op, nfstypes.NFS3_OK
 }
 
 // XXX deal with how
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	var reply nfstypes.CREATE3res
 	util.DPrintf(1, "NFS Create %v\n", args)
-	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3REG, nil)
+	op, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3REG, nil)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Create %v\n", err)
-		errRet(op, &reply.Status, err, inodes)
+		errRet(op, &reply.Status, err)
 		return reply
 	}
-	commitReply(op, &reply.Status, inodes)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
@@ -370,13 +370,13 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	var reply nfstypes.MKDIR3res
 
 	util.DPrintf(1, "NFS MakeDir %v\n", args)
-	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR, nil)
+	op, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR, nil)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Create %v\n", err)
-		errRet(op, &reply.Status, err, inodes)
+		errRet(op, &reply.Status, err)
 		return reply
 	}
-	commitReply(op, &reply.Status, inodes)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
@@ -385,29 +385,28 @@ func (nfs *Nfs) NFSPROC3_SYMLINK(args nfstypes.SYMLINK3args) nfstypes.SYMLINK3re
 	util.DPrintf(1, "NFS SymLink %v\n", args)
 
 	data := []byte(args.Symlink.Symlink_data)
-	op, inodes, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3LNK, data)
+	op, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3LNK, data)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "doCreate %v\n", err)
-		errRet(op, &reply.Status, err, inodes)
+		errRet(op, &reply.Status, err)
 		return reply
 	}
 
-	commitReply(op, &reply.Status, inodes)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_READLINK(args nfstypes.READLINK3args) nfstypes.READLINK3res {
 	var reply nfstypes.READLINK3res
 	util.DPrintf(1, "NFS ReadLink %v\n", args)
-	op, inode, data, _, err := nfs.doRead(args.Symlink, nfstypes.NF3LNK,
-		uint64(0), uint64(0))
+	op, data, _, err := nfs.doRead(args.Symlink, nfstypes.NF3LNK, uint64(0), uint64(0))
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "NFS ReadLink err %v\n", err)
-		errRet(op, &reply.Status, err, inode)
+		errRet(op, &reply.Status, err)
 		return reply
 	}
 	reply.Resok.Data = nfstypes.Nfspath3(string(data))
-	commitReply(op, &reply.Status, inode)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
@@ -418,54 +417,54 @@ func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
 	return reply
 }
 
-func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, isdir bool) (*inode.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, isdir bool) (*inode.FsTxn, nfstypes.Nfsstat3) {
 	if dir.IllegalName(name) {
 		util.DPrintf(0, "Remove inval name\n")
-		return nil, []*inode.Inode{}, nfstypes.NFS3ERR_INVAL
+		return nil, nfstypes.NFS3ERR_INVAL
 	}
 	op, inodes, err := nfs.getInodesLocked(dfh, name)
 	if err != nfstypes.NFS3_OK {
-		return op, inodes, err
+		return op, err
 	}
 	if isdir && inodes[0].Kind != nfstypes.NF3DIR {
 		util.DPrintf(0, "Remove not a directory %v\n", inodes[0].Kind)
-		return op, inodes, nfstypes.NFS3ERR_INVAL
+		return op, nfstypes.NFS3ERR_INVAL
 	}
 	if isdir && !dir.IsDirEmpty(inodes[0], op) {
-		return op, inodes, nfstypes.NFS3ERR_INVAL
+		return op, nfstypes.NFS3ERR_INVAL
 	}
 	ok := dir.RemName(inodes[1], op, name)
 	if !ok {
 		util.DPrintf(0, "Remove failed\n")
-		return op, inodes, nfstypes.NFS3ERR_IO
+		return op, nfstypes.NFS3ERR_IO
 	}
 	inodes[0].DecLink(op)
-	return op, inodes, nfstypes.NFS3_OK
+	return op, nfstypes.NFS3_OK
 }
 
 func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	var reply nfstypes.REMOVE3res
 	util.DPrintf(1, "NFS Remove %v\n", args)
-	op, inodes, err := nfs.doRemove(args.Object.Dir, args.Object.Name, false)
+	op, err := nfs.doRemove(args.Object.Dir, args.Object.Name, false)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(0, "Remove %v\n", err)
-		errRet(op, &reply.Status, err, inodes)
+		errRet(op, &reply.Status, err)
 		return reply
 	}
-	commitReply(op, &reply.Status, inodes)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	var reply nfstypes.RMDIR3res
 	util.DPrintf(1, "NFS Rmdir %v\n", args)
-	op, inodes, err := nfs.doRemove(args.Object.Dir, args.Object.Name, true)
+	op, err := nfs.doRemove(args.Object.Dir, args.Object.Name, true)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Rmdir %v\n", err)
-		errRet(op, &reply.Status, err, inodes)
+		errRet(op, &reply.Status, err)
 		return reply
 	}
-	commitReply(op, &reply.Status, inodes)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
@@ -519,7 +518,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		fromh := fh.MakeFh(args.From.Dir)
 
 		if dir.IllegalName(args.From.Name) {
-			errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, nil)
+			errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 			done = true
 			break
 		}
@@ -527,7 +526,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		if fh.Equal(args.From.Dir, args.To.Dir) {
 			dipfrom = inode.GetInodeFh(op, args.From.Dir)
 			if dipfrom == nil {
-				errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
+				errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
 				done = true
 				break
 			}
@@ -536,7 +535,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		} else {
 			inodes = lockInodes(op, twoInums(fromh.Ino, toh.Ino))
 			if inodes == nil {
-				errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, inodes)
+				errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
 				done = true
 				break
 			}
@@ -549,7 +548,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		frominumLookup, _ := dir.LookupName(dipfrom, op, args.From.Name)
 		frominum = frominumLookup
 		if frominum == fs.NULLINUM {
-			errRet(op, &reply.Status, nfstypes.NFS3ERR_NOENT, inodes)
+			errRet(op, &reply.Status, nfstypes.NFS3ERR_NOENT)
 			done = true
 			break
 		}
@@ -563,7 +562,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		// rename to itself?
 		if dipto == dipfrom && toinum == frominum {
 			reply.Status = nfstypes.NFS3_OK
-			inode.Commit(op, inodes)
+			inode.Commit(op)
 			done = true
 			break
 		}
@@ -573,7 +572,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 			// must lock 3 or 4 inodes in order
 			var to *inode.Inode
 			var from *inode.Inode
-			inode.Abort(op, inodes)
+			inode.Abort(op)
 			op = inode.Begin(nfs.fsstate)
 			if dipto != dipfrom {
 				inums := make([]fs.Inum, 4)
@@ -601,25 +600,25 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 			if validateRename(op, inodes, fromh, toh,
 				args.From.Name, args.To.Name) {
 				if to.Kind != from.Kind {
-					errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inodes)
+					errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 					done = true
 					break
 				}
 				if to.Kind == nfstypes.NF3DIR && !dir.IsDirEmpty(to, op) {
-					errRet(op, &reply.Status, nfstypes.NFS3ERR_NOTEMPTY, inodes)
+					errRet(op, &reply.Status, nfstypes.NFS3ERR_NOTEMPTY)
 					done = true
 					break
 				}
 				ok := dir.RemName(dipto, op, args.To.Name)
 				if !ok {
-					errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
+					errRet(op, &reply.Status, nfstypes.NFS3ERR_IO)
 					done = true
 					break
 				}
 				to.DecLink(op)
 				success = true
 			} else { // retry
-				inode.Abort(op, inodes)
+				inode.Abort(op)
 			}
 		} else {
 			success = true
@@ -630,15 +629,15 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 	}
 	ok := dir.RemName(dipfrom, op, args.From.Name)
 	if !ok {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO)
 		return reply
 	}
 	ok1 := dir.AddName(dipto, op, frominum, args.To.Name)
 	if !ok1 {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inodes)
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO)
 		return reply
 	}
-	commitReply(op, &reply.Status, inodes)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
@@ -662,17 +661,16 @@ func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.RE
 	op := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(op, args.Dir)
 	if ip == nil {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
 		return reply
 	}
-	inodes := inode.OneInode(ip)
 	if ip.Kind != nfstypes.NF3DIR {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inodes)
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
 	dirlist := Ls3(ip, op, args.Cookie, args.Dircount)
 	reply.Resok.Reply = dirlist
-	commitReply(op, &reply.Status, inodes)
+	commitReply(op, &reply.Status)
 	return reply
 }
 
@@ -689,7 +687,7 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	op := inode.Begin(nfs.fsstate)
 	reply.Resok.Wtmax = nfstypes.Uint32(op.LogSzBytes())
 	reply.Resok.Maxfilesize = nfstypes.Size3(inode.MaxFileSize())
-	commitReply(op, &reply.Status, []*inode.Inode{})
+	commitReply(op, &reply.Status)
 	return reply
 }
 
@@ -710,22 +708,22 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	ip := inode.GetInodeFh(op, args.File)
 	fh := fh.MakeFh(args.File)
 	if ip == nil {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
 		return reply
 	}
 	if ip.Kind != nfstypes.NF3REG {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inode.OneInode(ip))
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
 	if uint64(args.Offset)+uint64(args.Count) > ip.Size {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL, inode.OneInode(ip))
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
-	ok := inode.CommitFh(op, fh, inode.OneInode(ip))
+	ok := inode.CommitFh(op, fh)
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO, inode.OneInode(ip))
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_IO)
 	}
 	return reply
 }
