@@ -162,11 +162,11 @@ func (ip *Inode) ReleaseInode(op *FsTxn) {
 	}
 	ip.cslot.Unlock()
 	op.doneInode(ip)
-	op.FreeSlot(ip.Inum)
+	op.icache.FreeSlot(uint64(ip.Inum))
 }
 
 func LockInode(op *FsTxn, inum fs.Inum) *cache.Cslot {
-	cslot := op.LookupSlot(inum)
+	cslot := op.icache.LookupSlot(uint64(inum))
 	if cslot == nil {
 		panic("GetInodeLocked")
 	}
@@ -176,12 +176,12 @@ func LockInode(op *FsTxn, inum fs.Inum) *cache.Cslot {
 
 // XXX add LookupRef
 func GetInodeUnlocked(op *FsTxn, inum fs.Inum) *Inode {
-	cslot := op.LookupSlot(inum)
+	cslot := op.icache.LookupSlot(uint64(inum))
 	if cslot == nil || cslot.Obj == nil {
 		panic("GetInodeUnlocked")
 	}
 	ip := cslot.Obj.(*Inode)
-	op.FreeSlot(ip.Inum)
+	op.icache.FreeSlot(uint64(ip.Inum))
 	return ip
 }
 
@@ -189,7 +189,7 @@ func GetInodeLocked(op *FsTxn, inum fs.Inum) *Inode {
 	cslot := LockInode(op, inum)
 	if cslot.Obj == nil {
 		addr := op.Fs.Inum2Addr(inum)
-		buf := op.ReadBuf(addr)
+		buf := op.buftxn.ReadBuf(addr)
 		i := Decode(buf, inum)
 		util.DPrintf(1, "GetInodeLocked # %v: read inode from disk\n", inum)
 		cslot.Obj = i
@@ -241,7 +241,7 @@ func (ip *Inode) WriteInode(op *FsTxn) {
 		panic("WriteInode")
 	}
 	d := ip.Encode()
-	op.OverWrite(op.Fs.Inum2Addr(ip.Inum), d)
+	op.buftxn.OverWrite(op.Fs.Inum2Addr(ip.Inum), d)
 	util.DPrintf(1, "WriteInode %v\n", ip)
 }
 
@@ -447,7 +447,7 @@ func (ip *Inode) Write(op *FsTxn, offset uint64,
 		}
 		if byteoff == 0 && nbytes == disk.BlockSize { // block overwrite?
 			addr := op.Fs.Block2addr(blkno)
-			op.OverWrite(addr, data[0:nbytes])
+			op.buftxn.OverWrite(addr, data[0:nbytes])
 		} else {
 			buffer := op.ReadBlock(blkno)
 			for b := uint64(0); b < nbytes; b++ {

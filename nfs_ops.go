@@ -19,13 +19,6 @@ import (
 // lock order).
 //
 
-func twoInodes(ino1, ino2 *inode.Inode) []*inode.Inode {
-	inodes := make([]*inode.Inode, 2)
-	inodes[0] = ino1
-	inodes[1] = ino2
-	return inodes
-}
-
 func errRet(op *inode.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3) {
 	*status = err
 	util.DPrintf(1, "errRet %v", err)
@@ -136,6 +129,13 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		errRet(op, &reply.Status, err)
 	}
 	return reply
+}
+
+func twoInodes(ino1, ino2 *inode.Inode) []*inode.Inode {
+	inodes := make([]*inode.Inode, 2)
+	inodes[0] = ino1
+	inodes[1] = ino2
+	return inodes
 }
 
 // Lock the inode for dfh and the inode for name.  name may be a

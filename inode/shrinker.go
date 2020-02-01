@@ -48,12 +48,12 @@ func (shrinker *ShrinkerSt) Shutdown() {
 
 // 5: inode block, 2xbitmap block, indirect block, double indirect
 func enoughLogSpace(op *FsTxn) bool {
-	return op.NumberDirty()+5 < op.LogSz()
+	return op.buftxn.NDirty()+5 < op.buftxn.LogSz()
 }
 
 func (ip *Inode) shrinkFits(op *FsTxn) bool {
 	nblk := util.RoundUp(ip.Size, disk.BlockSize) - ip.ShrinkSize
-	return op.NumberDirty()+nblk < op.LogSz()
+	return op.buftxn.NDirty()+nblk < op.buftxn.LogSz()
 }
 
 func (ip *Inode) IsShrinking() bool {
