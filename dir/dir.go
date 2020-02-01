@@ -4,7 +4,6 @@ import (
 	"github.com/tchajed/marshal"
 
 	"github.com/mit-pdos/goose-nfsd/fs"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -25,7 +24,7 @@ func IllegalName(name nfstypes.Filename3) bool {
 	return n == "." || n == ".."
 }
 
-func ScanName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (fs.Inum, uint64) {
+func ScanName(dip *inode.Inode, op *inode.FsTxn, name nfstypes.Filename3) (fs.Inum, uint64) {
 	if dip.Kind != nfstypes.NF3DIR {
 		return fs.NULLINUM, 0
 	}
@@ -49,7 +48,7 @@ func ScanName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (fs.In
 	return inum, finalOffset
 }
 
-func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum,
+func AddNameDir(dip *inode.Inode, op *inode.FsTxn, inum fs.Inum,
 	name nfstypes.Filename3, lastoff uint64) (uint64, bool) {
 	var finalOff uint64
 
@@ -71,7 +70,7 @@ func AddNameDir(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum,
 	return finalOff, n == DIRENTSZ
 }
 
-func RemNameDir(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (uint64, bool) {
+func RemNameDir(dip *inode.Inode, op *inode.FsTxn, name nfstypes.Filename3) (uint64, bool) {
 	inum, off := LookupName(dip, op, name)
 	if inum == fs.NULLINUM {
 		return 0, false
@@ -83,7 +82,7 @@ func RemNameDir(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (uin
 	return off, n == DIRENTSZ
 }
 
-func IsDirEmpty(dip *inode.Inode, op *fstxn.FsTxn) bool {
+func IsDirEmpty(dip *inode.Inode, op *inode.FsTxn) bool {
 	var empty bool = true
 
 	// check all entries after . and ..
@@ -101,14 +100,14 @@ func IsDirEmpty(dip *inode.Inode, op *fstxn.FsTxn) bool {
 	return empty
 }
 
-func InitDir(dip *inode.Inode, op *fstxn.FsTxn, parent fs.Inum) bool {
+func InitDir(dip *inode.Inode, op *inode.FsTxn, parent fs.Inum) bool {
 	if !AddName(dip, op, dip.Inum, ".") {
 		return false
 	}
 	return AddName(dip, op, parent, "..")
 }
 
-func MkRootDir(dip *inode.Inode, op *fstxn.FsTxn) bool {
+func MkRootDir(dip *inode.Inode, op *inode.FsTxn) bool {
 	if !AddName(dip, op, dip.Inum, ".") {
 		return false
 	}
@@ -116,7 +115,7 @@ func MkRootDir(dip *inode.Inode, op *fstxn.FsTxn) bool {
 }
 
 // XXX inode locking order violated
-func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
+func Apply(dip *inode.Inode, op *inode.FsTxn, start uint64, count uint64,
 	f func(*inode.Inode, string, fs.Inum, uint64)) bool {
 	var eof bool = true
 	var ip *inode.Inode
@@ -136,7 +135,7 @@ func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
 
 		// Lock inode, if this transaction doesn't own it already
 		var own bool = false
-		if inode.OwnInode(op, de.inum) {
+		if op.OwnInum(de.inum) {
 			own = true
 			ip = inode.GetInodeUnlocked(op, de.inum)
 		} else {

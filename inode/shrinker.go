@@ -7,7 +7,6 @@ import (
 
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/fs"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -22,12 +21,12 @@ type ShrinkerSt struct {
 	mu       *sync.Mutex
 	condShut *sync.Cond
 	nthread  uint32
-	fsstate  *fstxn.FsState
+	fsstate  *FsState
 }
 
 var shrinkst *ShrinkerSt
 
-func MkShrinkerSt(st *fstxn.FsState) *ShrinkerSt {
+func MkShrinkerSt(st *FsState) *ShrinkerSt {
 	mu := new(sync.Mutex)
 	shrinkst = &ShrinkerSt{
 		mu:       mu,
@@ -48,11 +47,11 @@ func (shrinker *ShrinkerSt) Shutdown() {
 }
 
 // 5: inode block, 2xbitmap block, indirect block, double indirect
-func enoughLogSpace(op *fstxn.FsTxn) bool {
+func enoughLogSpace(op *FsTxn) bool {
 	return op.NumberDirty()+5 < op.LogSz()
 }
 
-func (ip *Inode) shrinkFits(op *fstxn.FsTxn) bool {
+func (ip *Inode) shrinkFits(op *FsTxn) bool {
 	nblk := util.RoundUp(ip.Size, disk.BlockSize) - ip.ShrinkSize
 	return op.NumberDirty()+nblk < op.LogSz()
 }
@@ -63,12 +62,12 @@ func (ip *Inode) IsShrinking() bool {
 	return s
 }
 
-func (ip *Inode) freeIndex(op *fstxn.FsTxn, index uint64) {
+func (ip *Inode) freeIndex(op *FsTxn, index uint64) {
 	op.FreeBlock(ip.blks[index])
 	ip.blks[index] = 0
 }
 
-func (ip *Inode) Shrink(op *fstxn.FsTxn) {
+func (ip *Inode) Shrink(op *FsTxn) {
 	util.DPrintf(1, "Shrink: from %d to %d\n", ip.ShrinkSize,
 		util.RoundUp(ip.Size, disk.BlockSize))
 	for ip.IsShrinking() && enoughLogSpace(op) {
@@ -97,7 +96,7 @@ func (ip *Inode) Shrink(op *fstxn.FsTxn) {
 func shrinker(inum fs.Inum) {
 	var more = true
 	for more {
-		op := fstxn.Begin(shrinkst.fsstate)
+		op := Begin(shrinkst.fsstate)
 		ip := getInodeInumFree(op, inum)
 		if ip == nil {
 			panic("shrink")
@@ -118,7 +117,7 @@ func shrinker(inum fs.Inum) {
 
 // Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn
 // have been cleared
-func (ip *Inode) indshrink(op *fstxn.FsTxn, root buf.Bnum, level uint64, bn uint64) buf.Bnum {
+func (ip *Inode) indshrink(op *FsTxn, root buf.Bnum, level uint64, bn uint64) buf.Bnum {
 	if root == buf.NULLBNUM {
 		return 0
 	}

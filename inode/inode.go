@@ -13,7 +13,6 @@ import (
 	"github.com/mit-pdos/goose-nfsd/dcache"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
@@ -160,38 +159,27 @@ func OneInode(ip *Inode) []*Inode {
 	return []*Inode{ip}
 }
 
-func OwnInode(op *fstxn.FsTxn, inum fs.Inum) bool {
-	return op.OwnInum(inum)
-}
-
-func (ip *Inode) ReleaseInode(op *fstxn.FsTxn) {
+func (ip *Inode) ReleaseInode(op *FsTxn) {
 	util.DPrintf(1, "ReleaseInode %v\n", ip)
 	if ip.cslot == nil {
 		panic("ReleaseInode")
 	}
 	ip.cslot.Unlock()
-	op.DoneInum(ip.Inum)
+	op.doneInode(ip)
 	op.FreeSlot(ip.Inum)
 }
 
-func releaseInodes(op *fstxn.FsTxn, inodes []*Inode) {
-	for _, ip := range inodes {
-		ip.ReleaseInode(op)
-	}
-}
-
-func LockInode(op *fstxn.FsTxn, inum fs.Inum) *cache.Cslot {
+func LockInode(op *FsTxn, inum fs.Inum) *cache.Cslot {
 	cslot := op.LookupSlot(inum)
 	if cslot == nil {
 		panic("GetInodeLocked")
 	}
 	cslot.Lock()
-	op.AddInum(inum)
 	return cslot
 }
 
 // XXX add LookupRef
-func GetInodeUnlocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+func GetInodeUnlocked(op *FsTxn, inum fs.Inum) *Inode {
 	cslot := op.LookupSlot(inum)
 	if cslot == nil || cslot.Obj == nil {
 		panic("GetInodeUnlocked")
@@ -201,7 +189,7 @@ func GetInodeUnlocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	return ip
 }
 
-func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+func GetInodeLocked(op *FsTxn, inum fs.Inum) *Inode {
 	cslot := LockInode(op, inum)
 	if cslot.Obj == nil {
 		addr := op.Fs.Inum2Addr(inum)
@@ -212,16 +200,17 @@ func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	}
 	ip := cslot.Obj.(*Inode)
 	ip.cslot = cslot
+	op.addInode(ip)
 	util.DPrintf(1, "GetInodeLocked %v\n", ip)
 	return ip
 }
 
-func getInodeInumFree(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+func getInodeInumFree(op *FsTxn, inum fs.Inum) *Inode {
 	ip := GetInodeLocked(op, inum)
 	return ip
 }
 
-func GetInodeInum(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+func GetInodeInum(op *FsTxn, inum fs.Inum) *Inode {
 	ip := getInodeInumFree(op, inum)
 	if ip == nil {
 		return nil
@@ -237,7 +226,7 @@ func GetInodeInum(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	return ip
 }
 
-func GetInodeFh(op *fstxn.FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
+func GetInodeFh(op *FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
 	fh := fh.MakeFh(fh3)
 	ip := GetInodeInum(op, fh.Ino)
 	if ip == nil {
@@ -251,7 +240,7 @@ func GetInodeFh(op *fstxn.FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
 	return ip
 }
 
-func (ip *Inode) WriteInode(op *fstxn.FsTxn) {
+func (ip *Inode) WriteInode(op *FsTxn) {
 	if ip.Inum >= op.Fs.NInode() {
 		panic("WriteInode")
 	}
@@ -260,7 +249,7 @@ func (ip *Inode) WriteInode(op *fstxn.FsTxn) {
 	util.DPrintf(1, "WriteInode %v\n", ip)
 }
 
-func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
+func AllocInode(op *FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
 	var ip *Inode
 	inum := op.AllocINum()
 	if inum != fs.NULLINUM {
@@ -275,14 +264,14 @@ func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
 	return inum, ip
 }
 
-func (ip *Inode) freeInode(op *fstxn.FsTxn) {
+func (ip *Inode) freeInode(op *FsTxn) {
 	ip.Kind = NF3FREE
 	ip.Gen = ip.Gen + 1
 	ip.WriteInode(op)
 	op.FreeINum(ip.Inum)
 }
 
-func FreeInum(op *fstxn.FsTxn, inum fs.Inum) {
+func FreeInum(op *FsTxn, inum fs.Inum) {
 	i := GetInodeLocked(op, inum)
 	if i.Kind == NF3FREE {
 		panic("freeInode")
@@ -291,7 +280,7 @@ func FreeInum(op *fstxn.FsTxn, inum fs.Inum) {
 }
 
 // Done with ip and remove inode if Nlink = 0.
-func (ip *Inode) Put(op *fstxn.FsTxn) {
+func (ip *Inode) Put(op *FsTxn) {
 	util.DPrintf(1, "put inode # %d Nlink %d\n", ip.Inum, ip.Nlink)
 	// shrinker may put an FREE inode
 	if ip.Nlink == 0 && ip.Kind != NF3FREE {
@@ -300,17 +289,11 @@ func (ip *Inode) Put(op *fstxn.FsTxn) {
 	}
 }
 
-func putInodes(op *fstxn.FsTxn, inodes []*Inode) {
-	for _, ip := range inodes {
-		ip.Put(op)
-	}
-}
-
 // Resize updates the inode, but may not free immediately if the inode
 // shrinks. It creates a new thread to free blocks in a separate
 // transaction, if shrinking involves freeing many blocks.  ShrinkSize
 // tracks shrinking progress, and is initialized with the old size.
-func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
+func (ip *Inode) Resize(op *FsTxn, sz uint64) {
 	oldsz := util.RoundUp(ip.Size, disk.BlockSize)
 	util.DPrintf(5, "Resize %v to sz %d\n", oldsz, sz)
 	ip.Size = sz
@@ -339,7 +322,7 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 // Returns blkno and root index block for off. If blkno is 0, failure.
 // Caller must compare root with returned root to decide if a root has
 // been allocated.
-func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint64) (buf.Bnum, buf.Bnum) {
+func (ip *Inode) indbmap(op *FsTxn, root buf.Bnum, level uint64, off uint64) (buf.Bnum, buf.Bnum) {
 	if root == buf.NULLBNUM { // no root?
 		root = op.AllocBlock()
 		if root == buf.NULLBNUM {
@@ -369,7 +352,7 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint6
 
 // Map logical block number bn to a physical block number, allocating
 // blocks if no block exists for bn.
-func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (buf.Bnum, bool) {
+func (ip *Inode) bmap(op *FsTxn, bn uint64) (buf.Bnum, bool) {
 	var blkno = buf.NULLBNUM
 	var alloc = false
 	if bn < NDIRECT {
@@ -402,7 +385,7 @@ func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (buf.Bnum, bool) {
 }
 
 // Returns number of bytes read and eof
-func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byte,
+func (ip *Inode) Read(op *FsTxn, offset uint64, bytesToRead uint64) ([]byte,
 	bool) {
 	var n uint64 = uint64(0)
 
@@ -439,7 +422,7 @@ func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byt
 }
 
 // Returns number of bytes written and error
-func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
+func (ip *Inode) Write(op *FsTxn, offset uint64,
 	count uint64, dataBuf []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
@@ -492,7 +475,7 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 	return cnt, ok
 }
 
-func (ip *Inode) DecLink(op *fstxn.FsTxn) {
+func (ip *Inode) DecLink(op *FsTxn) {
 	ip.Nlink = ip.Nlink - 1
 	ip.WriteInode(op)
 }

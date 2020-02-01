@@ -4,7 +4,6 @@ import (
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/fs"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -27,14 +26,14 @@ func twoInodes(ino1, ino2 *inode.Inode) []*inode.Inode {
 	return inodes
 }
 
-func errRet(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3,
+func errRet(op *inode.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3,
 	inodes []*inode.Inode) {
 	*status = err
 	util.DPrintf(1, "errRet %v", err)
 	inode.Abort(op, inodes)
 }
 
-func commitReply(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, inodes []*inode.Inode) {
+func commitReply(op *inode.FsTxn, status *nfstypes.Nfsstat3, inodes []*inode.Inode) {
 	ok := inode.Commit(op, inodes)
 	if ok {
 		*status = nfstypes.NFS3_OK
@@ -50,7 +49,7 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3res {
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
-	txn := fstxn.Begin(nfs.fsstate)
+	txn := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(txn, args.Object)
 	if ip == nil {
 		errRet(txn, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
@@ -64,7 +63,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 // If caller changes file size and shrinking is in progress (because
 // an earlier call truncated the file), then help/wait with/for
 // shrinking.
-func (nfs *Nfs) helpShrinker(op *fstxn.FsTxn, ip *inode.Inode,
+func (nfs *Nfs) helpShrinker(op *inode.FsTxn, ip *inode.Inode,
 	fh nfstypes.Nfs_fh3) (*inode.Inode, bool) {
 	var ok bool = true
 	for ip.IsShrinking() {
@@ -73,7 +72,7 @@ func (nfs *Nfs) helpShrinker(op *fstxn.FsTxn, ip *inode.Inode,
 		if !ok {
 			break
 		}
-		op = fstxn.Begin(nfs.fsstate)
+		op = inode.Begin(nfs.fsstate)
 		ip = inode.GetInodeFh(op, fh)
 	}
 	return ip, ok
@@ -84,7 +83,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	var err = nfstypes.NFS3ERR_NOTSUPP
 
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
-	op := fstxn.Begin(nfs.fsstate)
+	op := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(op, args.Object)
 	if ip == nil {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
@@ -142,14 +141,14 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 // Lock the inode for dfh and the inode for name.  name may be a
 // directory (e.g., "."). We must lock directories in ascending inum
 // order.
-func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (*inode.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
 	var err nfstypes.Nfsstat3 = nfstypes.NFS3_OK
 	var inodes []*inode.Inode
 	var ip *inode.Inode
-	var op *fstxn.FsTxn
+	var op *inode.FsTxn
 
 	for ip == nil {
-		op = fstxn.Begin(nfs.fsstate)
+		op = inode.Begin(nfs.fsstate)
 		util.DPrintf(1, "getInodesLocked %v %v\n", dfh, name)
 		dip := inode.GetInodeFh(op, dfh)
 		if dip == nil {
@@ -171,7 +170,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 				// Abort. Try to lock inodes in order
 				inode.Abort(op, inode.OneInode(dip))
 				parent := fh.MakeFh(dfh)
-				op = fstxn.Begin(nfs.fsstate)
+				op = inode.Begin(nfs.fsstate)
 				inodes = lookupOrdered(op, name, parent, inum)
 				if inodes == nil {
 					ip = nil
@@ -211,8 +210,8 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 	return reply
 }
 
-func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count uint64) (*fstxn.FsTxn, []*inode.Inode, []byte, bool, nfstypes.Nfsstat3) {
-	op := fstxn.Begin(nfs.fsstate)
+func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count uint64) (*inode.FsTxn, []*inode.Inode, []byte, bool, nfstypes.Nfsstat3) {
+	op := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(op, fh)
 	if ip == nil {
 		return op, nil, nil, false, nfstypes.NFS3ERR_STALE
@@ -248,7 +247,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	var reply nfstypes.WRITE3res
 	var ok = true
 
-	op := fstxn.Begin(nfs.fsstate)
+	op := inode.Begin(nfs.fsstate)
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
 	ip := inode.GetInodeFh(op, args.File)
@@ -315,8 +314,8 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
-func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
-	op := fstxn.Begin(nfs.fsstate)
+func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*inode.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+	op := inode.Begin(nfs.fsstate)
 	dip := inode.GetInodeFh(op, dfh)
 	if dip == nil {
 		return op, nil, nfstypes.NFS3ERR_STALE
@@ -419,7 +418,7 @@ func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
 	return reply
 }
 
-func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, isdir bool) (*fstxn.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
+func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, isdir bool) (*inode.FsTxn, []*inode.Inode, nfstypes.Nfsstat3) {
 	if dir.IllegalName(name) {
 		util.DPrintf(0, "Remove inval name\n")
 		return nil, []*inode.Inode{}, nfstypes.NFS3ERR_INVAL
@@ -470,7 +469,7 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	return reply
 }
 
-func validateRename(op *fstxn.FsTxn, inodes []*inode.Inode, fromfh fh.Fh, tofh fh.Fh,
+func validateRename(op *inode.FsTxn, inodes []*inode.Inode, fromfh fh.Fh, tofh fh.Fh,
 	fromn nfstypes.Filename3, ton nfstypes.Filename3) bool {
 	var dipto *inode.Inode
 	var dipfrom *inode.Inode
@@ -505,7 +504,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 	var reply nfstypes.RENAME3res
 	var dipto *inode.Inode
 	var dipfrom *inode.Inode
-	var op *fstxn.FsTxn
+	var op *inode.FsTxn
 	var inodes []*inode.Inode
 	var frominum fs.Inum
 	var toinum fs.Inum
@@ -513,7 +512,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 	var done bool = false
 
 	for !success {
-		op = fstxn.Begin(nfs.fsstate)
+		op = inode.Begin(nfs.fsstate)
 		util.DPrintf(1, "NFS Rename %v\n", args)
 
 		toh := fh.MakeFh(args.To.Dir)
@@ -575,7 +574,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 			var to *inode.Inode
 			var from *inode.Inode
 			inode.Abort(op, inodes)
-			op = fstxn.Begin(nfs.fsstate)
+			op = inode.Begin(nfs.fsstate)
 			if dipto != dipfrom {
 				inums := make([]fs.Inum, 4)
 				inums[0] = dipfrom.Inum
@@ -660,7 +659,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.READDIRPLUS3res {
 	var reply nfstypes.READDIRPLUS3res
 	util.DPrintf(1, "NFS ReadDirPlus %v\n", args)
-	op := fstxn.Begin(nfs.fsstate)
+	op := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(op, args.Dir)
 	if ip == nil {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE, nil)
@@ -687,7 +686,7 @@ func (nfs *Nfs) NFSPROC3_FSSTAT(args nfstypes.FSSTAT3args) nfstypes.FSSTAT3res {
 func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	var reply nfstypes.FSINFO3res
 	util.DPrintf(1, "NFS FsInfo %v\n", args)
-	op := fstxn.Begin(nfs.fsstate)
+	op := inode.Begin(nfs.fsstate)
 	reply.Resok.Wtmax = nfstypes.Uint32(op.LogSzBytes())
 	reply.Resok.Maxfilesize = nfstypes.Size3(inode.MaxFileSize())
 	commitReply(op, &reply.Status, []*inode.Inode{})
@@ -707,7 +706,7 @@ func (nfs *Nfs) NFSPROC3_PATHCONF(args nfstypes.PATHCONF3args) nfstypes.PATHCONF
 func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	var reply nfstypes.COMMIT3res
 	util.DPrintf(1, "NFS Commit %v\n", args)
-	op := fstxn.Begin(nfs.fsstate)
+	op := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(op, args.File)
 	fh := fh.MakeFh(args.File)
 	if ip == nil {

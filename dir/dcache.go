@@ -3,12 +3,11 @@ package dir
 import (
 	"github.com/mit-pdos/goose-nfsd/dcache"
 	"github.com/mit-pdos/goose-nfsd/fs"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 
-func mkDcache(dip *inode.Inode, op *fstxn.FsTxn) {
+func mkDcache(dip *inode.Inode, op *inode.FsTxn) {
 	dip.Dcache = dcache.MkDcache()
 	Apply(dip, op, 0, dip.Size,
 		func(ip *inode.Inode, name string, inum fs.Inum, off uint64) {
@@ -16,7 +15,7 @@ func mkDcache(dip *inode.Inode, op *fstxn.FsTxn) {
 		})
 }
 
-func LookupName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (fs.Inum, uint64) {
+func LookupName(dip *inode.Inode, op *inode.FsTxn, name nfstypes.Filename3) (fs.Inum, uint64) {
 	if dip.Kind != nfstypes.NF3DIR {
 		return fs.NULLINUM, 0
 	}
@@ -33,7 +32,7 @@ func LookupName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) (fs.
 	return inum, finalOffset
 }
 
-func AddName(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum, name nfstypes.Filename3) bool {
+func AddName(dip *inode.Inode, op *inode.FsTxn, inum fs.Inum, name nfstypes.Filename3) bool {
 	if dip.Kind != nfstypes.NF3DIR || uint64(len(name)) >= MAXNAMELEN {
 		return false
 	}
@@ -48,7 +47,7 @@ func AddName(dip *inode.Inode, op *fstxn.FsTxn, inum fs.Inum, name nfstypes.File
 	return ok
 }
 
-func RemName(dip *inode.Inode, op *fstxn.FsTxn, name nfstypes.Filename3) bool {
+func RemName(dip *inode.Inode, op *inode.FsTxn, name nfstypes.Filename3) bool {
 	if dip.Kind != nfstypes.NF3DIR || uint64(len(name)) >= MAXNAMELEN {
 		return false
 	}
