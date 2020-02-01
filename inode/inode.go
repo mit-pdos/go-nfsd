@@ -190,6 +190,7 @@ func LockInode(op *fstxn.FsTxn, inum fs.Inum) *cache.Cslot {
 	return cslot
 }
 
+// XXX add LookupRef
 func GetInodeUnlocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	cslot := op.LookupSlot(inum)
 	if cslot == nil || cslot.Obj == nil {
