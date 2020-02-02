@@ -313,6 +313,9 @@ func TestOneDir(t *testing.T) {
 
 // Many files
 func TestManyFiles(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
 	ts := newTest(t)
 	defer ts.Close()
 
@@ -531,6 +534,9 @@ func TestFileHole(t *testing.T) {
 }
 
 func TestManyHoles(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
 	ts := newTest(t)
 	defer ts.Close()
 
@@ -666,6 +672,9 @@ func TestBigWrite(t *testing.T) {
 }
 
 func TestBigUnlink(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
 	ts := newTest(t)
 	defer ts.Close()
 	const N = DISKSZ / 2
@@ -701,6 +710,9 @@ func (ts *TestState) maketoolargefile(name string, wsize int) {
 }
 
 func TestTooLargeFile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
 	ts := newTest(t)
 	defer ts.Close()
 
@@ -721,6 +733,9 @@ func TestRestart(t *testing.T) {
 }
 
 func TestAbort(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
 	ts := newTest(t)
 	defer ts.Close()
 

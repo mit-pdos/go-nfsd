@@ -48,8 +48,7 @@ func MkFsSuper(sz uint64, name *string) *FsSuper {
 	}
 
 	// use the disk with a buffer cache
-	disk.Init(d)
-	bc := bcache.MkBcache()
+	bc := bcache.MkBcache(d)
 
 	return &FsSuper{
 		Disk:         bc,
