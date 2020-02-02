@@ -738,5 +738,5 @@ func TestAbort(t *testing.T) {
 	fh3 := ts.Lookup("d", true)
 	fh := fh.MakeFh(fh3)
 	// inode 3 should be used for d
-	assert.Equal(ts.t, fh.Ino, fs.Inum(3))
+	assert.Equal(ts.t, fs.Inum(3), fh.Ino)
 }

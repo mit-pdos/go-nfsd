@@ -180,3 +180,7 @@ skipping zero size write
 skipping zero size read
  
  ...
+
+
+* <2020-02-02 Sun>
+helpShrink on create or don't allocate inode that is being shrunk

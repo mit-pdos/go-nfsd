@@ -17,22 +17,30 @@ import (
 //
 
 type FsTxn struct {
-	Fs     *fs.FsSuper
-	buftxn *buftxn.BufTxn
-	icache *cache.Cache
-	balloc *alloc.Alloc
-	ialloc *alloc.Alloc
-	inodes []*Inode
+	Fs         *fs.FsSuper
+	buftxn     *buftxn.BufTxn
+	icache     *cache.Cache
+	balloc     *alloc.Alloc
+	ialloc     *alloc.Alloc
+	inodes     []*Inode
+	allocInums []fs.Inum
+	freeInums  []fs.Inum
+	allocBnums []buf.Bnum
+	freeBnums  []buf.Bnum
 }
 
 func Begin(opstate *FsState) *FsTxn {
 	op := &FsTxn{
-		Fs:     opstate.Fs,
-		buftxn: buftxn.Begin(opstate.Txn, opstate.BitLock),
-		icache: opstate.Icache,
-		balloc: opstate.Balloc,
-		ialloc: opstate.Ialloc,
-		inodes: make([]*Inode, 0),
+		Fs:         opstate.Fs,
+		buftxn:     buftxn.Begin(opstate.Txn),
+		icache:     opstate.Icache,
+		balloc:     opstate.Balloc,
+		ialloc:     opstate.Ialloc,
+		inodes:     make([]*Inode, 0),
+		allocInums: make([]fs.Inum, 0),
+		freeInums:  make([]fs.Inum, 0),
+		allocBnums: make([]buf.Bnum, 0),
+		freeBnums:  make([]buf.Bnum, 0),
 	}
 	return op
 }
@@ -78,12 +86,46 @@ func (op *FsTxn) LogSzBytes() uint64 {
 }
 
 func (op *FsTxn) AllocINum() fs.Inum {
-	n := op.ialloc.AllocNum(op.buftxn)
+	n := fs.Inum(op.ialloc.AllocNum())
+	if n != fs.NULLINUM {
+		op.allocInums = append(op.allocInums, n)
+	}
+	util.DPrintf(1, "alloc inode -> # %v\n", n)
 	return fs.Inum(n)
 }
 
 func (op *FsTxn) FreeINum(inum fs.Inum) {
-	op.ialloc.FreeNum(op.buftxn, uint64(inum))
+	util.DPrintf(1, "free inode -> # %v\n", inum)
+	op.freeInums = append(op.freeInums, inum)
+}
+
+func mkBitAddr(start buf.Bnum, n uint64) buf.Addr {
+	bit := n % alloc.NBITBLOCK
+	i := n / alloc.NBITBLOCK
+	addr := buf.MkAddr(start+buf.Bnum(i), bit, 1)
+	return addr
+}
+
+// Write allocated bits to the on-disk bit maps
+func (op *FsTxn) commitAlloc() {
+	for _, inum := range op.allocInums {
+		addr := mkBitAddr(op.Fs.BitmapInodeStart(), uint64(inum))
+		op.buftxn.OverWrite(addr, []byte{(1 << (inum % 8))})
+	}
+	for _, bn := range op.allocBnums {
+		addr := mkBitAddr(op.Fs.BitmapBlockStart(), uint64(bn))
+		op.buftxn.OverWrite(addr, []byte{(1 << (bn % 8))})
+	}
+}
+
+// On-disk bitmap has been updated; update in-memory state for free bits
+func (op *FsTxn) commitFree() {
+	for _, inum := range op.freeInums {
+		op.ialloc.FreeNum(uint64(inum))
+	}
+	for _, bn := range op.freeBnums {
+		op.balloc.FreeNum(bn)
+	}
 }
 
 func (op *FsTxn) AssertValidBlock(blkno buf.Bnum) {
@@ -94,20 +136,23 @@ func (op *FsTxn) AssertValidBlock(blkno buf.Bnum) {
 
 func (op *FsTxn) AllocBlock() buf.Bnum {
 	util.DPrintf(5, "alloc block\n")
-	n := buf.Bnum(op.balloc.AllocNum(op.buftxn))
-	op.AssertValidBlock(n)
-	util.DPrintf(1, "alloc block -> %v\n", n)
-	return n
+	bn := buf.Bnum(op.balloc.AllocNum())
+	op.AssertValidBlock(bn)
+	util.DPrintf(1, "alloc block -> %v\n", bn)
+	if bn != buf.NULLBNUM {
+		op.allocBnums = append(op.allocBnums, bn)
+	}
+	return bn
 }
 
 func (op *FsTxn) FreeBlock(blkno buf.Bnum) {
-	util.DPrintf(5, "free block %v\n", blkno)
+	util.DPrintf(1, "free block %v\n", blkno)
 	op.AssertValidBlock(blkno)
 	if blkno == 0 {
 		return
 	}
 	op.ZeroBlock(blkno)
-	op.balloc.FreeNum(op.buftxn, uint64(blkno))
+	op.freeBnums = append(op.freeBnums, blkno)
 }
 
 func (op *FsTxn) ReadBlock(blkno buf.Bnum) *buf.Buf {

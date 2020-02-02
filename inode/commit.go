@@ -2,13 +2,24 @@ package inode
 
 import (
 	"github.com/mit-pdos/goose-nfsd/fh"
+	"github.com/mit-pdos/goose-nfsd/util"
 )
 
-func commitWait(op *FsTxn, wait bool, abort bool) bool {
-	// putInodes may free an inode so must be done before commit
+// putInodes may free an inode so must be done before commit
+func preCommit(op *FsTxn) {
 	putInodes(op)
-	ok := op.buftxn.CommitWait(wait, abort)
+	op.commitAlloc()
+}
+
+func postCommit(op *FsTxn) {
 	releaseInodes(op)
+	op.commitFree()
+}
+
+func commitWait(op *FsTxn, wait bool, abort bool) bool {
+	preCommit(op)
+	ok := op.buftxn.CommitWait(wait, abort)
+	postCommit(op)
 	return ok
 }
 
@@ -30,14 +41,19 @@ func CommitUnstable(op *FsTxn, fh fh.Fh) bool {
 // Flush log. We don't have to flush data from other file handles, but
 // that is only an option if we do log-by-pass writes.
 func CommitFh(op *FsTxn, fh fh.Fh) bool {
-	putInodes(op)
+	preCommit(op)
 	ok := op.buftxn.Flush()
-	releaseInodes(op)
+	postCommit(op)
 	return ok
 }
 
 // An aborted transaction may free an inode, which results in dirty
 // buffers that need to be written to log. So, call commit.
 func Abort(op *FsTxn) bool {
-	return commitWait(op, true, true)
+	putInodes(op)
+	ok := op.buftxn.CommitWait(true, true)
+	releaseInodes(op)
+	util.DPrintf(1, "Abort: inum free %v alloc %v\n", op.freeInums, op.allocInums)
+	util.DPrintf(1, "Abort: blk free %v alloc %v\n", op.freeBnums, op.allocBnums)
+	return ok
 }
