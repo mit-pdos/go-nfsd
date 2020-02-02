@@ -146,3 +146,37 @@ skipping zero size write
 skipping zero size write
 skipping zero size read
  ...
+
+* <2020-02-01 Sat>: new locking plan
+
+[goose-nfs (lockinodes)]$ go run ./cmd/smallfile/main.go 
+2020/02/01 19:26:11 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+smallfile: 8987.2 file/s with 1 threads
+
+[goose-nfs (lockinodes)]$ go run ./cmd/largefile/main.go 
+2020/02/01 19:27:00 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+largefile: 50 MB througput 433.88 MB/s
+
+[1]+  Done                    ./fsstress -v -l 1000 -n 100 -p 2 -d /mnt/nfs > out
+
+./fsx-linux -P d /mnt/nfs/x
+truncating to largest ever: 0x13e76
+truncating to largest ever: 0x2e52c
+truncating to largest ever: 0x3c2c2
+truncating to largest ever: 0x3f15f
+truncating to largest ever: 0x3fcb9
+truncating to largest ever: 0x3fe96
+truncating to largest ever: 0x3ff9d
+truncating to largest ever: 0x3ffff
+skipping zero size read
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size write
+skipping zero size read
+ 
+ ...
