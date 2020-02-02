@@ -40,7 +40,7 @@ func (lmap *lockShard) release(addr uint64) {
 	lmap.mu.Lock()
 	delete(lmap.holders, addr)
 	lmap.mu.Unlock()
-	lmap.cond.Signal()
+	lmap.cond.Broadcast()
 }
 
 func (lmap *lockShard) isLocked(addr uint64, id txn.TransId) bool {
