@@ -22,11 +22,11 @@ import (
 func errRet(op *inode.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3) {
 	*status = err
 	util.DPrintf(1, "errRet %v", err)
-	inode.Abort(op)
+	op.Abort()
 }
 
 func commitReply(op *inode.FsTxn, status *nfstypes.Nfsstat3) {
-	ok := inode.Commit(op)
+	ok := op.Commit()
 	if ok {
 		*status = nfstypes.NFS3_OK
 	} else {
@@ -60,7 +60,7 @@ func (nfs *Nfs) helpShrinker(op *inode.FsTxn, ip *inode.Inode,
 	var ok bool = true
 	for ip.IsShrinking() {
 		ip.Shrink(op)
-		ok = inode.Commit(op)
+		ok = op.Commit()
 		if !ok {
 			break
 		}
@@ -168,7 +168,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 		} else {
 			if inum < dip.Inum {
 				// Abort. Try to lock inodes in order
-				inode.Abort(op)
+				op.Abort()
 				parent := fh.MakeFh(dfh)
 				op = inode.Begin(nfs.fsstate)
 				inodes = lookupOrdered(op, name, parent, inum)
@@ -282,13 +282,13 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		// RFC: "FILE_SYNC, the server must commit the
 		// data written plus all file system metadata
 		// to stable storage before returning results."
-		ok = inode.Commit(op)
+		ok = op.Commit()
 	} else if args.Stable == nfstypes.DATA_SYNC {
 		// RFC: "DATA_SYNC, then the server must commit
 		// all of the data to stable storage and
 		// enough of the metadata to retrieve the data
 		// before returning."
-		ok = inode.CommitData(op, fh)
+		ok = op.CommitData(fh)
 	} else {
 		// RFC:	"UNSTABLE, the server is free to commit
 		// any part of the data and the metadata to
@@ -302,7 +302,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		// the value of verf and that it will not
 		// commit the data and metadata at a level
 		// less than that requested by the client."
-		ok = inode.CommitUnstable(op, fh)
+		ok = op.CommitUnstable(fh)
 	}
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
@@ -573,7 +573,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		// rename to itself?
 		if dipto == dipfrom && toinum == frominum {
 			reply.Status = nfstypes.NFS3_OK
-			inode.Commit(op)
+			op.Commit()
 			done = true
 			break
 		}
@@ -583,7 +583,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 			// must lock 3 or 4 inodes in order
 			var to *inode.Inode
 			var from *inode.Inode
-			inode.Abort(op)
+			op.Abort()
 			op = inode.Begin(nfs.fsstate)
 			if dipto != dipfrom {
 				inums := make([]common.Inum, 4)
@@ -629,7 +629,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 				to.DecLink(op)
 				success = true
 			} else { // retry
-				inode.Abort(op)
+				op.Abort()
 			}
 		} else {
 			success = true
@@ -730,7 +730,7 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
-	ok := inode.CommitFh(op, fh)
+	ok := op.CommitFh(fh)
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {

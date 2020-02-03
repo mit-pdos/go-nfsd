@@ -22,7 +22,7 @@ func lockInodes(op *inode.FsTxn, inums []common.Inum) []*inode.Inode {
 	for _, inm := range sorted {
 		ip := inode.GetInodeInum(op, inm)
 		if ip == nil {
-			inode.Abort(op)
+			op.Abort()
 			return nil
 		}
 		// put in same position as in inums
@@ -57,12 +57,12 @@ func lookupOrdered(op *inode.FsTxn, name nfstypes.Filename3, parent fh.Fh, inm c
 	}
 	dip := inodes[1]
 	if dip.Gen != parent.Gen {
-		inode.Abort(op)
+		op.Abort()
 		return nil
 	}
 	child, _ := dir.LookupName(dip, op, name)
 	if child == common.NULLINUM || child != inm {
-		inode.Abort(op)
+		op.Abort()
 		return nil
 	}
 	return inodes

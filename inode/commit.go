@@ -6,53 +6,53 @@ import (
 )
 
 // putInodes may free an inode so must be done before commit
-func preCommit(op *FsTxn) {
-	putInodes(op)
+func (op *FsTxn) preCommit() {
+	op.putInodes()
 	op.commitAlloc()
 }
 
-func postCommit(op *FsTxn) {
-	releaseInodes(op)
+func (op *FsTxn) postCommit() {
+	op.releaseInodes()
 	op.commitFree()
 }
 
-func commitWait(op *FsTxn, wait bool, abort bool) bool {
-	preCommit(op)
+func (op *FsTxn) commitWait(wait bool, abort bool) bool {
+	op.preCommit()
 	ok := op.buftxn.CommitWait(wait, abort)
-	postCommit(op)
+	op.postCommit()
 	return ok
 }
 
-func Commit(op *FsTxn) bool {
-	return commitWait(op, true, false)
+func (op *FsTxn) Commit() bool {
+	return op.commitWait(true, false)
 }
 
 // Commit data, but will also commit everything else, since we don't
 // support log-by-pass writes.
-func CommitData(op *FsTxn, fh fh.Fh) bool {
+func (op *FsTxn) CommitData(fh fh.Fh) bool {
 	return op.buftxn.CommitWait(true, false)
 }
 
 // Commit transaction, but don't write to stable storage
-func CommitUnstable(op *FsTxn, fh fh.Fh) bool {
-	return commitWait(op, false, false)
+func (op *FsTxn) CommitUnstable(fh fh.Fh) bool {
+	return op.commitWait(false, false)
 }
 
 // Flush log. We don't have to flush data from other file handles, but
 // that is only an option if we do log-by-pass writes.
-func CommitFh(op *FsTxn, fh fh.Fh) bool {
-	preCommit(op)
+func (op *FsTxn) CommitFh(fh fh.Fh) bool {
+	op.preCommit()
 	ok := op.buftxn.Flush()
-	postCommit(op)
+	op.postCommit()
 	return ok
 }
 
 // An aborted transaction may free an inode, which results in dirty
 // buffers that need to be written to log. So, call commit.
-func Abort(op *FsTxn) bool {
-	putInodes(op)
+func (op *FsTxn) Abort() bool {
+	op.putInodes()
 	ok := op.buftxn.CommitWait(true, true)
-	releaseInodes(op)
+	op.releaseInodes()
 	util.DPrintf(1, "Abort: inum free %v alloc %v\n", op.freeInums, op.allocInums)
 	util.DPrintf(1, "Abort: blk free %v alloc %v\n", op.freeBnums, op.allocBnums)
 	return ok

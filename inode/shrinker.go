@@ -102,7 +102,7 @@ func shrinker(inum common.Inum) {
 		}
 		ip.Shrink(op)
 		more = ip.IsShrinking()
-		ok := Commit(op)
+		ok := op.Commit()
 		if !ok {
 			panic("shrink")
 		}

@@ -71,13 +71,13 @@ func (op *FsTxn) doneInode(ip *Inode) {
 	}
 }
 
-func putInodes(op *FsTxn) {
+func (op *FsTxn) putInodes() {
 	for _, ip := range op.inodes {
 		ip.Put(op)
 	}
 }
 
-func releaseInodes(op *FsTxn) {
+func (op *FsTxn) releaseInodes() {
 	for _, ip := range op.inodes {
 		ip.ReleaseInode(op)
 	}

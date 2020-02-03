@@ -105,7 +105,7 @@ func (nfs *Nfs) makeRootDir() {
 		panic("makeRootDir")
 	}
 	dir.MkRootDir(ip, op)
-	ok := inode.Commit(op)
+	ok := op.Commit()
 	if !ok {
 		panic("makeRootDir")
 	}
