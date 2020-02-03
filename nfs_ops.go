@@ -52,22 +52,27 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	return reply
 }
 
-// If caller changes file size and shrinking is in progress (because
-// an earlier call truncated the file), then help/wait with/for
-// shrinking.
-func (nfs *Nfs) helpShrinker(op *inode.FsTxn, ip *inode.Inode,
-	fh nfstypes.Nfs_fh3) (*inode.FsTxn, *inode.Inode, bool) {
-	var ok bool = true
-	for ip.IsShrinking() {
-		ip.Shrink(op)
-		ok = op.Commit()
-		if !ok {
-			break
-		}
+func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*inode.FsTxn, *inode.Inode, nfstypes.Nfsstat3) {
+	var op *inode.FsTxn
+	var ip *inode.Inode
+	var err = nfstypes.NFS3_OK
+	for {
 		op = inode.Begin(nfs.fsstate)
 		ip = inode.GetInodeFh(op, fh)
+		if ip == nil {
+			return op, ip, nfstypes.NFS3ERR_STALE
+		}
+		if !ip.IsShrinking() {
+			break
+		}
+		var ok bool
+		op, ok = inode.HelpShrink(op, ip)
+		if !ok {
+			return op, ip, nfstypes.NFS3ERR_SERVERFAULT
+		}
+		util.DPrintf(1, "getShrink: retry %d\n", op.Id())
 	}
-	return op, ip, ok
+	return op, ip, err
 }
 
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
@@ -75,11 +80,11 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	var err = nfstypes.NFS3ERR_NOTSUPP
 
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
-	op := inode.Begin(nfs.fsstate)
-	ip := inode.GetInodeFh(op, args.Object)
-	if ip == nil {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
+	op, ip, err := nfs.getShrink(args.Object)
+	if err != nfstypes.NFS3_OK {
+		errRet(op, &reply.Status, err)
 		return reply
+
 	}
 	if args.New_attributes.Mode.Set_it {
 		util.DPrintf(1, "NFS SetAttr ignore mode %v\n", args)
@@ -92,14 +97,8 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		util.DPrintf(1, "NFS SetAttr gid not supported %v\n", args)
 	}
 	if args.New_attributes.Size.Set_it {
-		var ok bool
-		op, ip, ok = nfs.helpShrinker(op, ip, args.Object)
-		if ok {
-			ip.Resize(op, uint64(args.New_attributes.Size.Size))
-			err = nfstypes.NFS3_OK
-		} else {
-			err = nfstypes.NFS3ERR_SERVERFAULT
-		}
+		ip.Resize(op, uint64(args.New_attributes.Size.Size))
+		err = nfstypes.NFS3_OK
 	}
 	if args.New_attributes.Atime.Set_it != nfstypes.DONT_CHANGE {
 		util.DPrintf(1, "NFS SetAttr Atime %v\n", args)
@@ -247,14 +246,14 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	var reply nfstypes.WRITE3res
 	var ok = true
 
-	op := inode.Begin(nfs.fsstate)
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
-	ip := inode.GetInodeFh(op, args.File)
-	fh := fh.MakeFh(args.File)
-	if ip == nil {
-		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
+
+	op, ip, err := nfs.getShrink(args.File)
+	if err != nfstypes.NFS3_OK {
+		errRet(op, &reply.Status, err)
 		return reply
+
 	}
 	if ip.Kind != nfstypes.NF3REG {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
@@ -264,14 +263,6 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
-
-	// XXX only when this RPC might grow file?
-	op, ip, ok = nfs.helpShrinker(op, ip, args.File)
-	if !ok {
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
-		return reply
-	}
-
 	count, writeOk := ip.Write(op, uint64(args.Offset), uint64(args.Count),
 		args.Data)
 	if !writeOk {
@@ -288,7 +279,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		// all of the data to stable storage and
 		// enough of the metadata to retrieve the data
 		// before returning."
-		ok = op.CommitData(fh)
+		ok = op.CommitData()
 	} else {
 		// RFC:	"UNSTABLE, the server is free to commit
 		// any part of the data and the metadata to
@@ -302,7 +293,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		// the value of verf and that it will not
 		// commit the data and metadata at a level
 		// less than that requested by the client."
-		ok = op.CommitUnstable(fh)
+		ok = op.CommitUnstable()
 	}
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
@@ -314,30 +305,44 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
-func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*inode.FsTxn, nfstypes.Nfsstat3) {
-	op := inode.Begin(nfs.fsstate)
-	dip := inode.GetInodeFh(op, dfh)
-	if dip == nil {
-		return op, nfstypes.NFS3ERR_STALE
-	}
-	inum1, _ := dir.LookupName(dip, op, name)
-	if inum1 != common.NULLINUM {
-		return op, nfstypes.NFS3ERR_EXIST
-	}
-	inum, ip := inode.AllocInode(op, kind)
-	if inum == common.NULLINUM {
-		return op, nfstypes.NFS3ERR_NOSPC
-	}
-	// help shrinking the file now, because for dir and link
-	// doCreate needs to write it.  XXX rest of doCreate may run
-	// in a different transaction. if we crash, may lose ip.
-	if kind == nfstypes.NF3DIR || kind == nfstypes.NF3LNK {
-		var ok = true
-		fh := fh.Fh{Ino: ip.Inum, Gen: ip.Gen}
-		op, ip, ok = nfs.helpShrinker(op, ip, fh.MakeFh3())
-		if !ok {
-			return op, nfstypes.NFS3ERR_SERVERFAULT
+// getAlloc is complicated because AllocInode() may start a new
+// transaction because it had to shrink the allocated inode first. If
+// so, doAlloc must lookup dip etc. again in the new transaction.
+func (nfs *Nfs) getAlloc(op *inode.FsTxn, dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3) (*inode.FsTxn, *inode.Inode, *inode.Inode, nfstypes.Nfsstat3) {
+	var ip *inode.Inode
+	var ok bool
+	for {
+		id := op.Id()
+		dip := inode.GetInodeFh(op, dfh)
+		if dip == nil {
+			return op, nil, nil, nfstypes.NFS3ERR_STALE
 		}
+		inum, _ := dir.LookupName(dip, op, name)
+		if inum != common.NULLINUM {
+			return op, nil, nil, nfstypes.NFS3ERR_EXIST
+		}
+		op, ip, ok = inode.AllocInode(op, kind)
+		if !ok {
+			return op, nil, nil, nfstypes.NFS3ERR_SERVERFAULT
+		}
+		if op.Id() == id {
+			return op, dip, ip, nfstypes.NFS3_OK
+		}
+		util.DPrintf(1, "getAlloc: retry %d\n", op.Id())
+	}
+}
+
+func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*inode.FsTxn, nfstypes.Nfsstat3) {
+	var dip *inode.Inode
+	var ip *inode.Inode
+	var err = nfstypes.NFS3_OK
+	op := inode.Begin(nfs.fsstate)
+	op, dip, ip, err = nfs.getAlloc(op, dfh, name, kind)
+	if err != nfstypes.NFS3_OK {
+		return op, err
+	}
+	if ip == nil {
+		return op, nfstypes.NFS3ERR_NOSPC
 	}
 	if kind == nfstypes.NF3DIR {
 		ok := dir.InitDir(ip, op, dip.Inum)
@@ -355,7 +360,7 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 			return op, nfstypes.NFS3ERR_NOSPC
 		}
 	}
-	ok := dir.AddName(dip, op, inum, name)
+	ok := dir.AddName(dip, op, ip.Inum, name)
 	if !ok {
 		ip.DecLink(op)
 		return op, nfstypes.NFS3ERR_IO
@@ -717,7 +722,6 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	util.DPrintf(1, "NFS Commit %v\n", args)
 	op := inode.Begin(nfs.fsstate)
 	ip := inode.GetInodeFh(op, args.File)
-	fh := fh.MakeFh(args.File)
 	if ip == nil {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
 		return reply
@@ -730,7 +734,7 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
-	ok := op.CommitFh(fh)
+	ok := op.CommitFh()
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {

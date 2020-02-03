@@ -66,7 +66,7 @@ func (ip *Inode) freeIndex(op *FsTxn, index uint64) {
 	ip.blks[index] = 0
 }
 
-func (ip *Inode) Shrink(op *FsTxn) {
+func (ip *Inode) Shrink(op *FsTxn) bool {
 	util.DPrintf(1, "Shrink: from %d to %d\n", ip.ShrinkSize,
 		util.RoundUp(ip.Size, disk.BlockSize))
 	for ip.IsShrinking() && enoughLogSpace(op) {
@@ -90,6 +90,7 @@ func (ip *Inode) Shrink(op *FsTxn) {
 		}
 	}
 	ip.WriteInode(op)
+	return ip.IsShrinking()
 }
 
 func shrinker(inum common.Inum) {
@@ -100,8 +101,7 @@ func shrinker(inum common.Inum) {
 		if ip == nil {
 			panic("shrink")
 		}
-		ip.Shrink(op)
-		more = ip.IsShrinking()
+		more = ip.Shrink(op)
 		ok := op.Commit()
 		if !ok {
 			panic("shrink")
@@ -112,6 +112,25 @@ func shrinker(inum common.Inum) {
 	shrinkst.nthread = shrinkst.nthread - 1
 	shrinkst.condShut.Signal()
 	shrinkst.mu.Unlock()
+}
+
+// If caller changes file size and shrinking is in progress (because
+// an earlier call truncated the file), then help/wait with/for
+// shrinking.
+func HelpShrink(op *FsTxn, ip *Inode) (*FsTxn, bool) {
+	var ok bool = true
+	inum := ip.Inum
+	for ip.IsShrinking() {
+		util.DPrintf(1, "%d: HelpShrink %v\n", op.Id(), ip.Inum)
+		more := ip.Shrink(op)
+		ok = op.Commit()
+		op = Begin(op.Fs)
+		if !more || !ok {
+			break
+		}
+		ip = GetInodeLocked(op, inum)
+	}
+	return op, ok
 }
 
 // Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn

@@ -4,12 +4,10 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/addr"
-	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/buftxn"
-	"github.com/mit-pdos/goose-nfsd/cache"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/super"
+	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -19,11 +17,8 @@ import (
 //
 
 type FsTxn struct {
-	Fs         *super.FsSuper
+	Fs         *FsState
 	buftxn     *buftxn.BufTxn
-	icache     *cache.Cache
-	balloc     *alloc.Alloc
-	ialloc     *alloc.Alloc
 	inodes     []*Inode
 	allocInums []common.Inum
 	freeInums  []common.Inum
@@ -33,11 +28,8 @@ type FsTxn struct {
 
 func Begin(opstate *FsState) *FsTxn {
 	op := &FsTxn{
-		Fs:         opstate.Fs,
+		Fs:         opstate,
 		buftxn:     buftxn.Begin(opstate.Txn),
-		icache:     opstate.Icache,
-		balloc:     opstate.Balloc,
-		ialloc:     opstate.Ialloc,
 		inodes:     make([]*Inode, 0),
 		allocInums: make([]common.Inum, 0),
 		freeInums:  make([]common.Inum, 0),
@@ -45,6 +37,10 @@ func Begin(opstate *FsState) *FsTxn {
 		freeBnums:  make([]common.Bnum, 0),
 	}
 	return op
+}
+
+func (op *FsTxn) Id() txn.TransId {
+	return op.buftxn.Id
 }
 
 func (op *FsTxn) addInode(ip *Inode) {
@@ -87,13 +83,8 @@ func (op *FsTxn) LogSzBytes() uint64 {
 	return op.buftxn.LogSz() * disk.BlockSize
 }
 
-func (op *FsTxn) AllocINum() common.Inum {
-	n := common.Inum(op.ialloc.AllocNum())
-	if n != common.NULLINUM {
-		op.allocInums = append(op.allocInums, n)
-	}
-	util.DPrintf(1, "alloc inode -> # %v\n", n)
-	return common.Inum(n)
+func (op *FsTxn) AddINum(inum common.Inum) {
+	op.allocInums = append(op.allocInums, inum)
 }
 
 func (op *FsTxn) FreeINum(inum common.Inum) {
@@ -104,11 +95,11 @@ func (op *FsTxn) FreeINum(inum common.Inum) {
 // Write allocated bits to the on-disk bit maps
 func (op *FsTxn) commitAlloc() {
 	for _, inum := range op.allocInums {
-		addr := addr.MkBitAddr(op.Fs.BitmapInodeStart(), uint64(inum))
+		addr := addr.MkBitAddr(op.Fs.Super.BitmapInodeStart(), uint64(inum))
 		op.buftxn.OverWrite(addr, []byte{(1 << (inum % 8))})
 	}
 	for _, bn := range op.allocBnums {
-		addr := addr.MkBitAddr(op.Fs.BitmapBlockStart(), uint64(bn))
+		addr := addr.MkBitAddr(op.Fs.Super.BitmapBlockStart(), uint64(bn))
 		op.buftxn.OverWrite(addr, []byte{(1 << (bn % 8))})
 	}
 }
@@ -116,22 +107,22 @@ func (op *FsTxn) commitAlloc() {
 // On-disk bitmap has been updated; update in-memory state for free bits
 func (op *FsTxn) commitFree() {
 	for _, inum := range op.freeInums {
-		op.ialloc.FreeNum(uint64(inum))
+		op.Fs.Ialloc.FreeNum(uint64(inum))
 	}
 	for _, bn := range op.freeBnums {
-		op.balloc.FreeNum(bn)
+		op.Fs.Balloc.FreeNum(bn)
 	}
 }
 
 func (op *FsTxn) AssertValidBlock(blkno common.Bnum) {
-	if blkno > 0 && (blkno < op.Fs.DataStart() || blkno >= op.Fs.MaxBnum()) {
+	if blkno > 0 && (blkno < op.Fs.Super.DataStart() || blkno >= op.Fs.Super.MaxBnum()) {
 		panic("invalid blkno")
 	}
 }
 
 func (op *FsTxn) AllocBlock() common.Bnum {
 	util.DPrintf(5, "alloc block\n")
-	bn := common.Bnum(op.balloc.AllocNum())
+	bn := common.Bnum(op.Fs.Balloc.AllocNum())
 	op.AssertValidBlock(bn)
 	util.DPrintf(1, "alloc block -> %v\n", bn)
 	if bn != common.NULLBNUM {
@@ -141,7 +132,7 @@ func (op *FsTxn) AllocBlock() common.Bnum {
 }
 
 func (op *FsTxn) FreeBlock(blkno common.Bnum) {
-	util.DPrintf(1, "free block %v\n", blkno)
+	util.DPrintf(2, "free block %v\n", blkno)
 	op.AssertValidBlock(blkno)
 	if blkno == 0 {
 		return
@@ -153,7 +144,7 @@ func (op *FsTxn) FreeBlock(blkno common.Bnum) {
 func (op *FsTxn) ReadBlock(blkno common.Bnum) *buf.Buf {
 	util.DPrintf(5, "ReadBlock %d\n", blkno)
 	op.AssertValidBlock(blkno)
-	addr := op.Fs.Block2addr(blkno)
+	addr := op.Fs.Super.Block2addr(blkno)
 	return op.buftxn.ReadBuf(addr)
 }
 

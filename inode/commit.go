@@ -1,7 +1,6 @@
 package inode
 
 import (
-	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -29,18 +28,18 @@ func (op *FsTxn) Commit() bool {
 
 // Commit data, but will also commit everything else, since we don't
 // support log-by-pass writes.
-func (op *FsTxn) CommitData(fh fh.Fh) bool {
+func (op *FsTxn) CommitData() bool {
 	return op.buftxn.CommitWait(true, false)
 }
 
 // Commit transaction, but don't write to stable storage
-func (op *FsTxn) CommitUnstable(fh fh.Fh) bool {
+func (op *FsTxn) CommitUnstable() bool {
 	return op.commitWait(false, false)
 }
 
 // Flush log. We don't have to flush data from other file handles, but
 // that is only an option if we do log-by-pass writes.
-func (op *FsTxn) CommitFh(fh fh.Fh) bool {
+func (op *FsTxn) CommitFh() bool {
 	op.preCommit()
 	ok := op.buftxn.Flush()
 	op.postCommit()

@@ -8,16 +8,16 @@ import (
 )
 
 type FsState struct {
-	Fs     *super.FsSuper
+	Super  *super.FsSuper
 	Txn    *txn.Txn
 	Icache *cache.Cache
 	Balloc *alloc.Alloc
 	Ialloc *alloc.Alloc
 }
 
-func MkFsState(fs *super.FsSuper, txn *txn.Txn, icache *cache.Cache, balloc *alloc.Alloc, ialloc *alloc.Alloc) *FsState {
+func MkFsState(super *super.FsSuper, txn *txn.Txn, icache *cache.Cache, balloc *alloc.Alloc, ialloc *alloc.Alloc) *FsState {
 	st := &FsState{
-		Fs:     fs,
+		Super:  super,
 		Txn:    txn,
 		Icache: icache,
 		Balloc: balloc,

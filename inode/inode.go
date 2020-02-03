@@ -162,11 +162,11 @@ func (ip *Inode) ReleaseInode(op *FsTxn) {
 	}
 	ip.cslot.Unlock()
 	op.doneInode(ip)
-	op.icache.FreeSlot(uint64(ip.Inum))
+	op.Fs.Icache.FreeSlot(uint64(ip.Inum))
 }
 
 func LockInode(op *FsTxn, inum common.Inum) *cache.Cslot {
-	cslot := op.icache.LookupSlot(uint64(inum))
+	cslot := op.Fs.Icache.LookupSlot(uint64(inum))
 	if cslot == nil {
 		panic("GetInodeLocked")
 	}
@@ -176,19 +176,19 @@ func LockInode(op *FsTxn, inum common.Inum) *cache.Cslot {
 
 // XXX add LookupRef
 func GetInodeUnlocked(op *FsTxn, inum common.Inum) *Inode {
-	cslot := op.icache.LookupSlot(uint64(inum))
+	cslot := op.Fs.Icache.LookupSlot(uint64(inum))
 	if cslot == nil || cslot.Obj == nil {
 		panic("GetInodeUnlocked")
 	}
 	ip := cslot.Obj.(*Inode)
-	op.icache.FreeSlot(uint64(ip.Inum))
+	op.Fs.Icache.FreeSlot(uint64(ip.Inum))
 	return ip
 }
 
 func GetInodeLocked(op *FsTxn, inum common.Inum) *Inode {
 	cslot := LockInode(op, inum)
 	if cslot.Obj == nil {
-		addr := op.Fs.Inum2Addr(inum)
+		addr := op.Fs.Super.Inum2Addr(inum)
 		buf := op.buftxn.ReadBuf(addr)
 		i := Decode(buf, inum)
 		util.DPrintf(1, "GetInodeLocked # %v: read inode from disk\n", inum)
@@ -237,27 +237,37 @@ func GetInodeFh(op *FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
 }
 
 func (ip *Inode) WriteInode(op *FsTxn) {
-	if ip.Inum >= op.Fs.NInode() {
+	if ip.Inum >= op.Fs.Super.NInode() {
 		panic("WriteInode")
 	}
 	d := ip.Encode()
-	op.buftxn.OverWrite(op.Fs.Inum2Addr(ip.Inum), d)
+	op.buftxn.OverWrite(op.Fs.Super.Inum2Addr(ip.Inum), d)
 	util.DPrintf(1, "WriteInode %v\n", ip)
 }
 
-func AllocInode(op *FsTxn, kind nfstypes.Ftype3) (common.Inum, *Inode) {
+func AllocInode(op *FsTxn, kind nfstypes.Ftype3) (*FsTxn, *Inode, bool) {
 	var ip *Inode
-	inum := op.AllocINum()
+	var ok bool = true
+	inum := common.Inum(op.Fs.Ialloc.AllocNum())
 	if inum != common.NULLINUM {
 		ip = GetInodeLocked(op, inum)
-		if ip.Kind == NF3FREE {
-			ip.initInode(inum, kind)
-		} else {
+		if ip.Kind != NF3FREE {
 			panic("AllocInode")
 		}
-		ip.WriteInode(op)
+		if ip.IsShrinking() {
+			// give the number back so that if HelpShrink()
+			// commits, it doesn't mark inum as allocated.
+			op.Fs.Ialloc.FreeNum(uint64(inum))
+			op, ok = HelpShrink(op, ip)
+			ip = nil
+		} else {
+			util.DPrintf(1, "AllocInode -> # %v\n", inum)
+			op.AddINum(inum)
+			ip.initInode(inum, kind)
+			ip.WriteInode(op)
+		}
 	}
-	return inum, ip
+	return op, ip, ok
 }
 
 func (ip *Inode) freeInode(op *FsTxn) {
@@ -446,7 +456,7 @@ func (ip *Inode) Write(op *FsTxn, offset uint64,
 			nbytes = n
 		}
 		if byteoff == 0 && nbytes == disk.BlockSize { // block overwrite?
-			addr := op.Fs.Block2addr(blkno)
+			addr := op.Fs.Super.Block2addr(blkno)
 			op.buftxn.OverWrite(addr, data[0:nbytes])
 		} else {
 			buffer := op.ReadBlock(blkno)
