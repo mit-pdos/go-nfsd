@@ -328,6 +328,17 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 	if inum == fs.NULLINUM {
 		return op, nfstypes.NFS3ERR_NOSPC
 	}
+	// help shrinking the file now, because for dir and link
+	// doCreate needs to write it.  XXX rest of doCreate may run
+	// in a different transaction. if we crash, may lose ip.
+	if kind == nfstypes.NF3DIR || kind == nfstypes.NF3LNK {
+		var ok = true
+		fh := fh.Fh{Ino: ip.Inum, Gen: ip.Gen}
+		op, ip, ok = nfs.helpShrinker(op, ip, fh.MakeFh3())
+		if !ok {
+			return op, nfstypes.NFS3ERR_SERVERFAULT
+		}
+	}
 	if kind == nfstypes.NF3DIR {
 		ok := dir.InitDir(ip, op, dip.Inum)
 		if !ok {
