@@ -169,5 +169,14 @@ skipping zero size read
  ...
 
 
-* <2020-02-02 Sun>
-helpShrink on create or don't allocate inode that is being shrunk
+* <2020-02-02 Sun>: switch to old/new bitmap plan
+
+
+[goose-nfs (lockinodes)]$ go run ./cmd/smallfile/main.go 
+2020/02/02 20:13:48 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+smallfile: 9361.9 file/s with 1 threads
+
+[goose-nfs (lockinodes)]$ go run ./cmd/largefile/main.go 
+2020/02/02 20:14:28 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+largefile: 50 MB througput 446.47 MB/s
+
