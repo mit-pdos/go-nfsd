@@ -5,8 +5,7 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/goose-nfsd/buf"
-	"github.com/mit-pdos/goose-nfsd/fs"
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -93,7 +92,7 @@ func (ip *Inode) Shrink(op *FsTxn) {
 	ip.WriteInode(op)
 }
 
-func shrinker(inum fs.Inum) {
+func shrinker(inum common.Inum) {
 	var more = true
 	for more {
 		op := Begin(shrinkst.fsstate)
@@ -117,8 +116,8 @@ func shrinker(inum fs.Inum) {
 
 // Frees indirect bn.  Assumes if bn is cleared, then all blocks > bn
 // have been cleared
-func (ip *Inode) indshrink(op *FsTxn, root buf.Bnum, level uint64, bn uint64) buf.Bnum {
-	if root == buf.NULLBNUM {
+func (ip *Inode) indshrink(op *FsTxn, root common.Bnum, level uint64, bn uint64) common.Bnum {
+	if root == common.NULLBNUM {
 		return 0
 	}
 	if level == 0 {
@@ -141,6 +140,6 @@ func (ip *Inode) indshrink(op *FsTxn, root buf.Bnum, level uint64, bn uint64) bu
 	if off == 0 && ind == 0 {
 		return root
 	} else {
-		return buf.NULLBNUM
+		return common.NULLBNUM
 	}
 }

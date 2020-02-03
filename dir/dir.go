@@ -3,7 +3,7 @@ package dir
 import (
 	"github.com/tchajed/marshal"
 
-	"github.com/mit-pdos/goose-nfsd/fs"
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -15,7 +15,7 @@ const MAXNAMELEN = DIRENTSZ - 16 // uint64 for inum + uint64 for len(name)
 type dir inode.Inode
 
 type dirEnt struct {
-	inum fs.Inum
+	inum common.Inum
 	name string // <= MAXNAMELEN
 }
 
@@ -24,11 +24,11 @@ func IllegalName(name nfstypes.Filename3) bool {
 	return n == "." || n == ".."
 }
 
-func ScanName(dip *inode.Inode, op *inode.FsTxn, name nfstypes.Filename3) (fs.Inum, uint64) {
+func ScanName(dip *inode.Inode, op *inode.FsTxn, name nfstypes.Filename3) (common.Inum, uint64) {
 	if dip.Kind != nfstypes.NF3DIR {
-		return fs.NULLINUM, 0
+		return common.NULLINUM, 0
 	}
-	var inum = fs.NULLINUM
+	var inum = common.NULLINUM
 	var finalOffset uint64 = 0
 	for off := uint64(0); off < dip.Size; off += DIRENTSZ {
 		data, _ := dip.Read(op, off, DIRENTSZ)
@@ -36,7 +36,7 @@ func ScanName(dip *inode.Inode, op *inode.FsTxn, name nfstypes.Filename3) (fs.In
 			break
 		}
 		de := decodeDirEnt(data)
-		if de.inum == fs.NULLINUM {
+		if de.inum == common.NULLINUM {
 			continue
 		}
 		if de.name == string(name) {
@@ -48,14 +48,14 @@ func ScanName(dip *inode.Inode, op *inode.FsTxn, name nfstypes.Filename3) (fs.In
 	return inum, finalOffset
 }
 
-func AddNameDir(dip *inode.Inode, op *inode.FsTxn, inum fs.Inum,
+func AddNameDir(dip *inode.Inode, op *inode.FsTxn, inum common.Inum,
 	name nfstypes.Filename3, lastoff uint64) (uint64, bool) {
 	var finalOff uint64
 
 	for off := uint64(lastoff); off < dip.Size; off += DIRENTSZ {
 		data, _ := dip.Read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
-		if de.inum == fs.NULLINUM {
+		if de.inum == common.NULLINUM {
 			finalOff = off
 			break
 		}
@@ -72,11 +72,11 @@ func AddNameDir(dip *inode.Inode, op *inode.FsTxn, inum fs.Inum,
 
 func RemNameDir(dip *inode.Inode, op *inode.FsTxn, name nfstypes.Filename3) (uint64, bool) {
 	inum, off := LookupName(dip, op, name)
-	if inum == fs.NULLINUM {
+	if inum == common.NULLINUM {
 		return 0, false
 	}
 	util.DPrintf(5, "RemNameDir # %v: %v %v off %d\n", dip.Inum, name, inum, off)
-	de := &dirEnt{inum: fs.NULLINUM, name: ""}
+	de := &dirEnt{inum: common.NULLINUM, name: ""}
 	ent := encodeDirEnt(de)
 	n, _ := dip.Write(op, off, DIRENTSZ, ent)
 	return off, n == DIRENTSZ
@@ -89,7 +89,7 @@ func IsDirEmpty(dip *inode.Inode, op *inode.FsTxn) bool {
 	for off := uint64(2 * DIRENTSZ); off < dip.Size; {
 		data, _ := dip.Read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
-		if de.inum == fs.NULLINUM {
+		if de.inum == common.NULLINUM {
 			off = off + DIRENTSZ
 			continue
 		}
@@ -100,7 +100,7 @@ func IsDirEmpty(dip *inode.Inode, op *inode.FsTxn) bool {
 	return empty
 }
 
-func InitDir(dip *inode.Inode, op *inode.FsTxn, parent fs.Inum) bool {
+func InitDir(dip *inode.Inode, op *inode.FsTxn, parent common.Inum) bool {
 	if !AddName(dip, op, dip.Inum, ".") {
 		return false
 	}
@@ -116,7 +116,7 @@ func MkRootDir(dip *inode.Inode, op *inode.FsTxn) bool {
 
 // XXX inode locking order violated
 func Apply(dip *inode.Inode, op *inode.FsTxn, start uint64, count uint64,
-	f func(*inode.Inode, string, fs.Inum, uint64)) bool {
+	f func(*inode.Inode, string, common.Inum, uint64)) bool {
 	var eof bool = true
 	var ip *inode.Inode
 	var begin = uint64(start)
@@ -128,7 +128,7 @@ func Apply(dip *inode.Inode, op *inode.FsTxn, start uint64, count uint64,
 		data, _ := dip.Read(op, off, DIRENTSZ)
 		de := decodeDirEnt(data)
 		util.DPrintf(5, "Apply: # %v %v off %d\n", dip.Inum, de, off)
-		if de.inum == fs.NULLINUM {
+		if de.inum == common.NULLINUM {
 			off = off + DIRENTSZ
 			continue
 		}
@@ -177,7 +177,7 @@ func decodeDirEnt(d []byte) *dirEnt {
 	l := dec.GetInt()
 	name := string(dec.GetBytes(l))
 	return &dirEnt{
-		inum: fs.Inum(inum),
+		inum: common.Inum(inum),
 		name: name,
 	}
 }

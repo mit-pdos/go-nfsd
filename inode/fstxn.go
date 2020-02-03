@@ -3,10 +3,12 @@ package inode
 import (
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/cache"
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
@@ -23,10 +25,10 @@ type FsTxn struct {
 	balloc     *alloc.Alloc
 	ialloc     *alloc.Alloc
 	inodes     []*Inode
-	allocInums []fs.Inum
-	freeInums  []fs.Inum
-	allocBnums []buf.Bnum
-	freeBnums  []buf.Bnum
+	allocInums []common.Inum
+	freeInums  []common.Inum
+	allocBnums []common.Bnum
+	freeBnums  []common.Bnum
 }
 
 func Begin(opstate *FsState) *FsTxn {
@@ -37,10 +39,10 @@ func Begin(opstate *FsState) *FsTxn {
 		balloc:     opstate.Balloc,
 		ialloc:     opstate.Ialloc,
 		inodes:     make([]*Inode, 0),
-		allocInums: make([]fs.Inum, 0),
-		freeInums:  make([]fs.Inum, 0),
-		allocBnums: make([]buf.Bnum, 0),
-		freeBnums:  make([]buf.Bnum, 0),
+		allocInums: make([]common.Inum, 0),
+		freeInums:  make([]common.Inum, 0),
+		allocBnums: make([]common.Bnum, 0),
+		freeBnums:  make([]common.Bnum, 0),
 	}
 	return op
 }
@@ -49,7 +51,7 @@ func (op *FsTxn) addInode(ip *Inode) {
 	op.inodes = append(op.inodes, ip)
 }
 
-func (op *FsTxn) OwnInum(inum fs.Inum) bool {
+func (op *FsTxn) OwnInum(inum common.Inum) bool {
 	var own = false
 	for _, ip := range op.inodes {
 		if ip.Inum == inum {
@@ -85,35 +87,28 @@ func (op *FsTxn) LogSzBytes() uint64 {
 	return op.buftxn.LogSz() * disk.BlockSize
 }
 
-func (op *FsTxn) AllocINum() fs.Inum {
-	n := fs.Inum(op.ialloc.AllocNum())
-	if n != fs.NULLINUM {
+func (op *FsTxn) AllocINum() common.Inum {
+	n := common.Inum(op.ialloc.AllocNum())
+	if n != common.NULLINUM {
 		op.allocInums = append(op.allocInums, n)
 	}
 	util.DPrintf(1, "alloc inode -> # %v\n", n)
-	return fs.Inum(n)
+	return common.Inum(n)
 }
 
-func (op *FsTxn) FreeINum(inum fs.Inum) {
+func (op *FsTxn) FreeINum(inum common.Inum) {
 	util.DPrintf(1, "free inode -> # %v\n", inum)
 	op.freeInums = append(op.freeInums, inum)
-}
-
-func mkBitAddr(start buf.Bnum, n uint64) buf.Addr {
-	bit := n % alloc.NBITBLOCK
-	i := n / alloc.NBITBLOCK
-	addr := buf.MkAddr(start+buf.Bnum(i), bit, 1)
-	return addr
 }
 
 // Write allocated bits to the on-disk bit maps
 func (op *FsTxn) commitAlloc() {
 	for _, inum := range op.allocInums {
-		addr := mkBitAddr(op.Fs.BitmapInodeStart(), uint64(inum))
+		addr := addr.MkBitAddr(op.Fs.BitmapInodeStart(), uint64(inum))
 		op.buftxn.OverWrite(addr, []byte{(1 << (inum % 8))})
 	}
 	for _, bn := range op.allocBnums {
-		addr := mkBitAddr(op.Fs.BitmapBlockStart(), uint64(bn))
+		addr := addr.MkBitAddr(op.Fs.BitmapBlockStart(), uint64(bn))
 		op.buftxn.OverWrite(addr, []byte{(1 << (bn % 8))})
 	}
 }
@@ -128,24 +123,24 @@ func (op *FsTxn) commitFree() {
 	}
 }
 
-func (op *FsTxn) AssertValidBlock(blkno buf.Bnum) {
+func (op *FsTxn) AssertValidBlock(blkno common.Bnum) {
 	if blkno > 0 && (blkno < op.Fs.DataStart() || blkno >= op.Fs.MaxBnum()) {
 		panic("invalid blkno")
 	}
 }
 
-func (op *FsTxn) AllocBlock() buf.Bnum {
+func (op *FsTxn) AllocBlock() common.Bnum {
 	util.DPrintf(5, "alloc block\n")
-	bn := buf.Bnum(op.balloc.AllocNum())
+	bn := common.Bnum(op.balloc.AllocNum())
 	op.AssertValidBlock(bn)
 	util.DPrintf(1, "alloc block -> %v\n", bn)
-	if bn != buf.NULLBNUM {
+	if bn != common.NULLBNUM {
 		op.allocBnums = append(op.allocBnums, bn)
 	}
 	return bn
 }
 
-func (op *FsTxn) FreeBlock(blkno buf.Bnum) {
+func (op *FsTxn) FreeBlock(blkno common.Bnum) {
 	util.DPrintf(1, "free block %v\n", blkno)
 	op.AssertValidBlock(blkno)
 	if blkno == 0 {
@@ -155,14 +150,14 @@ func (op *FsTxn) FreeBlock(blkno buf.Bnum) {
 	op.freeBnums = append(op.freeBnums, blkno)
 }
 
-func (op *FsTxn) ReadBlock(blkno buf.Bnum) *buf.Buf {
+func (op *FsTxn) ReadBlock(blkno common.Bnum) *buf.Buf {
 	util.DPrintf(5, "ReadBlock %d\n", blkno)
 	op.AssertValidBlock(blkno)
 	addr := op.Fs.Block2addr(blkno)
 	return op.buftxn.ReadBuf(addr)
 }
 
-func (op *FsTxn) ZeroBlock(blkno buf.Bnum) {
+func (op *FsTxn) ZeroBlock(blkno common.Bnum) {
 	util.DPrintf(5, "zero block %d\n", blkno)
 	buf := op.ReadBlock(blkno)
 	for i := range buf.Blk {

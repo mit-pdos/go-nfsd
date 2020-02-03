@@ -14,9 +14,9 @@ import (
 	"testing"
 
 	"github.com/mit-pdos/goose-nfsd/bcache"
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
-	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 
@@ -649,7 +649,7 @@ func TestBigWrite(t *testing.T) {
 	defer ts.Close()
 
 	ts.Create("x")
-	sz := uint64(4096 * (fs.HDRADDRS / 2))
+	sz := uint64(4096 * (common.HDRADDRS / 2))
 	x := ts.Lookup("x", true)
 	data := mkdataval(byte(0), sz)
 	ts.Write(x, data, nfstypes.UNSTABLE)
@@ -657,7 +657,7 @@ func TestBigWrite(t *testing.T) {
 
 	// Too big
 	ts.Create("y")
-	sz = uint64(4096 * (fs.HDRADDRS + 10))
+	sz = uint64(4096 * (common.HDRADDRS + 10))
 	y := ts.Lookup("y", true)
 	data = mkdataval(byte(0), sz)
 	ts.WriteErr(y, data, nfstypes.UNSTABLE, nfstypes.NFS3ERR_INVAL)
@@ -738,5 +738,5 @@ func TestAbort(t *testing.T) {
 	fh3 := ts.Lookup("d", true)
 	fh := fh.MakeFh(fh3)
 	// inode 3 should be used for d
-	assert.Equal(ts.t, fs.Inum(3), fh.Ino)
+	assert.Equal(ts.t, common.Inum(3), fh.Ino)
 }

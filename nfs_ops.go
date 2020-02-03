@@ -1,9 +1,9 @@
 package goose_nfs
 
 import (
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
-	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -158,7 +158,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 		}
 		inodes = []*inode.Inode{dip}
 		inum, _ := dir.LookupName(dip, op, name)
-		if inum == fs.NULLINUM {
+		if inum == common.NULLINUM {
 			util.DPrintf(1, "getInodesLocked noent\n")
 			err = nfstypes.NFS3ERR_NOENT
 			break
@@ -321,11 +321,11 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 		return op, nfstypes.NFS3ERR_STALE
 	}
 	inum1, _ := dir.LookupName(dip, op, name)
-	if inum1 != fs.NULLINUM {
+	if inum1 != common.NULLINUM {
 		return op, nfstypes.NFS3ERR_EXIST
 	}
 	inum, ip := inode.AllocInode(op, kind)
-	if inum == fs.NULLINUM {
+	if inum == common.NULLINUM {
 		return op, nfstypes.NFS3ERR_NOSPC
 	}
 	// help shrinking the file now, because for dir and link
@@ -516,8 +516,8 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 	var dipfrom *inode.Inode
 	var op *inode.FsTxn
 	var inodes []*inode.Inode
-	var frominum fs.Inum
-	var toinum fs.Inum
+	var frominum common.Inum
+	var toinum common.Inum
 	var success bool = false
 	var done bool = false
 
@@ -558,7 +558,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 
 		frominumLookup, _ := dir.LookupName(dipfrom, op, args.From.Name)
 		frominum = frominumLookup
-		if frominum == fs.NULLINUM {
+		if frominum == common.NULLINUM {
 			errRet(op, &reply.Status, nfstypes.NFS3ERR_NOENT)
 			done = true
 			break
@@ -579,14 +579,14 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 		}
 
 		// does to exist?
-		if toinum != fs.NULLINUM {
+		if toinum != common.NULLINUM {
 			// must lock 3 or 4 inodes in order
 			var to *inode.Inode
 			var from *inode.Inode
 			inode.Abort(op)
 			op = inode.Begin(nfs.fsstate)
 			if dipto != dipfrom {
-				inums := make([]fs.Inum, 4)
+				inums := make([]common.Inum, 4)
 				inums[0] = dipfrom.Inum
 				inums[1] = dipto.Inum
 				inums[2] = frominum
@@ -597,7 +597,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 				from = inodes[2]
 				to = inodes[3]
 			} else {
-				inums := make([]fs.Inum, 3)
+				inums := make([]common.Inum, 3)
 				inums[0] = dipfrom.Inum
 				inums[1] = frominum
 				inums[2] = toinum
