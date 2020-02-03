@@ -10,8 +10,8 @@ import (
 	"github.com/mit-pdos/goose-nfsd/cache"
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
-	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/inode"
+	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
 
@@ -50,7 +50,7 @@ func MkNfs(sz uint64) *Nfs {
 
 func MakeNfs(name *string, sz uint64) *Nfs {
 	// run first so that disk is initialized before mkLog
-	super := fs.MkFsSuper(sz, name)
+	super := super.MkFsSuper(sz, name)
 	util.DPrintf(1, "Super: sz %d %v\n", sz, super)
 
 	txn := txn.MkTxn(super) // runs recovery
@@ -112,7 +112,7 @@ func (nfs *Nfs) makeRootDir() {
 }
 
 // Make an empty file system
-func makeFs(super *fs.FsSuper) {
+func makeFs(super *super.FsSuper) {
 	util.DPrintf(1, "mkfs")
 
 	root := inode.MkRootInode()
@@ -125,7 +125,7 @@ func makeFs(super *fs.FsSuper) {
 	markAlloc(super, super.DataStart(), super.MaxBnum())
 }
 
-func markAlloc(super *fs.FsSuper, n common.Bnum, m common.Bnum) {
+func markAlloc(super *super.FsSuper, n common.Bnum, m common.Bnum) {
 	util.DPrintf(1, "markAlloc: [0, %d) and [%d,%d)\n", n, m,
 		super.NBlockBitmap*common.NBITBLOCK)
 	if n >= common.Bnum(common.NBITBLOCK) ||
@@ -160,7 +160,7 @@ func markAlloc(super *fs.FsSuper, n common.Bnum, m common.Bnum) {
 	super.Disk.Write(uint64(super.BitmapInodeStart()), blk2)
 }
 
-func readRootInode(super *fs.FsSuper) *inode.Inode {
+func readRootInode(super *super.FsSuper) *inode.Inode {
 	addr := super.Inum2Addr(common.ROOTINUM)
 	blk := super.Disk.Read(uint64(addr.Blkno))
 	buf := buf.MkBufLoad(addr, blk)
@@ -168,7 +168,7 @@ func readRootInode(super *fs.FsSuper) *inode.Inode {
 	return i
 }
 
-func readBitmap(super *fs.FsSuper, start common.Bnum, len uint64) []byte {
+func readBitmap(super *super.FsSuper, start common.Bnum, len uint64) []byte {
 	bitmap := make([]byte, 0)
 	for i := uint64(0); i < len; i++ {
 		blk := super.Disk.Read(uint64(start) + i)

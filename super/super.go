@@ -1,4 +1,4 @@
-package fs
+package super
 
 import (
 	"github.com/tchajed/goose/machine/disk"

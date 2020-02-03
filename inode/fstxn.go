@@ -9,7 +9,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/cache"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/fs"
+	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -19,7 +19,7 @@ import (
 //
 
 type FsTxn struct {
-	Fs         *fs.FsSuper
+	Fs         *super.FsSuper
 	buftxn     *buftxn.BufTxn
 	icache     *cache.Cache
 	balloc     *alloc.Alloc
