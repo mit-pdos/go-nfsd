@@ -64,8 +64,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 // If caller changes file size and shrinking is in progress (because
 // an earlier call truncated the file), then help/wait with/for
 // shrinking.
-func (nfs *Nfs) helpShrinker(op *fstxn.FsTxn, ip *inode.Inode,
-	fh nfstypes.Nfs_fh3) (*inode.Inode, bool) {
+func (nfs *Nfs) helpShrinker(op *fstxn.FsTxn, ip *inode.Inode, fh nfstypes.Nfs_fh3) (*inode.Inode, *fstxn.FsTxn, bool) {
 	var ok bool = true
 	for ip.IsShrinking() {
 		ip.Shrink(op)
@@ -76,7 +75,7 @@ func (nfs *Nfs) helpShrinker(op *fstxn.FsTxn, ip *inode.Inode,
 		op = fstxn.Begin(nfs.fsstate)
 		ip = inode.GetInodeFh(op, fh)
 	}
-	return ip, ok
+	return ip, op, ok
 }
 
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
@@ -101,7 +100,8 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		util.DPrintf(1, "NFS SetAttr gid not supported %v\n", args)
 	}
 	if args.New_attributes.Size.Set_it {
-		ip, ok := nfs.helpShrinker(op, ip, args.Object)
+		var ok bool
+		ip, op, ok = nfs.helpShrinker(op, ip, args.Object)
 		if ok {
 			ip.Resize(op, uint64(args.New_attributes.Size.Size))
 			err = nfstypes.NFS3_OK
@@ -267,7 +267,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	}
 
 	// XXX only when this RPC might grow file?
-	ip, ok = nfs.helpShrinker(op, ip, args.File)
+	ip, op, ok = nfs.helpShrinker(op, ip, args.File)
 	if !ok {
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 		return reply
