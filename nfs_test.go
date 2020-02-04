@@ -758,12 +758,11 @@ func TestRestartReclaim(t *testing.T) {
 
 	reused := false
 	// One inode bitmap block
-	for i := 0; uint64(i) < common.NBITBLOCK; i++ {
+	for i := 2; uint64(i) < common.NBITBLOCK*common.NINODEBITMAP; i++ {
 		s := strconv.Itoa(i)
 		ts.Create("x" + s)
 		fh3 := ts.Lookup("x"+s, true)
 		fht := fh.MakeFh(fh3)
-		fmt.Printf("i %v\n", fht)
 		if fht.Ino == fhx.Ino {
 			reused = true
 			break
