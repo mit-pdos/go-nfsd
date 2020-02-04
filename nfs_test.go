@@ -570,6 +570,9 @@ func (ts *TestState) writeLargeFile(name string, N uint64) nfstypes.Nfs_fh3 {
 func TestClearHole(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
 
 	const N = inode.NDIRECT + disk.BlockSize/8 + 10
 
