@@ -10,7 +10,9 @@ import (
 	"github.com/mit-pdos/goose-nfsd/cache"
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
+	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/inode"
+	"github.com/mit-pdos/goose-nfsd/shrinker"
 	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -24,8 +26,8 @@ const ICACHESZ uint64 = 100
 
 type Nfs struct {
 	Name       *string
-	fsstate    *inode.FsState
-	shrinkerst *inode.ShrinkerSt
+	fsstate    *fstxn.FsState
+	shrinkerst *shrinker.ShrinkerSt
 }
 
 func MkNfsMem(sz uint64) *Nfs {
@@ -65,11 +67,11 @@ func MakeNfs(name *string, sz uint64) *Nfs {
 		super.NBlockBitmap))
 	ialloc := alloc.MkAlloc(readBitmap(super, super.BitmapInodeStart(),
 		super.NInodeBitmap))
-	st := inode.MkFsState(super, txn, icache, balloc, ialloc)
+	st := fstxn.MkFsState(super, txn, icache, balloc, ialloc)
 	nfs := &Nfs{
 		Name:       name,
 		fsstate:    st,
-		shrinkerst: inode.MkShrinkerSt(st),
+		shrinkerst: shrinker.MkShrinkerSt(st),
 	}
 	if i.Kind == 0 {
 		nfs.makeRootDir()
@@ -99,8 +101,8 @@ func (nfs *Nfs) ShutdownNfs() {
 }
 
 func (nfs *Nfs) makeRootDir() {
-	op := inode.Begin(nfs.fsstate)
-	ip := inode.GetInodeInum(op, common.ROOTINUM)
+	op := fstxn.Begin(nfs.fsstate)
+	ip := op.GetInodeInum(common.ROOTINUM)
 	if ip == nil {
 		panic("makeRootDir")
 	}

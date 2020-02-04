@@ -4,11 +4,12 @@ import (
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
+	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 
-func Ls3(dip *inode.Inode, op *inode.FsTxn, start nfstypes.Cookie3, count nfstypes.Count3) nfstypes.Dirlistplus3 {
+func Ls3(dip *inode.Inode, op *fstxn.FsTxn, start nfstypes.Cookie3, count nfstypes.Count3) nfstypes.Dirlistplus3 {
 	var lst *nfstypes.Entryplus3
 	var last *nfstypes.Entryplus3
 	eof := dir.Apply(dip, op, uint64(start), uint64(count),

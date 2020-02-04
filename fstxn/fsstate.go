@@ -1,4 +1,4 @@
-package inode
+package fstxn
 
 import (
 	"github.com/mit-pdos/goose-nfsd/alloc"
