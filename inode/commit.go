@@ -7,12 +7,12 @@ import (
 // putInodes may free an inode so must be done before commit
 func (op *FsTxn) preCommit() {
 	op.putInodes()
-	op.commitAlloc()
+	op.commitBitmaps()
 }
 
 func (op *FsTxn) postCommit() {
 	op.releaseInodes()
-	op.commitFree()
+	op.updateFree()
 }
 
 func (op *FsTxn) commitWait(wait bool, abort bool) bool {

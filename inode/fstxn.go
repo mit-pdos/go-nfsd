@@ -92,8 +92,10 @@ func (op *FsTxn) FreeINum(inum common.Inum) {
 	op.freeInums = append(op.freeInums, inum)
 }
 
-// Write allocated bits to the on-disk bit maps
-func (op *FsTxn) commitAlloc() {
+// Write allocated/free bits to the on-disk bit maps
+func (op *FsTxn) commitBitmaps() {
+	util.DPrintf(1, "commitBitmaps: alloc inums %v blks %v\n", op.allocInums,
+		op.allocBnums)
 	for _, inum := range op.allocInums {
 		addr := addr.MkBitAddr(op.Fs.Super.BitmapInodeStart(), uint64(inum))
 		op.buftxn.OverWrite(addr, []byte{(1 << (inum % 8))})
@@ -102,10 +104,21 @@ func (op *FsTxn) commitAlloc() {
 		addr := addr.MkBitAddr(op.Fs.Super.BitmapBlockStart(), uint64(bn))
 		op.buftxn.OverWrite(addr, []byte{(1 << (bn % 8))})
 	}
+	util.DPrintf(1, "commitBitmaps: free inums %v blks %v\n", op.freeInums,
+		op.freeBnums)
+	for _, inum := range op.freeInums {
+		addr := addr.MkBitAddr(op.Fs.Super.BitmapInodeStart(), uint64(inum))
+		op.buftxn.OverWrite(addr, []byte{^(1 << (inum % 8))})
+	}
+	for _, bn := range op.freeBnums {
+		addr := addr.MkBitAddr(op.Fs.Super.BitmapBlockStart(), uint64(bn))
+		op.buftxn.OverWrite(addr, []byte{^(1 << (bn % 8))})
+	}
 }
 
 // On-disk bitmap has been updated; update in-memory state for free bits
-func (op *FsTxn) commitFree() {
+func (op *FsTxn) updateFree() {
+	util.DPrintf(1, "updateFree: inums %v blks %v\n", op.freeInums, op.freeBnums)
 	for _, inum := range op.freeInums {
 		op.Fs.Ialloc.FreeNum(uint64(inum))
 	}
@@ -132,7 +145,7 @@ func (op *FsTxn) AllocBlock() common.Bnum {
 }
 
 func (op *FsTxn) FreeBlock(blkno common.Bnum) {
-	util.DPrintf(2, "free block %v\n", blkno)
+	util.DPrintf(1, "free block %v\n", blkno)
 	op.AssertValidBlock(blkno)
 	if blkno == 0 {
 		return
