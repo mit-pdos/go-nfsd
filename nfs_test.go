@@ -14,9 +14,9 @@ import (
 	"testing"
 
 	"github.com/mit-pdos/goose-nfsd/bcache"
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
-	"github.com/mit-pdos/goose-nfsd/fs"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/wal"
@@ -65,11 +65,12 @@ func (ts *TestState) Lookup(name string, succeed bool) nfstypes.Nfs_fh3 {
 	return reply.Resok.Object
 }
 
-func (ts *TestState) Getattr(fh nfstypes.Nfs_fh3, sz uint64) {
+func (ts *TestState) Getattr(fh nfstypes.Nfs_fh3, sz uint64) nfstypes.Fattr3 {
 	attr := ts.clnt.GetattrOp(fh)
 	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
 	assert.Equal(ts.t, nfstypes.NF3REG, attr.Resok.Obj_attributes.Ftype)
 	assert.Equal(ts.t, nfstypes.Size3(sz), attr.Resok.Obj_attributes.Size)
+	return attr.Resok.Obj_attributes
 }
 
 func (ts *TestState) GetattrDir(fh nfstypes.Nfs_fh3) nfstypes.Fattr3 {
@@ -656,7 +657,7 @@ func TestBigWrite(t *testing.T) {
 	defer ts.Close()
 
 	ts.Create("x")
-	sz := uint64(4096 * (wal.HDRADDRS / 2))
+	sz := uint64(4096 * (common.HDRADDRS / 2))
 	x := ts.Lookup("x", true)
 	data := mkdataval(byte(0), sz)
 	ts.Write(x, data, nfstypes.UNSTABLE)
@@ -664,7 +665,7 @@ func TestBigWrite(t *testing.T) {
 
 	// Too big
 	ts.Create("y")
-	sz = uint64(4096 * (wal.HDRADDRS + 10))
+	sz = uint64(4096 * (common.HDRADDRS + 10))
 	y := ts.Lookup("y", true)
 	data = mkdataval(byte(0), sz)
 	ts.WriteErr(y, data, nfstypes.UNSTABLE, nfstypes.NFS3ERR_INVAL)
@@ -692,11 +693,12 @@ func TestBigUnlink(t *testing.T) {
 	}
 }
 
-func (ts *TestState) maketoolargefile(name string, wsize int) {
+func (ts *TestState) maketoolargefile(name string, wsize int) uint64 {
 	ts.Create(name)
 	sz := uint64(4096 * wsize)
 	x := ts.Lookup(name, true)
-	for i := uint64(0); ; {
+	i := uint64(0)
+	for {
 		data := mkdataval(byte(i%128), sz)
 		reply := ts.clnt.WriteOp(x, i, data, nfstypes.FILE_SYNC)
 		if reply.Status == nfstypes.NFS3_OK {
@@ -707,6 +709,7 @@ func (ts *TestState) maketoolargefile(name string, wsize int) {
 		}
 		i += uint64(reply.Resok.Count)
 	}
+	return i
 }
 
 func TestTooLargeFile(t *testing.T) {
@@ -720,7 +723,7 @@ func TestTooLargeFile(t *testing.T) {
 	ts.Remove("x")
 }
 
-func TestRestart(t *testing.T) {
+func TestRestartPersist(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 
@@ -732,27 +735,54 @@ func TestRestart(t *testing.T) {
 	ts.Lookup("y", true)
 }
 
-func TestAbort(t *testing.T) {
+func TestAbortRestart(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode")
 	}
 	ts := newTest(t)
 	defer ts.Close()
 
-	ts.maketoolargefile("x", 50)
-	// an inode for d can allocated but there is no block for the dir
-	// mkdir will allocate inode 3
+	sz := ts.maketoolargefile("x", 50)
+	fh3 := ts.Lookup("x", true)
 	attr := ts.clnt.MkDirOp(fh.MkRootFh3(), "d")
 	assert.Equal(ts.t, nfstypes.NFS3ERR_NOSPC, attr.Status)
 	// d better not exist
 	ts.Lookup("d", false)
 	ts.clnt.Shutdown()
+
 	ts.clnt.srv = MakeNfs(ts.clnt.srv.Name, DISKSZ)
+	fhx := fh.MakeFh(fh3)
+	fattr := ts.Getattr(fh3, sz)
+	assert.Equal(ts.t, fattr.Fileid, nfstypes.Fileid3(fhx.Ino))
+	assert.Equal(ts.t, sz, uint64(fattr.Size))
+	ts.Lookup("d", false)
+	ts.clnt.Shutdown()
+}
+
+func TestRestartReclaim(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+
+	ts.maketoolargefile("x", 50)
+	fhx3 := ts.Lookup("x", true)
+	fhx := fh.MakeFh(fhx3)
 	ts.Remove("x")
-	ts.MkDir("d1") // reallocate inode 2 (x's inode)
-	ts.MkDir("d")
-	fh3 := ts.Lookup("d", true)
-	fh := fh.MakeFh(fh3)
-	// inode 3 should be used for d
-	assert.Equal(ts.t, fh.Ino, fs.Inum(3))
+	ts.clnt.Shutdown()
+
+	ts.clnt.srv = MakeNfs(ts.clnt.srv.Name, DISKSZ)
+	ts.Lookup("x", false)
+
+	reused := false
+	// One inode bitmap block
+	for i := 2; uint64(i) < common.NBITBLOCK*common.NINODEBITMAP; i++ {
+		s := strconv.Itoa(i)
+		ts.Create("x" + s)
+		fh3 := ts.Lookup("x"+s, true)
+		fht := fh.MakeFh(fh3)
+		if fht.Ino == fhx.Ino {
+			reused = true
+			break
+		}
+	}
+	assert.Equal(ts.t, true, reused)
 }

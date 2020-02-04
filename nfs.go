@@ -8,10 +8,10 @@ import (
 	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/cache"
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
-	"github.com/mit-pdos/goose-nfsd/fs"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/inode"
+	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
 
@@ -24,7 +24,7 @@ const ICACHESZ uint64 = 100
 
 type Nfs struct {
 	Name       *string
-	fsstate    *fstxn.FsState
+	fsstate    *inode.FsState
 	shrinkerst *inode.ShrinkerSt
 }
 
@@ -50,22 +50,28 @@ func MkNfs(sz uint64) *Nfs {
 
 func MakeNfs(name *string, sz uint64) *Nfs {
 	// run first so that disk is initialized before mkLog
-	super := fs.MkFsSuper(sz, name)
+	super := super.MkFsSuper(sz, name)
 	util.DPrintf(1, "Super: sz %d %v\n", sz, super)
 
-	txn := txn.MkTxn(super)
+	txn := txn.MkTxn(super) // runs recovery
+
+	i := readRootInode(super)
+	if i.Kind == 0 { // make a new file system?
+		makeFs(super)
+	}
+
 	icache := cache.MkCache(ICACHESZ)
-	balloc := alloc.MkAlloc(super.BitmapBlockStart(), super.NBlockBitmap)
-	ialloc := alloc.MkAlloc(super.BitmapInodeStart(), super.NInodeBitmap)
-	st := fstxn.MkFsState(super, txn, icache, balloc, ialloc)
+	balloc := alloc.MkAlloc(readBitmap(super, super.BitmapBlockStart(),
+		super.NBlockBitmap))
+	ialloc := alloc.MkAlloc(readBitmap(super, super.BitmapInodeStart(),
+		super.NInodeBitmap))
+	st := inode.MkFsState(super, txn, icache, balloc, ialloc)
 	nfs := &Nfs{
 		Name:       name,
 		fsstate:    st,
 		shrinkerst: inode.MkShrinkerSt(st),
 	}
-	i := ReadRootInode(super)
 	if i.Kind == 0 {
-		makeFs(super)
 		nfs.makeRootDir()
 	}
 	return nfs
@@ -93,25 +99,25 @@ func (nfs *Nfs) ShutdownNfs() {
 }
 
 func (nfs *Nfs) makeRootDir() {
-	op := fstxn.Begin(nfs.fsstate)
-	ip := inode.GetInodeInum(op, fs.ROOTINUM)
+	op := inode.Begin(nfs.fsstate)
+	ip := inode.GetInodeInum(op, common.ROOTINUM)
 	if ip == nil {
 		panic("makeRootDir")
 	}
 	dir.MkRootDir(ip, op)
-	ok := inode.Commit(op, []*inode.Inode{ip})
+	ok := op.Commit()
 	if !ok {
 		panic("makeRootDir")
 	}
 }
 
 // Make an empty file system
-func makeFs(super *fs.FsSuper) {
+func makeFs(super *super.FsSuper) {
 	util.DPrintf(1, "mkfs")
 
 	root := inode.MkRootInode()
 	util.DPrintf(1, "root %v\n", root)
-	raddr := super.Inum2Addr(fs.ROOTINUM)
+	raddr := super.Inum2Addr(common.ROOTINUM)
 	rootblk := root.Encode()
 	rootbuf := buf.MkBuf(raddr, rootblk)
 	rootbuf.WriteDirect(super.Disk)
@@ -119,11 +125,11 @@ func makeFs(super *fs.FsSuper) {
 	markAlloc(super, super.DataStart(), super.MaxBnum())
 }
 
-func markAlloc(super *fs.FsSuper, n buf.Bnum, m buf.Bnum) {
-	util.DPrintf(5, "markAlloc: [0, %d) and [%d,%d)\n", n, m,
-		super.NBlockBitmap*alloc.NBITBLOCK)
-	if n >= buf.Bnum(alloc.NBITBLOCK) ||
-		m >= buf.Bnum(alloc.NBITBLOCK*super.NBlockBitmap) ||
+func markAlloc(super *super.FsSuper, n common.Bnum, m common.Bnum) {
+	util.DPrintf(1, "markAlloc: [0, %d) and [%d,%d)\n", n, m,
+		super.NBlockBitmap*common.NBITBLOCK)
+	if n >= common.Bnum(common.NBITBLOCK) ||
+		m >= common.Bnum(common.NBITBLOCK*super.NBlockBitmap) ||
 		m < n {
 		panic("markAlloc: configuration makes no sense")
 	}
@@ -136,11 +142,11 @@ func markAlloc(super *fs.FsSuper, n buf.Bnum, m buf.Bnum) {
 	super.Disk.Write(uint64(super.BitmapBlockStart()), blk)
 
 	blk1 := blk
-	blkno := m/buf.Bnum(alloc.NBITBLOCK) + super.BitmapBlockStart()
+	blkno := m/common.Bnum(common.NBITBLOCK) + super.BitmapBlockStart()
 	if blkno > super.BitmapBlockStart() {
 		blk1 = make(disk.Block, disk.BlockSize)
 	}
-	for bn := uint64(m) % alloc.NBITBLOCK; bn < alloc.NBITBLOCK; bn++ {
+	for bn := uint64(m) % common.NBITBLOCK; bn < common.NBITBLOCK; bn++ {
 		byte := bn / 8
 		bit := bn % 8
 		blk1[byte] = blk1[byte] | 1<<bit
@@ -154,11 +160,19 @@ func markAlloc(super *fs.FsSuper, n buf.Bnum, m buf.Bnum) {
 	super.Disk.Write(uint64(super.BitmapInodeStart()), blk2)
 }
 
-// For boot up
-func ReadRootInode(super *fs.FsSuper) *inode.Inode {
-	addr := super.Inum2Addr(fs.ROOTINUM)
+func readRootInode(super *super.FsSuper) *inode.Inode {
+	addr := super.Inum2Addr(common.ROOTINUM)
 	blk := super.Disk.Read(uint64(addr.Blkno))
 	buf := buf.MkBufLoad(addr, blk)
-	i := inode.Decode(buf, fs.ROOTINUM)
+	i := inode.Decode(buf, common.ROOTINUM)
 	return i
+}
+
+func readBitmap(super *super.FsSuper, start common.Bnum, len uint64) []byte {
+	bitmap := make([]byte, 0)
+	for i := uint64(0); i < len; i++ {
+		blk := super.Disk.Read(uint64(start) + i)
+		bitmap = append(bitmap, blk...)
+	}
+	return bitmap
 }

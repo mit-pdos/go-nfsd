@@ -8,10 +8,10 @@ import (
 	"github.com/tchajed/marshal"
 
 	"github.com/mit-pdos/goose-nfsd/buf"
+	"github.com/mit-pdos/goose-nfsd/cache"
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dcache"
 	"github.com/mit-pdos/goose-nfsd/fh"
-	"github.com/mit-pdos/goose-nfsd/fs"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
@@ -29,8 +29,9 @@ const (
 
 type Inode struct {
 	// in-memory info:
-	Inum   fs.Inum
+	Inum   common.Inum
 	Dcache *dcache.Dcache
+	cslot  *cache.Cslot
 
 	// the on-disk inode:
 	Kind  nfstypes.Ftype3
@@ -44,7 +45,7 @@ type Inode struct {
 
 	Atime nfstypes.Nfstime3
 	Mtime nfstypes.Nfstime3
-	blks  []buf.Bnum
+	blks  []common.Bnum
 }
 
 func NfstimeNow() nfstypes.Nfstime3 {
@@ -56,7 +57,7 @@ func NfstimeNow() nfstypes.Nfstime3 {
 	return t
 }
 
-func (ip *Inode) initInode(inum fs.Inum, kind nfstypes.Ftype3) {
+func (ip *Inode) initInode(inum common.Inum, kind nfstypes.Ftype3) {
 	util.DPrintf(1, "initInode: inode # %d\n", inum)
 	ip.Inum = inum
 	ip.Kind = kind
@@ -68,8 +69,8 @@ func (ip *Inode) initInode(inum fs.Inum, kind nfstypes.Ftype3) {
 
 func MkRootInode() *Inode {
 	i := &Inode{}
-	i.blks = make([]buf.Bnum, NBLKINO)
-	i.initInode(fs.ROOTINUM, nfstypes.NF3DIR)
+	i.blks = make([]common.Bnum, NBLKINO)
+	i.initInode(common.ROOTINUM, nfstypes.NF3DIR)
 	return i
 }
 
@@ -98,7 +99,7 @@ func (ip *Inode) MkFattr() nfstypes.Fattr3 {
 }
 
 func (ip *Inode) Encode() []byte {
-	enc := marshal.NewEnc(fs.INODESZ)
+	enc := marshal.NewEnc(common.INODESZ)
 	enc.PutInt32(uint32(ip.Kind))
 	enc.PutInt32(ip.Nlink)
 	enc.PutInt(ip.Gen)
@@ -112,7 +113,7 @@ func (ip *Inode) Encode() []byte {
 	return enc.Finish()
 }
 
-func Decode(buf *buf.Buf, inum fs.Inum) *Inode {
+func Decode(buf *buf.Buf, inum common.Inum) *Inode {
 	ip := &Inode{
 		Inum:       0,
 		Kind:       0,
@@ -153,44 +154,58 @@ func MaxFileSize() uint64 {
 	return (NDIRECT + maxblks) * disk.BlockSize
 }
 
-func OneInode(ip *Inode) []*Inode {
-	return []*Inode{ip}
+func (ip *Inode) ReleaseInode(op *FsTxn) {
+	util.DPrintf(1, "ReleaseInode %v\n", ip)
+	if ip.cslot == nil {
+		panic("ReleaseInode")
+	}
+	ip.cslot.Unlock()
+	op.doneInode(ip)
+	op.Fs.Icache.FreeSlot(uint64(ip.Inum))
 }
 
-func OwnInode(op *fstxn.FsTxn, inum fs.Inum) bool {
-	addr := op.Fs.Inum2Addr(inum)
-	return op.OwnLock(addr)
-}
-
-func GetInode(op *fstxn.FsTxn, inum fs.Inum) *Inode {
-	addr := op.Fs.Inum2Addr(inum)
-	cslot := op.LookupSlot(inum)
+func LockInode(op *FsTxn, inum common.Inum) *cache.Cslot {
+	cslot := op.Fs.Icache.LookupSlot(uint64(inum))
 	if cslot == nil {
 		panic("GetInodeLocked")
 	}
+	cslot.Lock()
+	return cslot
+}
+
+// XXX add LookupRef
+func GetInodeUnlocked(op *FsTxn, inum common.Inum) *Inode {
+	cslot := op.Fs.Icache.LookupSlot(uint64(inum))
+	if cslot == nil || cslot.Obj == nil {
+		panic("GetInodeUnlocked")
+	}
+	ip := cslot.Obj.(*Inode)
+	op.Fs.Icache.FreeSlot(uint64(ip.Inum))
+	return ip
+}
+
+func GetInodeLocked(op *FsTxn, inum common.Inum) *Inode {
+	cslot := LockInode(op, inum)
 	if cslot.Obj == nil {
-		buf := op.ReadBuf(addr)
+		addr := op.Fs.Super.Inum2Addr(inum)
+		buf := op.buftxn.ReadBuf(addr)
 		i := Decode(buf, inum)
 		util.DPrintf(1, "GetInodeLocked # %v: read inode from disk\n", inum)
 		cslot.Obj = i
 	}
-	i := cslot.Obj.(*Inode)
-	util.DPrintf(1, "GetInodeLocked %v\n", i)
-	return i
+	ip := cslot.Obj.(*Inode)
+	ip.cslot = cslot
+	op.addInode(ip)
+	util.DPrintf(1, "%d: GetInodeLocked %v\n", op.buftxn.Id, ip)
+	return ip
 }
 
-func GetInodeLocked(op *fstxn.FsTxn, inum fs.Inum) *Inode {
-	addr := op.Fs.Inum2Addr(inum)
-	op.Acquire(addr)
-	return GetInode(op, inum)
-}
-
-func getInodeInumFree(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+func getInodeInumFree(op *FsTxn, inum common.Inum) *Inode {
 	ip := GetInodeLocked(op, inum)
 	return ip
 }
 
-func GetInodeInum(op *fstxn.FsTxn, inum fs.Inum) *Inode {
+func GetInodeInum(op *FsTxn, inum common.Inum) *Inode {
 	ip := getInodeInumFree(op, inum)
 	if ip == nil {
 		return nil
@@ -206,7 +221,7 @@ func GetInodeInum(op *fstxn.FsTxn, inum fs.Inum) *Inode {
 	return ip
 }
 
-func GetInodeFh(op *fstxn.FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
+func GetInodeFh(op *FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
 	fh := fh.MakeFh(fh3)
 	ip := GetInodeInum(op, fh.Ino)
 	if ip == nil {
@@ -220,43 +235,48 @@ func GetInodeFh(op *fstxn.FsTxn, fh3 nfstypes.Nfs_fh3) *Inode {
 	return ip
 }
 
-func (ip *Inode) ReleaseInode(op *fstxn.FsTxn) {
-	addr := op.Fs.Inum2Addr(ip.Inum)
-	op.Release(addr)
-}
-
-func (ip *Inode) WriteInode(op *fstxn.FsTxn) {
-	if ip.Inum >= op.Fs.NInode() {
+func (ip *Inode) WriteInode(op *FsTxn) {
+	if ip.Inum >= op.Fs.Super.NInode() {
 		panic("WriteInode")
 	}
 	d := ip.Encode()
-	op.OverWrite(op.Fs.Inum2Addr(ip.Inum), d)
+	op.buftxn.OverWrite(op.Fs.Super.Inum2Addr(ip.Inum), d)
 	util.DPrintf(1, "WriteInode %v\n", ip)
 }
 
-func AllocInode(op *fstxn.FsTxn, kind nfstypes.Ftype3) (fs.Inum, *Inode) {
+func AllocInode(op *FsTxn, kind nfstypes.Ftype3) (*FsTxn, *Inode, bool) {
 	var ip *Inode
-	inum := op.AllocINum()
-	if inum != fs.NULLINUM {
+	var ok bool = true
+	inum := common.Inum(op.Fs.Ialloc.AllocNum())
+	if inum != common.NULLINUM {
 		ip = GetInodeLocked(op, inum)
-		if ip.Kind == NF3FREE {
-			ip.initInode(inum, kind)
-		} else {
+		if ip.Kind != NF3FREE {
 			panic("AllocInode")
 		}
-		ip.WriteInode(op)
+		if ip.IsShrinking() {
+			// give the number back so that if HelpShrink()
+			// commits, it doesn't mark inum as allocated.
+			op.Fs.Ialloc.FreeNum(uint64(inum))
+			op, ok = HelpShrink(op, ip)
+			ip = nil
+		} else {
+			util.DPrintf(1, "AllocInode -> # %v\n", inum)
+			op.AddINum(inum)
+			ip.initInode(inum, kind)
+			ip.WriteInode(op)
+		}
 	}
-	return inum, ip
+	return op, ip, ok
 }
 
-func (ip *Inode) freeInode(op *fstxn.FsTxn) {
+func (ip *Inode) freeInode(op *FsTxn) {
 	ip.Kind = NF3FREE
 	ip.Gen = ip.Gen + 1
 	ip.WriteInode(op)
 	op.FreeINum(ip.Inum)
 }
 
-func FreeInum(op *fstxn.FsTxn, inum fs.Inum) {
+func FreeInum(op *FsTxn, inum common.Inum) {
 	i := GetInodeLocked(op, inum)
 	if i.Kind == NF3FREE {
 		panic("freeInode")
@@ -265,19 +285,12 @@ func FreeInum(op *fstxn.FsTxn, inum fs.Inum) {
 }
 
 // Done with ip and remove inode if Nlink = 0.
-func (ip *Inode) Put(op *fstxn.FsTxn) {
+func (ip *Inode) Put(op *FsTxn) {
 	util.DPrintf(1, "put inode # %d Nlink %d\n", ip.Inum, ip.Nlink)
 	// shrinker may put an FREE inode
 	if ip.Nlink == 0 && ip.Kind != NF3FREE {
 		ip.Resize(op, 0)
 		ip.freeInode(op)
-	}
-	op.FreeSlot(ip.Inum)
-}
-
-func putInodes(op *fstxn.FsTxn, inodes []*Inode) {
-	for _, ip := range inodes {
-		ip.Put(op)
 	}
 }
 
@@ -285,7 +298,7 @@ func putInodes(op *fstxn.FsTxn, inodes []*Inode) {
 // shrinks. It creates a new thread to free blocks in a separate
 // transaction, if shrinking involves freeing many blocks.  ShrinkSize
 // tracks shrinking progress, and is initialized with the old size.
-func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
+func (ip *Inode) Resize(op *FsTxn, sz uint64) {
 	oldsz := util.RoundUp(ip.Size, disk.BlockSize)
 	util.DPrintf(5, "Resize %v to sz %d\n", oldsz, sz)
 	ip.Size = sz
@@ -314,10 +327,10 @@ func (ip *Inode) Resize(op *fstxn.FsTxn, sz uint64) {
 // Returns blkno and root index block for off. If blkno is 0, failure.
 // Caller must compare root with returned root to decide if a root has
 // been allocated.
-func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint64) (buf.Bnum, buf.Bnum) {
-	if root == buf.NULLBNUM { // no root?
+func (ip *Inode) indbmap(op *FsTxn, root common.Bnum, level uint64, off uint64) (common.Bnum, common.Bnum) {
+	if root == common.NULLBNUM { // no root?
 		root = op.AllocBlock()
-		if root == buf.NULLBNUM {
+		if root == common.NULLBNUM {
 			return root, root
 		}
 	}
@@ -344,20 +357,20 @@ func (ip *Inode) indbmap(op *fstxn.FsTxn, root buf.Bnum, level uint64, off uint6
 
 // Map logical block number bn to a physical block number, allocating
 // blocks if no block exists for bn.
-func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (buf.Bnum, bool) {
-	var blkno = buf.NULLBNUM
+func (ip *Inode) bmap(op *FsTxn, bn uint64) (common.Bnum, bool) {
+	var blkno = common.NULLBNUM
 	var alloc = false
 	if bn < NDIRECT {
-		if ip.blks[bn] == buf.NULLBNUM {
+		if ip.blks[bn] == common.NULLBNUM {
 			ip.blks[bn] = op.AllocBlock()
-			if ip.blks[bn] != buf.NULLBNUM {
+			if ip.blks[bn] != common.NULLBNUM {
 				alloc = true
 			}
 		}
 		blkno = ip.blks[bn]
 	} else {
 		var off = bn - NDIRECT
-		var root = buf.NULLBNUM
+		var root = common.NULLBNUM
 		if off < NBLKBLK {
 			blkno, root = ip.indbmap(op, ip.blks[INDIRECT], 1, off)
 			alloc = root != ip.blks[INDIRECT]
@@ -377,7 +390,7 @@ func (ip *Inode) bmap(op *fstxn.FsTxn, bn uint64) (buf.Bnum, bool) {
 }
 
 // Returns number of bytes read and eof
-func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byte,
+func (ip *Inode) Read(op *FsTxn, offset uint64, bytesToRead uint64) ([]byte,
 	bool) {
 	var n uint64 = uint64(0)
 
@@ -395,7 +408,7 @@ func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byt
 		byteoff := off % disk.BlockSize
 		nbytes := util.Min(disk.BlockSize-byteoff, count-n)
 		blkno, alloc := ip.bmap(op, boff)
-		if blkno == buf.NULLBNUM {
+		if blkno == common.NULLBNUM {
 			return data, false
 		}
 		if alloc { // fill in a hole
@@ -414,7 +427,7 @@ func (ip *Inode) Read(op *fstxn.FsTxn, offset uint64, bytesToRead uint64) ([]byt
 }
 
 // Returns number of bytes written and error
-func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
+func (ip *Inode) Write(op *FsTxn, offset uint64,
 	count uint64, dataBuf []byte) (uint64, bool) {
 	var cnt uint64 = uint64(0)
 	var off uint64 = offset
@@ -429,7 +442,7 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 	}
 	for boff := off / disk.BlockSize; n > uint64(0); boff++ {
 		blkno, new := ip.bmap(op, boff)
-		if blkno == buf.NULLBNUM {
+		if blkno == common.NULLBNUM {
 			ok = false
 			break
 		}
@@ -442,8 +455,8 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 			nbytes = n
 		}
 		if byteoff == 0 && nbytes == disk.BlockSize { // block overwrite?
-			addr := op.Fs.Block2addr(blkno)
-			op.OverWrite(addr, data[0:nbytes])
+			addr := op.Fs.Super.Block2addr(blkno)
+			op.buftxn.OverWrite(addr, data[0:nbytes])
 		} else {
 			buffer := op.ReadBlock(blkno)
 			for b := uint64(0); b < nbytes; b++ {
@@ -467,7 +480,7 @@ func (ip *Inode) Write(op *fstxn.FsTxn, offset uint64,
 	return cnt, ok
 }
 
-func (ip *Inode) DecLink(op *fstxn.FsTxn) {
+func (ip *Inode) DecLink(op *FsTxn) {
 	ip.Nlink = ip.Nlink - 1
 	ip.WriteInode(op)
 }

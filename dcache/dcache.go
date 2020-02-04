@@ -1,11 +1,11 @@
 package dcache
 
 import (
-	"github.com/mit-pdos/goose-nfsd/fs"
+	"github.com/mit-pdos/goose-nfsd/common"
 )
 
 type Dentry struct {
-	Inum fs.Inum
+	Inum common.Inum
 	Off  uint64
 }
 
@@ -21,7 +21,7 @@ func MkDcache() *Dcache {
 	}
 }
 
-func (dc *Dcache) Add(name string, inum fs.Inum, off uint64) {
+func (dc *Dcache) Add(name string, inum common.Inum, off uint64) {
 	dc.cache[name] = Dentry{Inum: inum, Off: off}
 }
 

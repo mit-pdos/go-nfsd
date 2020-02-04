@@ -17,7 +17,7 @@ type Bcache struct {
 	bcache *cache.Cache
 }
 
-func MkBcache() *Bcache {
+func MkBcache(d disk.Disk) *Bcache {
 	return &Bcache{
 		bcache: cache.MkCache(BCACHESZ),
 	}
@@ -54,9 +54,9 @@ func (bc *Bcache) Write(bn uint64, b disk.Block) {
 	disk.Write(bn, b)
 }
 
-// func (bc *Bcache) Close() {
-// 	bc.d.Close()
-// }
+//func (bc *Bcache) Close() {
+//	bc.d.Close()
+//}
 
 func (bc *Bcache) Barrier() {
 	disk.Barrier()
