@@ -193,10 +193,7 @@ func mkdataval(b byte, sz uint64) []byte {
 
 func (ts *TestState) readcheck(fh nfstypes.Nfs_fh3, off uint64, data []byte) {
 	d := ts.Read(fh, off, uint64(len(data)))
-	assert.Equal(ts.t, len(data), len(d))
-	for i := uint64(0); i < uint64(len(data)); i++ {
-		assert.Equal(ts.t, data[i], d[i])
-	}
+	assert.Equal(ts.t, data, d)
 }
 
 func newTest(t *testing.T) *TestState {
