@@ -13,8 +13,6 @@ import (
 const DIRENTSZ uint64 = 128
 const MAXNAMELEN = DIRENTSZ - 16 // uint64 for inum + uint64 for len(name)
 
-type dir inode.Inode
-
 type dirEnt struct {
 	inum common.Inum
 	name string // <= MAXNAMELEN

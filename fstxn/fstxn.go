@@ -18,7 +18,7 @@ import (
 type FsTxn struct {
 	Fs     *FsState
 	Atxn   *alloctxn.AllocTxn
-	inodes []*inode.Inode
+	inodes map[common.Inum]*inode.Inode
 }
 
 func Begin(fsstate *FsState) *FsTxn {
@@ -26,37 +26,27 @@ func Begin(fsstate *FsState) *FsTxn {
 		Fs: fsstate,
 		Atxn: alloctxn.Begin(fsstate.Super, fsstate.Txn, fsstate.Balloc,
 			fsstate.Ialloc),
-		inodes: make([]*inode.Inode, 0),
+		inodes: make(map[common.Inum]*inode.Inode),
 	}
 	return op
 }
 
 func (op *FsTxn) addInode(ip *inode.Inode) {
-	op.inodes = append(op.inodes, ip)
+	op.inodes[ip.Inum] = ip
 }
 
 func (op *FsTxn) lookupInode(inum common.Inum) *inode.Inode {
-	var i *inode.Inode
-	for _, ip := range op.inodes {
-		if ip.Inum == inum {
-			i = ip
-			break
-		}
-	}
+	i := op.inodes[inum]
 	return i
 }
 
 func (op *FsTxn) OwnInum(inum common.Inum) bool {
-	return op.lookupInode(inum) != nil
+	_, ok := op.inodes[inum]
+	return ok
 }
 
 func (op *FsTxn) doneInode(ip *inode.Inode) {
-	for i, v := range op.inodes {
-		if v == ip {
-			op.inodes[i] = op.inodes[len(op.inodes)-1]
-			op.inodes = op.inodes[:len(op.inodes)-1]
-		}
-	}
+	delete(op.inodes, ip.Inum)
 }
 
 func (op *FsTxn) releaseInodes() {
