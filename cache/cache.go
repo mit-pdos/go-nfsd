@@ -17,16 +17,7 @@ import (
 // can evict that slot, if it needs space for other objects.
 
 type Cslot struct {
-	mu  *sync.Mutex // mutex protecting obj in this slot
 	Obj interface{}
-}
-
-func (slot *Cslot) Lock() {
-	slot.mu.Lock()
-}
-
-func (slot *Cslot) Unlock() {
-	slot.mu.Unlock()
 }
 
 type entry struct {
@@ -102,7 +93,7 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 	}
 	enew := &entry{
 		ref:  1,
-		slot: Cslot{mu: new(sync.Mutex), Obj: nil},
+		slot: Cslot{Obj: nil},
 		lru:  nil,
 		id:   id,
 	}

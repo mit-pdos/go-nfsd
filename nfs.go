@@ -5,9 +5,7 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
-	"github.com/mit-pdos/goose-nfsd/cache"
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
@@ -21,8 +19,6 @@ import (
 	"os"
 	"strconv"
 )
-
-const ICACHESZ uint64 = 100
 
 type Nfs struct {
 	Name     *string
@@ -62,12 +58,7 @@ func MakeNfs(name *string, sz uint64) *Nfs {
 		makeFs(super)
 	}
 
-	icache := cache.MkCache(ICACHESZ)
-	balloc := alloc.MkAlloc(readBitmap(super, super.BitmapBlockStart(),
-		super.NBlockBitmap))
-	ialloc := alloc.MkAlloc(readBitmap(super, super.BitmapInodeStart(),
-		super.NInodeBitmap))
-	st := fstxn.MkFsState(super, txn, icache, balloc, ialloc)
+	st := fstxn.MkFsState(super, txn)
 	nfs := &Nfs{
 		Name:     name,
 		fsstate:  st,
@@ -168,13 +159,4 @@ func readRootInode(super *super.FsSuper) *inode.Inode {
 	buf := buf.MkBufLoad(addr, blk)
 	i := inode.Decode(buf, common.ROOTINUM)
 	return i
-}
-
-func readBitmap(super *super.FsSuper, start common.Bnum, len uint64) []byte {
-	var bitmap []byte
-	for i := uint64(0); i < len; i++ {
-		blk := super.Disk.Read(uint64(start) + i)
-		bitmap = append(bitmap, blk...)
-	}
-	return bitmap
 }

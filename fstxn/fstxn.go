@@ -89,17 +89,17 @@ func (op *FsTxn) ReleaseInode(ip *inode.Inode) {
 	if ip.Cslot == nil {
 		panic("ReleaseInode")
 	}
-	ip.Cslot.Unlock()
+	op.Fs.Lockmap.Release(ip.Inum, op.Atxn.Id())
 	op.doneInode(ip)
 	op.Fs.Icache.FreeSlot(uint64(ip.Inum))
 }
 
 func (op *FsTxn) LockInode(inum common.Inum) *cache.Cslot {
+	op.Fs.Lockmap.Acquire(inum, op.Atxn.Id())
 	cslot := op.Fs.Icache.LookupSlot(uint64(inum))
 	if cslot == nil {
 		panic("GetInodeLocked")
 	}
-	cslot.Lock()
 	return cslot
 }
 
