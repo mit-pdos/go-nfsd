@@ -35,15 +35,19 @@ func (op *FsTxn) addInode(ip *inode.Inode) {
 	op.inodes = append(op.inodes, ip)
 }
 
-func (op *FsTxn) OwnInum(inum common.Inum) bool {
-	var own = false
+func (op *FsTxn) lookupInode(inum common.Inum) *inode.Inode {
+	var i *inode.Inode
 	for _, ip := range op.inodes {
 		if ip.Inum == inum {
-			own = true
+			i = ip
 			break
 		}
 	}
-	return own
+	return i
+}
+
+func (op *FsTxn) OwnInum(inum common.Inum) bool {
+	return op.lookupInode(inum) != nil
 }
 
 func (op *FsTxn) doneInode(ip *inode.Inode) {
@@ -154,11 +158,9 @@ func (op *FsTxn) GetInodeFh(fh3 nfstypes.Nfs_fh3) *inode.Inode {
 
 // Assumes caller already has inode locked
 func (op *FsTxn) GetInodeUnlocked(inum common.Inum) *inode.Inode {
-	cslot := op.Fs.Icache.LookupSlot(uint64(inum))
-	if cslot == nil || cslot.Obj == nil {
+	ip := op.lookupInode(inum)
+	if ip == nil {
 		panic("GetInodeUnlocked")
 	}
-	ip := cslot.Obj.(*inode.Inode)
-	op.Fs.Icache.Done(uint64(ip.Inum))
 	return ip
 }
