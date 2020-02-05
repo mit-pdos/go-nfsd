@@ -187,7 +187,7 @@ func (ip *Inode) Resize(atxn *alloctxn.AllocTxn, sz uint64) bool {
 	}
 	ip.WriteInode(atxn)
 	if sz < oldsz {
-		if ip.shrinkFits(atxn) {
+		if ip.shrinkFits(atxn, oldsz-sz) {
 			ip.Shrink(atxn)
 			util.DPrintf(1, "small file delete inside trans\n")
 		} else {

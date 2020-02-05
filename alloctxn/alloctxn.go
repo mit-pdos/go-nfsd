@@ -45,7 +45,7 @@ func (atxn *AllocTxn) Id() txn.TransId {
 	return atxn.Buftxn.Id
 }
 
-func (atxn *AllocTxn) AddINum(inum common.Inum) {
+func (atxn *AllocTxn) AllocINum(inum common.Inum) {
 	atxn.allocInums = append(atxn.allocInums, inum)
 }
 
@@ -54,28 +54,30 @@ func (atxn *AllocTxn) FreeINum(inum common.Inum) {
 	atxn.freeInums = append(atxn.freeInums, inum)
 }
 
+func (atxn *AllocTxn) WriteBits(nums []uint64, blk uint64, alloc bool) {
+	for _, n := range nums {
+		a := addr.MkBitAddr(blk, n)
+		var b = byte(1 << (n % 8))
+		if !alloc {
+			b = ^b
+		}
+		atxn.Buftxn.OverWrite(a, []byte{b})
+	}
+}
+
 // Write allocated/free bits to the on-disk bit maps
 func (atxn *AllocTxn) PreCommit() {
 	util.DPrintf(1, "commitBitmaps: alloc inums %v blks %v\n", atxn.allocInums,
 		atxn.allocBnums)
-	for _, inum := range atxn.allocInums {
-		addr := addr.MkBitAddr(atxn.Super.BitmapInodeStart(), uint64(inum))
-		atxn.Buftxn.OverWrite(addr, []byte{(1 << (inum % 8))})
-	}
-	for _, bn := range atxn.allocBnums {
-		addr := addr.MkBitAddr(atxn.Super.BitmapBlockStart(), uint64(bn))
-		atxn.Buftxn.OverWrite(addr, []byte{(1 << (bn % 8))})
-	}
+
+	atxn.WriteBits(atxn.allocInums, atxn.Super.BitmapInodeStart(), true)
+	atxn.WriteBits(atxn.allocBnums, atxn.Super.BitmapBlockStart(), true)
+
 	util.DPrintf(1, "commitBitmaps: free inums %v blks %v\n", atxn.freeInums,
 		atxn.freeBnums)
-	for _, inum := range atxn.freeInums {
-		addr := addr.MkBitAddr(atxn.Super.BitmapInodeStart(), uint64(inum))
-		atxn.Buftxn.OverWrite(addr, []byte{^(1 << (inum % 8))})
-	}
-	for _, bn := range atxn.freeBnums {
-		addr := addr.MkBitAddr(atxn.Super.BitmapBlockStart(), uint64(bn))
-		atxn.Buftxn.OverWrite(addr, []byte{^(1 << (bn % 8))})
-	}
+
+	atxn.WriteBits(atxn.freeInums, atxn.Super.BitmapInodeStart(), false)
+	atxn.WriteBits(atxn.freeBnums, atxn.Super.BitmapBlockStart(), false)
 }
 
 // On-disk bitmap has been updated; update in-memory state for free bits
@@ -89,6 +91,7 @@ func (atxn *AllocTxn) PostCommit() {
 	}
 }
 
+// XXX todo
 func (atxn *AllocTxn) PostAbort() {
 	util.DPrintf(1, "Abort: inum free %v alloc %v\n", atxn.freeInums,
 		atxn.allocInums)
@@ -97,7 +100,8 @@ func (atxn *AllocTxn) PostAbort() {
 }
 
 func (atxn *AllocTxn) AssertValidBlock(blkno common.Bnum) {
-	if blkno > 0 && (blkno < atxn.Super.DataStart() || blkno >= atxn.Super.MaxBnum()) {
+	if blkno > 0 && (blkno < atxn.Super.DataStart() ||
+		blkno >= atxn.Super.MaxBnum()) {
 		panic("invalid blkno")
 	}
 }

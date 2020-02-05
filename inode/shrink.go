@@ -15,13 +15,7 @@ import (
 // Shrink() is responsible for starting another shrink transaction.
 //
 
-// 5: inode block, 2xbitmap block, indirect block, double indirect
-func enoughLogSpace(op *alloctxn.AllocTxn) bool {
-	return op.Buftxn.NDirty()+5 < op.Buftxn.LogSz()
-}
-
-func (ip *Inode) shrinkFits(op *alloctxn.AllocTxn) bool {
-	nblk := util.RoundUp(ip.Size, disk.BlockSize) - ip.ShrinkSize
+func (ip *Inode) shrinkFits(op *alloctxn.AllocTxn, nblk uint64) bool {
 	return op.Buftxn.NDirty()+nblk < op.Buftxn.LogSz()
 }
 
@@ -67,10 +61,11 @@ func (ip *Inode) indshrink(op *alloctxn.AllocTxn, root common.Bnum, level uint64
 }
 
 // Frees as many blocks as possible, and returns if more shrinking is necessary.
+// 5: inode block, 2xbitmap block, indirect block, double indirect
 func (ip *Inode) Shrink(op *alloctxn.AllocTxn) bool {
 	util.DPrintf(1, "Shrink: from %d to %d\n", ip.ShrinkSize,
 		util.RoundUp(ip.Size, disk.BlockSize))
-	for ip.IsShrinking() && enoughLogSpace(op) {
+	for ip.IsShrinking() && ip.shrinkFits(op, 5) {
 		ip.ShrinkSize--
 		if ip.ShrinkSize < NDIRECT {
 			ip.freeIndex(op, ip.ShrinkSize)

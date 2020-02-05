@@ -76,7 +76,7 @@ func AllocInode(op *FsTxn, kind nfstypes.Ftype3) (*FsTxn, *inode.Inode, bool) {
 			op.Fs.Ialloc.FreeNum(uint64(inum))
 		} else {
 			util.DPrintf(1, "AllocInode -> # %v\n", inum)
-			op.Atxn.AddINum(inum)
+			op.Atxn.AllocINum(inum)
 			ip.InitInode(inum, kind)
 			ip.WriteInode(op.Atxn)
 		}
@@ -101,17 +101,6 @@ func (op *FsTxn) LockInode(inum common.Inum) *cache.Cslot {
 	}
 	cslot.Lock()
 	return cslot
-}
-
-// XXX add LookupRef
-func (op *FsTxn) GetInodeUnlocked(inum common.Inum) *inode.Inode {
-	cslot := op.Fs.Icache.LookupSlot(uint64(inum))
-	if cslot == nil || cslot.Obj == nil {
-		panic("GetInodeUnlocked")
-	}
-	ip := cslot.Obj.(*inode.Inode)
-	op.Fs.Icache.FreeSlot(uint64(ip.Inum))
-	return ip
 }
 
 func (op *FsTxn) GetInodeLocked(inum common.Inum) *inode.Inode {
@@ -163,10 +152,13 @@ func (op *FsTxn) GetInodeFh(fh3 nfstypes.Nfs_fh3) *inode.Inode {
 	return ip
 }
 
-func FreeInum(op *FsTxn, inum common.Inum) {
-	i := op.GetInodeLocked(inum)
-	if i.Kind == inode.NF3FREE {
-		panic("freeInode")
+// Assumes caller already has inode locked
+func (op *FsTxn) GetInodeUnlocked(inum common.Inum) *inode.Inode {
+	cslot := op.Fs.Icache.LookupSlot(uint64(inum))
+	if cslot == nil || cslot.Obj == nil {
+		panic("GetInodeUnlocked")
 	}
-	i.FreeInode(op.Atxn)
+	ip := cslot.Obj.(*inode.Inode)
+	op.Fs.Icache.FreeSlot(uint64(ip.Inum))
+	return ip
 }
