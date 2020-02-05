@@ -143,7 +143,7 @@ func markAlloc(super *super.FsSuper, n common.Bnum, m common.Bnum) {
 	}
 	super.Disk.Write(uint64(super.BitmapBlockStart()), blk)
 
-	blk1 := blk
+	var blk1 = blk
 	blkno := m/common.Bnum(common.NBITBLOCK) + super.BitmapBlockStart()
 	if blkno > super.BitmapBlockStart() {
 		blk1 = make(disk.Block, disk.BlockSize)
@@ -171,7 +171,7 @@ func readRootInode(super *super.FsSuper) *inode.Inode {
 }
 
 func readBitmap(super *super.FsSuper, start common.Bnum, len uint64) []byte {
-	bitmap := make([]byte, 0)
+	var bitmap []byte
 	for i := uint64(0); i < len; i++ {
 		blk := super.Disk.Read(uint64(start) + i)
 		bitmap = append(bitmap, blk...)

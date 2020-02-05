@@ -215,6 +215,7 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 }
 
 func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count uint64) (*fstxn.FsTxn, []byte, bool, nfstypes.Nfsstat3) {
+	var readCount = count
 	op := fstxn.Begin(nfs.fsstate)
 	ip := op.GetInodeFh(fh)
 	if ip == nil {
@@ -224,9 +225,9 @@ func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count 
 		return op, nil, false, nfstypes.NFS3ERR_INVAL
 	}
 	if ip.Kind == nfstypes.NF3LNK {
-		count = ip.Size
+		readCount = ip.Size
 	}
-	data, eof := ip.Read(op.Atxn, offset, count)
+	data, eof := ip.Read(op.Atxn, offset, readCount)
 	return op, data, eof, nfstypes.NFS3_OK
 }
 
@@ -351,11 +352,8 @@ func (nfs *Nfs) doDecLink(op *fstxn.FsTxn, ip *inode.Inode) {
 }
 
 func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*fstxn.FsTxn, nfstypes.Nfsstat3) {
-	var dip *inode.Inode
-	var ip *inode.Inode
-	var err = nfstypes.NFS3_OK
-	op := fstxn.Begin(nfs.fsstate)
-	op, dip, ip, err = nfs.getAlloc(op, dfh, name, kind)
+	beginOp := fstxn.Begin(nfs.fsstate)
+	op, dip, ip, err := nfs.getAlloc(beginOp, dfh, name, kind)
 	if err != nfstypes.NFS3_OK {
 		return op, err
 	}
