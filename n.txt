@@ -180,3 +180,12 @@ smallfile: 9361.9 file/s with 1 threads
 2020/02/02 20:14:28 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
 largefile: 50 MB througput 446.47 MB/s
 
+* <2020-02-05 Wed>: performance
+
+[goose-nfs (master)]$ go run ./cmd/smallfile/main.go 
+2020/02/05 14:40:30 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+smallfile: 9415.8 file/s with 1 threads
+
+2020/02/05 14:41:21 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+largefile: 50 MB througput 494.70 MB/s
+
