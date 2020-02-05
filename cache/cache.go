@@ -7,21 +7,11 @@ import (
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
-// A shared, fixed-size cache mapping from uint64 to a
-// reference-counted slot in the cache.  The cache has a fixed number
-// of slots.  A lookup for key, increments the reference count for
-// that slot. Callers are responsible for filling a slot.  When a
-// caller doesn't need the slot anymore (because it is done with the
-// object in the slot), then caller must decrement the reference count
-// for the slot.  When a reference counter for slot is 0, the cache
-// can evict that slot, if it needs space for other objects.
-
 type Cslot struct {
 	Obj interface{}
 }
 
 type entry struct {
-	ref  uint32 // the slot's reference count
 	slot Cslot
 	lru  *list.Element
 	id   uint64
@@ -48,7 +38,7 @@ func MkCache(sz uint64) *Cache {
 
 func (c *Cache) PrintCache() {
 	for k, v := range c.entries {
-		util.DPrintf(0, "Entry %v %v\n", k, v.ref)
+		util.DPrintf(0, "Entry %v %v\n", k, v)
 	}
 }
 
@@ -75,10 +65,9 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 		if id != e.id {
 			panic("LookupSlot")
 		}
-		if e.ref == 0 {
+		if e.lru != nil { // only remove on first lookupSlot
 			c.lru.Remove(e.lru)
 		}
-		e.ref = e.ref + 1
 		c.mu.Unlock()
 		return &e.slot
 	}
@@ -92,7 +81,6 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 		}
 	}
 	enew := &entry{
-		ref:  1,
 		slot: Cslot{Obj: nil},
 		lru:  nil,
 		id:   id,
@@ -103,17 +91,13 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 	return &enew.slot
 }
 
-// Decrease ref count of the cache slot for id so that entry.obj maybe
-// deleted by evict
-func (c *Cache) FreeSlot(id uint64) {
+// Done with a cache entry; put it back on lru list
+func (c *Cache) Done(id uint64) {
 	c.mu.Lock()
 	entry := c.entries[id]
 	if entry != nil {
-		entry.ref = entry.ref - 1
-		util.DPrintf(5, "freeslot %d %d\n", id, entry.ref)
-		if entry.ref == 0 {
-			entry.lru = c.lru.PushBack(entry)
-		}
+		util.DPrintf(5, "freeslot %d %d\n", id)
+		entry.lru = c.lru.PushBack(entry)
 		c.mu.Unlock()
 		return
 	}

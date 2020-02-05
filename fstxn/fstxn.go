@@ -91,7 +91,7 @@ func (op *FsTxn) ReleaseInode(ip *inode.Inode) {
 	}
 	op.Fs.Lockmap.Release(ip.Inum, op.Atxn.Id())
 	op.doneInode(ip)
-	op.Fs.Icache.FreeSlot(uint64(ip.Inum))
+	op.Fs.Icache.Done(uint64(ip.Inum))
 }
 
 func (op *FsTxn) LockInode(inum common.Inum) *cache.Cslot {
@@ -159,6 +159,6 @@ func (op *FsTxn) GetInodeUnlocked(inum common.Inum) *inode.Inode {
 		panic("GetInodeUnlocked")
 	}
 	ip := cslot.Obj.(*inode.Inode)
-	op.Fs.Icache.FreeSlot(uint64(ip.Inum))
+	op.Fs.Icache.Done(uint64(ip.Inum))
 	return ip
 }
