@@ -34,7 +34,6 @@ func (bc *Bcache) Read(bn uint64) disk.Block {
 	b := cslot.Obj.(disk.Block)
 	blk := make([]byte, disk.BlockSize)
 	copy(blk, b)
-	bc.bcache.Done(bn)
 	return blk
 }
 
@@ -45,7 +44,6 @@ func (bc *Bcache) Write(bn uint64, b disk.Block) {
 	cslot := bc.bcache.LookupSlot(bn)
 	if cslot != nil {
 		cslot.Obj = b
-		bc.bcache.Done(bn)
 	}
 	disk.Write(bn, b)
 }

@@ -94,7 +94,6 @@ func (op *FsTxn) ReleaseInode(ip *inode.Inode) {
 		panic("ReleaseInode")
 	}
 	op.doneInode(ip)
-	op.Fs.Icache.Done(uint64(ip.Inum))
 	op.Fs.Lockmap.Release(ip.Inum, op.Atxn.Id())
 }
 

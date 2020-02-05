@@ -42,22 +42,19 @@ func (c *Cache) PrintCache() {
 	}
 }
 
-func (c *Cache) evict() bool {
+func (c *Cache) evict() {
 	e := c.lru.Front()
 	if e == nil {
-		return false
+		c.PrintCache()
+		panic("evict")
 	}
 	entry := e.Value.(*entry)
 	c.lru.Remove(e)
 	util.DPrintf(5, "evict: %d\n", entry.id)
 	delete(c.entries, entry.id)
 	c.cnt = c.cnt - 1
-	return true
 }
 
-// Lookup the cache slot for id.  Create the slot if id isn't in the
-// cache and if there is space in the cache. If no space, return
-// nil to indicate the caller to evict entries.
 func (c *Cache) LookupSlot(id uint64) *Cslot {
 	c.mu.Lock()
 	e := c.entries[id]
@@ -65,20 +62,15 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 		if id != e.id {
 			panic("LookupSlot")
 		}
-		if e.lru != nil { // only remove on first lookupSlot
+		if e.lru != nil {
 			c.lru.Remove(e.lru)
+			e.lru = c.lru.PushBack(e)
 		}
 		c.mu.Unlock()
 		return &e.slot
 	}
 	if c.cnt >= c.sz {
-		if !c.evict() {
-			// failed to find victim. caller is
-			// responsible for creating space.
-			c.PrintCache()
-			c.mu.Unlock()
-			return nil
-		}
+		c.evict()
 	}
 	enew := &entry{
 		slot: Cslot{Obj: nil},
@@ -86,21 +78,8 @@ func (c *Cache) LookupSlot(id uint64) *Cslot {
 		id:   id,
 	}
 	c.entries[id] = enew
+	enew.lru = c.lru.PushBack(enew)
 	c.cnt = c.cnt + 1
 	c.mu.Unlock()
 	return &enew.slot
-}
-
-// Done with a cache entry; put it back on lru list
-func (c *Cache) Done(id uint64) {
-	c.mu.Lock()
-	entry := c.entries[id]
-	if entry != nil {
-		util.DPrintf(5, "freeslot %d %d\n", id)
-		entry.lru = c.lru.PushBack(entry)
-		c.mu.Unlock()
-		return
-	}
-	c.mu.Unlock()
-	panic("FreeSlot")
 }
