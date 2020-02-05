@@ -68,7 +68,7 @@ func (ip *Inode) InitInode(inum common.Inum, kind nfstypes.Ftype3) {
 }
 
 func MkRootInode() *Inode {
-	ip := &Inode{}
+	ip := new(Inode)
 	ip.blks = make([]common.Bnum, NBLKINO)
 	ip.InitInode(common.ROOTINUM, nfstypes.NF3DIR)
 	return ip
@@ -114,15 +114,7 @@ func (ip *Inode) Encode() []byte {
 }
 
 func Decode(buf *buf.Buf, inum common.Inum) *Inode {
-	ip := &Inode{
-		Inum:       0,
-		Kind:       0,
-		Nlink:      0,
-		Gen:        0,
-		Size:       0,
-		ShrinkSize: 0,
-		blks:       nil,
-	}
+	ip := new(Inode)
 	dec := marshal.NewDec(buf.Blk)
 	ip.Inum = inum
 	ip.Kind = nfstypes.Ftype3(dec.GetInt32())
@@ -175,19 +167,20 @@ func (ip *Inode) FreeInode(atxn *alloctxn.AllocTxn) {
 // transaction, if shrinking involves freeing many blocks.  ShrinkSize
 // tracks shrinking progress, and is initialized with the old size.
 func (ip *Inode) Resize(atxn *alloctxn.AllocTxn, sz uint64) bool {
+	var newSz = sz
 	var doshrink = false
 	oldsz := util.RoundUp(ip.Size, disk.BlockSize)
-	util.DPrintf(5, "Resize %v to sz %d\n", oldsz, sz)
-	ip.Size = sz
-	sz = util.RoundUp(sz, disk.BlockSize)
-	if sz < oldsz {
+	util.DPrintf(5, "Resize %v to sz %d\n", oldsz, newSz)
+	ip.Size = newSz
+	newSz = util.RoundUp(sz, disk.BlockSize)
+	if newSz < oldsz {
 		ip.ShrinkSize = oldsz
 	} else {
-		ip.ShrinkSize = sz
+		ip.ShrinkSize = newSz
 	}
 	ip.WriteInode(atxn)
-	if sz < oldsz {
-		if ip.shrinkFits(atxn, oldsz-sz) {
+	if newSz < oldsz {
+		if ip.shrinkFits(atxn, oldsz-newSz) {
 			ip.Shrink(atxn)
 			util.DPrintf(1, "small file delete inside trans\n")
 		} else {
@@ -200,7 +193,8 @@ func (ip *Inode) Resize(atxn *alloctxn.AllocTxn, sz uint64) bool {
 // Returns blkno and root index block for off. If blkno is 0, failure.
 // Caller must compare root with returned root to decide if a root has
 // been allocated.
-func (ip *Inode) indbmap(atxn *alloctxn.AllocTxn, root common.Bnum, level uint64, off uint64) (common.Bnum, common.Bnum) {
+func (ip *Inode) indbmap(atxn *alloctxn.AllocTxn, root_ common.Bnum, level uint64, off uint64) (common.Bnum, common.Bnum) {
+	var root = root_
 	if root == common.NULLBNUM { // no root?
 		root = atxn.AllocBlock()
 		if root == common.NULLBNUM {
@@ -245,14 +239,18 @@ func (ip *Inode) bmap(atxn *alloctxn.AllocTxn, bn uint64) (common.Bnum, bool) {
 		var off = bn - NDIRECT
 		var root = common.NULLBNUM
 		if off < NBLKBLK {
-			blkno, root = ip.indbmap(atxn, ip.blks[INDIRECT], 1, off)
+			newBlkno, newRoot := ip.indbmap(atxn, ip.blks[INDIRECT], 1, off)
+			blkno = newBlkno
+			root = newRoot
 			alloc = root != ip.blks[INDIRECT]
 			if alloc {
 				ip.blks[INDIRECT] = root
 			}
 		} else {
 			off -= NBLKBLK
-			blkno, root = ip.indbmap(atxn, ip.blks[DINDIRECT], 2, off)
+			newBlkno, newRoot := ip.indbmap(atxn, ip.blks[DINDIRECT], 2, off)
+			blkno = newBlkno
+			root = newRoot
 			alloc = root != ip.blks[INDIRECT]
 			if alloc {
 				ip.blks[DINDIRECT] = root
@@ -282,7 +280,7 @@ func (ip *Inode) Read(atxn *alloctxn.AllocTxn, offset uint64, bytesToRead uint64
 		nbytes := util.Min(disk.BlockSize-byteoff, count-n)
 		blkno, alloc := ip.bmap(atxn, boff)
 		if blkno == common.NULLBNUM {
-			return data, false
+			break
 		}
 		if alloc { // fill in a hole
 			ip.WriteInode(atxn)

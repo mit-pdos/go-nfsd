@@ -66,7 +66,7 @@ func (ip *Inode) Shrink(op *alloctxn.AllocTxn) bool {
 	util.DPrintf(1, "Shrink: from %d to %d\n", ip.ShrinkSize,
 		util.RoundUp(ip.Size, disk.BlockSize))
 	for ip.IsShrinking() && ip.shrinkFits(op, 5) {
-		ip.ShrinkSize--
+		ip.ShrinkSize -= 1
 		if ip.ShrinkSize < NDIRECT {
 			ip.freeIndex(op, ip.ShrinkSize)
 		} else {
