@@ -7,7 +7,6 @@ import (
 	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/mit-pdos/goose-nfsd/shrinker"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -57,6 +56,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*fstxn.FsTxn, *inode.Inode, nfstypes.Nfsstat3) {
 	var op *fstxn.FsTxn
 	var ip *inode.Inode
+	var ok bool
 	var err = nfstypes.NFS3_OK
 	for {
 		op = fstxn.Begin(nfs.fsstate)
@@ -67,8 +67,10 @@ func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*fstxn.FsTxn, *inode.Inode, nfst
 		if !ip.IsShrinking() {
 			break
 		}
-		var ok bool
-		op, ok = shrinker.HelpShrink(op, ip)
+		inum := ip.Inum
+		op.Commit() // Shrinker starts new trans
+		ok = nfs.shrinkst.DoShrink(inum)
+		op = fstxn.Begin(nfs.fsstate)
 		if !ok {
 			return op, ip, nfstypes.NFS3ERR_SERVERFAULT
 		}
@@ -101,7 +103,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	if args.New_attributes.Size.Set_it {
 		shrink := ip.Resize(op.Atxn, uint64(args.New_attributes.Size.Size))
 		if shrink {
-			shrinker.StartShrinker(ip.Inum)
+			nfs.shrinkst.StartShrinker(ip.Inum)
 		}
 		err = nfstypes.NFS3_OK
 	}
@@ -329,7 +331,10 @@ func (nfs *Nfs) getAlloc(op *fstxn.FsTxn, dfh nfstypes.Nfs_fh3, name nfstypes.Fi
 		}
 		op, ip, ok = fstxn.AllocInode(op, kind)
 		if ip.IsShrinking() {
-			op, ok = shrinker.HelpShrink(op, ip)
+			inum := ip.Inum
+			op.Commit() // Shrinker starts new trans
+			ok = nfs.shrinkst.DoShrink(inum)
+			op = fstxn.Begin(nfs.fsstate)
 		}
 		if !ok {
 			return op, nil, nil, nfstypes.NFS3ERR_SERVERFAULT
@@ -346,7 +351,7 @@ func (nfs *Nfs) doDecLink(op *fstxn.FsTxn, ip *inode.Inode) {
 		shrink := ip.Resize(op.Atxn, 0)
 		ip.FreeInode(op.Atxn)
 		if shrink {
-			shrinker.StartShrinker(ip.Inum)
+			nfs.shrinkst.StartShrinker(ip.Inum)
 		}
 	}
 }
