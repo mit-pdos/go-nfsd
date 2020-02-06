@@ -3,6 +3,8 @@
 
 * TODO 
 
+scavenger thread
+
 directories ls: if lock ordering problem, return what we have read so far
 
 error codes
@@ -24,7 +26,8 @@ smallfile() in cmd/clnt-smallfile/main.go and cmd/smallfile/main.go
 log-by-pass writes
 
 
-* Some performance
+
+* <2020-01-24 Fri>: smallfile (including remove)
 
 ** running on ext3 over image in tmpfs
 
@@ -36,26 +39,9 @@ log-by-pass writes
 [tmp]$ sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
 [tmp]$ sudo chmod 777 /srv/nfs/bench
 
-[bench (master)]$ ~/hack/fscq-impl/bench/largefile /mnt/nfs
-makefile 50 MB 295276 usec throughput 173397.1 KB/s
-writefile 50 MB 168222 usec throughput 304359.7 KB/s
 
-** parallel lookup 
+** Linux loopback
 
-[goose-nfs (master)]$ go run ./cmd/lookup/main.go
-Lookup: 385771 file in 1000000 usec with 1 threads
-Lookup: 593760 file in 1000000 usec with 2 threads
-Lookup: 771640 file in 1000000 usec with 3 threads
-Lookup: 809043 file in 1000000 usec with 4 threads
-
-** NULL RPC
-
-[goose-nfs (master)]$ go run ./cmd/clnt-smallfile/main.go 
-null: 33551 getattr in 1000000 usec
-
-** <2020-01-24 Fri>: smallfile (including remove)
-
-# Linux loopback
 $ ./run-linux.sh  go run ./cmd/fs-smallfile/main.go
 fs-smallfile: 3168.5 file/sec
 
@@ -63,144 +49,49 @@ fs-smallfile: 3168.5 file/sec
 run go run ./cmd/fs-largefile/main.go
 fs-largefile: 50 MB througput 208.43 MB/s
 
-# goose-nfsd over loopback
-[goose-nfs (master)]$ ./run-goose-nfs.sh  go run ./cmd/fs-smallfile/main.go
-2020/01/24 06:52:03 MkFsSuper: open file disk /dev/shm/goose.img
-2020/01/24 06:52:04 NFS Null
-2020/01/24 06:52:04 Null
-2020/01/24 06:52:04 Null
-2020/01/24 06:52:04 Mount /
-2020/01/24 06:52:04 NFS Null
+
+* <2020-02-06 Thu>: goose-nfs perf
+
+[goose-nfs (master)]$ go run ./cmd/smallfile/main.go 
+2020/02/06 07:53:41 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+smallfile: 10528 file/s with 1 threads
+
+2020/02/06 07:54:12 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+largefile: 50 MB througput 482.43 MB/s
+
 go run ./cmd/fs-smallfile/main.go
-fs-smallfile: 2606.6 file/sec
+fs-smallfile: 2750.5 file/sec
 
-[goose-nfs (master)]$ ./run-goose-nfs.sh go run ./cmd/fs-largefile/main.go
 go run ./cmd/fs-largefile/main.go
-fs-largefile: 50 MB througput 112.85 MB/s
-
-Most time is spent in Go's GC
-Linux sends several 4-KB NFS Write RPCs in parallel
-
-# in-server goose-nfsd
-[goose-nfs (master)]$ go run ./cmd/smallfile/main.go 
-2020/01/24 06:54:43 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
-smallfile: 8443.1 file/swith 1 threads
-
-[goose-nfs (master)]$ go run ./cmd/largefile/main.go 
-2020/01/24 09:20:06 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
-largefile: 50 MB througput 322.07 MB/s
-
-# NFS client
-
-[goose-nfs (master)]$ ./run-goose-clnt.sh  go run ./cmd/clnt-smallfile/main.go 
-2020/01/24 07:01:49 MkFsSuper: open file disk /dev/shm/goose.img
-go run ./cmd/clnt-smallfile/main.go
-2020/01/24 07:01:50 Mount /
-root fh {[1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]}
-clnt-smallfile: 2784.5 file/s
-
-* <2020-01-30 Thu>: Some testing
-
-- ltp fsstress:
-
-[fsstress (master)]$ 
-[3] Done ~/src_other/ltp/testcases/kernel/fs/fsstress/fsstress -v -l 1000 -n 1000 -p 2 -d /mnt/nfs > out
-
-[fsstress (master)]$ ./fsstress -v -l 1000 -n 100 -p 4 -d /mnt/nfs > out
-[fsstress (master)]$ ./fsstress -v -l 1000 -n 100 -p 8 -d /mnt/nfs > out
-
-- ltp fsx-linus
-
-Ran for 40 min without errors (testcalls = 2616578)
-
-[fsx-linux (master)]$ ./fsx-linux -P d /mnt/nfs/x
-truncating to largest ever: 0x13e76
-truncating to largest ever: 0x2e52c
-truncating to largest ever: 0x3c2c2
-truncating to largest ever: 0x3f15f
-truncating to largest ever: 0x3fcb9
-truncating to largest ever: 0x3fe96
-truncating to largest ever: 0x3ff9d
-truncating to largest ever: 0x3ffff
-skipping zero size read
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size read
- ...
-
-* <2020-02-01 Sat>: new locking plan
-
-[goose-nfs (lockinodes)]$ go run ./cmd/smallfile/main.go 
-2020/02/01 19:26:11 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
-smallfile: 8987.2 file/s with 1 threads
-
-[goose-nfs (lockinodes)]$ go run ./cmd/largefile/main.go 
-2020/02/01 19:27:00 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
-largefile: 50 MB througput 433.88 MB/s
-
-[1]+  Done                    ./fsstress -v -l 1000 -n 100 -p 2 -d /mnt/nfs > out
-
-./fsx-linux -P d /mnt/nfs/x
-truncating to largest ever: 0x13e76
-truncating to largest ever: 0x2e52c
-truncating to largest ever: 0x3c2c2
-truncating to largest ever: 0x3f15f
-truncating to largest ever: 0x3fcb9
-truncating to largest ever: 0x3fe96
-truncating to largest ever: 0x3ff9d
-truncating to largest ever: 0x3ffff
-skipping zero size read
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size read
- 
- ...
-
-
-* <2020-02-02 Sun>: switch to old/new bitmap plan
-
-
-[goose-nfs (lockinodes)]$ go run ./cmd/smallfile/main.go 
-2020/02/02 20:13:48 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
-smallfile: 9361.9 file/s with 1 threads
-
-[goose-nfs (lockinodes)]$ go run ./cmd/largefile/main.go 
-2020/02/02 20:14:28 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
-largefile: 50 MB througput 446.47 MB/s
-
-* <2020-02-05 Wed>: performance and stress testing
+fs-largefile: 50 MB througput 157.25 MB/s
 
 [goose-nfs (master)]$ go run ./cmd/smallfile/main.go 
-2020/02/05 14:40:30 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
-smallfile: 9415.8 file/s with 1 threads
+2020/02/06 08:02:16 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+smallfile: 10455.9 file/s with 1 threads
+2020/02/06 08:02:26 MkFsSuper: open file disk /dev/shm/goose78629a0f5f3f164f.img
+smallfile: 15103.9 file/s with 2 threads
+2020/02/06 08:02:36 MkFsSuper: open file disk /dev/shm/goosed5104dc76695721d.img
+smallfile: 15616 file/s with 3 threads
+2020/02/06 08:02:46 MkFsSuper: open file disk /dev/shm/gooseb80704bb7b4d7c03.img
+smallfile: 14708 file/s with 4 threads
 
-2020/02/05 14:41:21 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
-largefile: 50 MB througput 494.70 MB/s
+[goose-nfs (master)]$ go run ./cmd/lookup/main.go 
+2020/02/06 08:40:15 MkFsSuper: open file disk /dev/shm/goose4d65822107fcfd52.img
+Lookup: 414619 file in 1000000 usec with 1 threads
+2020/02/06 08:40:16 MkFsSuper: open file disk /dev/shm/goose78629a0f5f3f164f.img
+Lookup: 521502 file in 1000000 usec with 2 threads
+2020/02/06 08:40:17 MkFsSuper: open file disk /dev/shm/goosed5104dc76695721d.img
+Lookup: 545340 file in 1000000 usec with 3 threads
+2020/02/06 08:40:18 MkFsSuper: open file disk /dev/shm/gooseb80704bb7b4d7c03.img
+Lookup: 588680 file in 1000000 usec with 4 threads
 
-[goose-nfs (master)]$  ~/src_other/ltp/testcases/kernel/fs/fsstress/fsstress -l 1000 -n 100 -p 1 -d /mnt/nfs
-seed = 1580631829
-[goose-nfs (master)]$ ~/src_other/ltp/testcases/kernel/fs/fsstress/fsstress -l 1000 -n 100 -p 2 -d /mnt/nfs
-seed = 1580367703
-[goose-nfs (master)]$ 
-[goose-nfs (master)]$ ~/src_other/ltp/testcases/kernel/fs/fsstress/fsstress -l 1000 -n 100 -p 4 -d /mnt/nfs
-seed = 1580880937
+* <2020-02-06 Thu>: goose-nfs end-to-end tests
+
 [goose-nfs (master)]$ ~/src_other/ltp/testcases/kernel/fs/fsstress/fsstress -l 1000 -n 100 -p 8 -d /mnt/nfs
-seed = 1580620922
-[goose-nfs (master)]$ 
+seed = 1580514202
+[goose-nfs (master)]$  
 
-[goose-nfs (master)]$ ~/src_other/ltp/testcases/kernel/fs/fsx-linux/fsx-linux -P d /mnt/nfs/x
+[goose-nfs (master)]$  ~/src_other/ltp/testcases/kernel/fs/fsx-linux/fsx-linux -P d /mnt/nfs/x
 truncating to largest ever: 0x13e76
 truncating to largest ever: 0x2e52c
 truncating to largest ever: 0x3c2c2
@@ -208,23 +99,18 @@ truncating to largest ever: 0x3f15f
 truncating to largest ever: 0x3fcb9
 truncating to largest ever: 0x3fe96
 truncating to largest ever: 0x3ff9d
-truncating to largest ever: 0x3ffff
-skipping zero size read
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size write
-skipping zero size read
-skipping zero size read
-skipping zero size read
-skipping zero size read
-skipping zero size write
+ ... ran for 10 minutes ...
+^Csignal 2
+testcalls = 1166590
 
-....
-
-[goose-nfs (master)]$ ~/src_other/ltp/testcases/kernel/fs/fsstress/fsstress -l 1000 -n 1000 -p 2 -d /mnt/nfs
-seed = 1580241628
+[nfs]$ git clone ~/classes/6828/xv6
+Cloning into 'xv6'...
+done.
+[nfs]$ cd xv6
+[xv6 (xv6-64)]$ make
+gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -Wall -MD -ggdb
+-Werror -fno-omit-frame-po
+...
+objdump -S kernel > kernel.asm
+objdump -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel.sym
+[xv6 (xv6-64)]$  
