@@ -79,9 +79,6 @@ func AllocInode(op *FsTxn, kind nfstypes.Ftype3) (*FsTxn, *inode.Inode) {
 
 func (op *FsTxn) ReleaseInode(ip *inode.Inode) {
 	util.DPrintf(1, "ReleaseInode %v\n", ip)
-	if ip.Cslot == nil {
-		panic("ReleaseInode")
-	}
 	op.doneInode(ip)
 	op.Fs.Lockmap.Release(ip.Inum, op.Atxn.Id())
 }
@@ -105,7 +102,6 @@ func (op *FsTxn) GetInodeLocked(inum common.Inum) *inode.Inode {
 		cslot.Obj = i
 	}
 	ip := cslot.Obj.(*inode.Inode)
-	ip.Cslot = cslot
 	op.addInode(ip)
 	util.DPrintf(1, "%d: GetInodeLocked %v\n", op.Atxn.Id(), ip)
 	return ip

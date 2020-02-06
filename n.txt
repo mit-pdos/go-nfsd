@@ -225,3 +225,6 @@ skipping zero size read
 skipping zero size write
 
 ....
+
+[goose-nfs (master)]$ ~/src_other/ltp/testcases/kernel/fs/fsstress/fsstress -l 1000 -n 1000 -p 2 -d /mnt/nfs
+seed = 1580241628

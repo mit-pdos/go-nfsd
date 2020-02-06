@@ -9,7 +9,6 @@ import (
 
 	"github.com/mit-pdos/goose-nfsd/alloctxn"
 	"github.com/mit-pdos/goose-nfsd/buf"
-	"github.com/mit-pdos/goose-nfsd/cache"
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dcache"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
@@ -31,7 +30,6 @@ type Inode struct {
 	// in-memory info:
 	Inum   common.Inum
 	Dcache *dcache.Dcache
-	Cslot  *cache.Cslot
 
 	// the on-disk inode:
 	Kind  nfstypes.Ftype3
