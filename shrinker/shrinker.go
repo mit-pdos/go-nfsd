@@ -13,6 +13,7 @@ type ShrinkerSt struct {
 	condShut *sync.Cond
 	nthread  uint32
 	fsstate  *fstxn.FsState
+	crash    bool
 }
 
 func MkShrinkerSt(st *fstxn.FsState) *ShrinkerSt {
@@ -22,8 +23,16 @@ func MkShrinkerSt(st *fstxn.FsState) *ShrinkerSt {
 		condShut: sync.NewCond(mu),
 		nthread:  0,
 		fsstate:  st,
+		crash:    false,
 	}
 	return shrinkst
+}
+
+func (shrinkst *ShrinkerSt) crashed() bool {
+	shrinkst.mu.Lock()
+	crashed := shrinkst.crash
+	shrinkst.mu.Unlock()
+	return crashed
 }
 
 // If caller changes file size and shrinking is in progress (because
@@ -44,6 +53,9 @@ func (shrinkst *ShrinkerSt) DoShrink(inum common.Inum) bool {
 		if !ok {
 			break
 		}
+		if shrinkst.crashed() {
+			break
+		}
 	}
 	return ok
 }
@@ -51,7 +63,17 @@ func (shrinkst *ShrinkerSt) DoShrink(inum common.Inum) bool {
 func (shrinker *ShrinkerSt) Shutdown() {
 	shrinker.mu.Lock()
 	for shrinker.nthread > 0 {
-		util.DPrintf(1, "ShutdownNfs: wait %d\n", shrinker.nthread)
+		util.DPrintf(1, "Shutdown: shrinker wait %d\n", shrinker.nthread)
+		shrinker.condShut.Wait()
+	}
+	shrinker.mu.Unlock()
+}
+
+func (shrinker *ShrinkerSt) Crash() {
+	shrinker.mu.Lock()
+	shrinker.crash = true
+	for shrinker.nthread > 0 {
+		util.DPrintf(1, "Crash: wait %d\n", shrinker.nthread)
 		shrinker.condShut.Wait()
 	}
 	shrinker.mu.Unlock()

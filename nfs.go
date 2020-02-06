@@ -91,6 +91,12 @@ func (nfs *Nfs) ShutdownNfs() {
 	nfs.doShutdown(false)
 }
 
+func (nfs *Nfs) Crash() {
+	util.DPrintf(1, "Crash\n")
+	nfs.shrinkst.Crash()
+	// nfs.fsstate.Txn.Crash()
+}
+
 func (nfs *Nfs) makeRootDir() {
 	op := fstxn.Begin(nfs.fsstate)
 	ip := op.GetInodeInum(common.ROOTINUM)

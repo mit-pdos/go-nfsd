@@ -23,6 +23,10 @@ func (clnt *NfsClient) Shutdown() {
 	clnt.srv.ShutdownNfs()
 }
 
+func (clnt *NfsClient) Crash() {
+	clnt.srv.Crash()
+}
+
 func (clnt *NfsClient) CreateOp(fh nfstypes.Nfs_fh3, name string) nfstypes.CREATE3res {
 	where := nfstypes.Diropargs3{Dir: fh, Name: nfstypes.Filename3(name)}
 	how := nfstypes.Createhow3{}

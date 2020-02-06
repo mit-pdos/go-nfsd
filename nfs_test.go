@@ -718,8 +718,33 @@ func TestTooLargeFile(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 
+	// XXX a few times?
 	ts.maketoolargefile("x", 50)
 	ts.Remove("x")
+}
+
+func TestInodeExhaust(t *testing.T) {
+	ts := newTest(t)
+	defer ts.Close()
+
+	for j := 0; j < 4; j++ {
+		i := 0
+		for ; ; i++ {
+			s := strconv.Itoa(i)
+			n := "x" + s
+			reply := ts.clnt.CreateOp(fh.MkRootFh3(), n)
+			if reply.Status != nfstypes.NFS3_OK {
+				break
+			}
+		}
+		assert.GreaterOrEqual(ts.t, uint64(i), common.NBITBLOCK*common.NINODEBITMAP-2)
+		i--
+		for ; i >= 0; i-- {
+			s := strconv.Itoa(i)
+			n := "x" + s
+			ts.Remove(n)
+		}
+	}
 }
 
 func TestRestartPersist(t *testing.T) {
@@ -755,33 +780,27 @@ func TestAbortRestart(t *testing.T) {
 	assert.Equal(ts.t, fattr.Fileid, nfstypes.Fileid3(fhx.Ino))
 	assert.Equal(ts.t, sz, uint64(fattr.Size))
 	ts.Lookup("d", false)
-	ts.clnt.Shutdown()
 }
 
 func TestRestartReclaim(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 
-	ts.maketoolargefile("x", 50)
+	sz := ts.maketoolargefile("x", 50)
 	fhx3 := ts.Lookup("x", true)
 	fhx := fh.MakeFh(fhx3)
 	ts.Remove("x")
-	ts.clnt.Shutdown()
+	ts.clnt.Crash()
 
 	ts.clnt.srv = MakeNfs(ts.clnt.srv.Name, DISKSZ)
 	ts.Lookup("x", false)
 
-	reused := false
-	// One inode bitmap block
-	for i := 2; uint64(i) < common.NBITBLOCK*common.NINODEBITMAP; i++ {
-		s := strconv.Itoa(i)
-		ts.Create("x" + s)
-		fh3 := ts.Lookup("x"+s, true)
-		fht := fh.MakeFh(fh3)
-		if fht.Ino == fhx.Ino {
-			reused = true
-			break
-		}
-	}
-	assert.Equal(ts.t, true, reused)
+	ts.Create("x")
+	fh3 := ts.Lookup("x", true)
+	fht := fh.MakeFh(fh3)
+	assert.Equal(ts.t, fhx.Ino+1, fht.Ino)
+
+	ts.maketoolargefile("y", 50)
+	fhx3 = ts.Lookup("y", true)
+	ts.Getattr(fhx3, sz)
 }
