@@ -45,12 +45,17 @@ func (atxn *AllocTxn) Id() txn.TransId {
 	return atxn.Buftxn.Id
 }
 
-func (atxn *AllocTxn) AllocINum(inum common.Inum) {
-	atxn.allocInums = append(atxn.allocInums, inum)
+func (atxn *AllocTxn) AllocINum() common.Inum {
+	inum := common.Inum(atxn.Ialloc.AllocNum())
+	util.DPrintf(1, "AllocINum -> # %v\n", inum)
+	if inum != common.NULLINUM {
+		atxn.allocInums = append(atxn.allocInums, inum)
+	}
+	return inum
 }
 
 func (atxn *AllocTxn) FreeINum(inum common.Inum) {
-	util.DPrintf(1, "free inode -> # %v\n", inum)
+	util.DPrintf(1, "FreeINum -> # %v\n", inum)
 	atxn.freeInums = append(atxn.freeInums, inum)
 }
 
@@ -91,12 +96,16 @@ func (atxn *AllocTxn) PostCommit() {
 	}
 }
 
-// XXX todo
+// Abort: free allocated inums and bnums. Nothing to do for freed
+// ones, because in-memory state hasn't been updated by freeINum()/freeBlock().
 func (atxn *AllocTxn) PostAbort() {
-	util.DPrintf(1, "Abort: inum free %v alloc %v\n", atxn.freeInums,
-		atxn.allocInums)
-	util.DPrintf(1, "Abort: blk free %v alloc %v\n", atxn.freeBnums,
-		atxn.allocBnums)
+	util.DPrintf(0, "Abort: inums %v blks %v\n", atxn.allocInums, atxn.allocBnums)
+	for _, inum := range atxn.allocInums {
+		atxn.Ialloc.FreeNum(uint64(inum))
+	}
+	for _, bn := range atxn.allocBnums {
+		atxn.Balloc.FreeNum(bn)
+	}
 }
 
 func (atxn *AllocTxn) AssertValidBlock(blkno common.Bnum) {

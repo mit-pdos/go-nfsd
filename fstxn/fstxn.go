@@ -57,19 +57,14 @@ func (op *FsTxn) releaseInodes() {
 
 func AllocInode(op *FsTxn, kind nfstypes.Ftype3) (*FsTxn, *inode.Inode) {
 	var ip *inode.Inode
-	inum := common.Inum(op.Fs.Ialloc.AllocNum())
+	inum := op.Atxn.AllocINum()
 	if inum != common.NULLINUM {
 		ip = op.GetInodeLocked(inum)
 		if ip.Kind != inode.NF3FREE {
 			panic("AllocInode")
 		}
-		if ip.IsShrinking() {
-			// give the number back so that if HelpShrink()
-			// commits, it doesn't mark inum as allocated.
-			op.Fs.Ialloc.FreeNum(uint64(inum))
-		} else {
+		if !ip.IsShrinking() {
 			util.DPrintf(1, "AllocInode -> # %v\n", inum)
-			op.Atxn.AllocINum(inum)
 			ip.InitInode(inum, kind)
 			ip.WriteInode(op.Atxn)
 		}
