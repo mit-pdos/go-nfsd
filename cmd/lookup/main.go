@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime/pprof"
+	"strconv"
 	"time"
 
 	goose_nfs "github.com/mit-pdos/goose-nfsd"
@@ -29,8 +30,8 @@ func main() {
 	PLookup()
 }
 
-func Lookup(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) {
-	reply := clnt.LookupOp(dirfh, "x")
+func Lookup(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3, name string) {
+	reply := clnt.LookupOp(dirfh, name)
 	if reply.Status != nfstypes.NFS3_OK {
 		panic("Lookup")
 	}
@@ -47,11 +48,13 @@ func PLookup() {
 	for i := 1; i <= NTHREAD; i++ {
 		res := goose_nfs.Parallel(i, BENCHDISKSZ,
 			func(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) int {
-				clnt.CreateOp(dirfh, "x")
+				s := strconv.Itoa(i)
+				name := "x" + s
+				clnt.CreateOp(dirfh, name)
 				start := time.Now()
 				i := 0
 				for true {
-					Lookup(clnt, dirfh)
+					Lookup(clnt, dirfh, name)
 					i++
 					t := time.Now()
 					elapsed := t.Sub(start)
