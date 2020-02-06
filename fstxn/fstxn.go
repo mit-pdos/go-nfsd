@@ -12,7 +12,7 @@ import (
 
 //
 // fstxn implements transactions using alloctxn.  It adds to alloctxn
-// support for an inode cache.
+// support for locking inodes and an inode cache.
 //
 
 type FsTxn struct {
