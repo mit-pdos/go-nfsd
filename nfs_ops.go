@@ -318,7 +318,6 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 // so, doAlloc must lookup dip etc. again in the new transaction.
 func (nfs *Nfs) getAlloc(op *fstxn.FsTxn, dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3) (*fstxn.FsTxn, *inode.Inode, *inode.Inode, nfstypes.Nfsstat3) {
 	var ip *inode.Inode
-	var ok bool
 	for {
 		id := op.Atxn.Id()
 		dip := op.GetInodeFh(dfh)
@@ -329,15 +328,18 @@ func (nfs *Nfs) getAlloc(op *fstxn.FsTxn, dfh nfstypes.Nfs_fh3, name nfstypes.Fi
 		if inum != common.NULLINUM {
 			return op, nil, nil, nfstypes.NFS3ERR_EXIST
 		}
-		op, ip, ok = fstxn.AllocInode(op, kind)
+		op, ip = fstxn.AllocInode(op, kind)
+		if ip == nil {
+			return op, nil, nil, nfstypes.NFS3ERR_NOSPC
+		}
 		if ip.IsShrinking() {
 			inum := ip.Inum
 			op.Commit() // Shrinker starts new trans
-			ok = nfs.shrinkst.DoShrink(inum)
+			ok := nfs.shrinkst.DoShrink(inum)
 			op = fstxn.Begin(nfs.fsstate)
-		}
-		if !ok {
-			return op, nil, nil, nfstypes.NFS3ERR_SERVERFAULT
+			if !ok {
+				return op, nil, nil, nfstypes.NFS3ERR_SERVERFAULT
+			}
 		}
 		if op.Atxn.Id() == id {
 			return op, dip, ip, nfstypes.NFS3_OK
