@@ -99,7 +99,7 @@ func (atxn *AllocTxn) PostCommit() {
 // Abort: free allocated inums and bnums. Nothing to do for freed
 // ones, because in-memory state hasn't been updated by freeINum()/freeBlock().
 func (atxn *AllocTxn) PostAbort() {
-	util.DPrintf(0, "Abort: inums %v blks %v\n", atxn.allocInums, atxn.allocBnums)
+	util.DPrintf(1, "Abort: inums %v blks %v\n", atxn.allocInums, atxn.allocBnums)
 	for _, inum := range atxn.allocInums {
 		atxn.Ialloc.FreeNum(uint64(inum))
 	}

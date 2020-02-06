@@ -68,7 +68,7 @@ func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*fstxn.FsTxn, *inode.Inode, nfst
 			break
 		}
 		inum := ip.Inum
-		util.DPrintf(0, "getShrink: abort to shrink")
+		util.DPrintf(1, "getShrink: abort to shrink")
 		op.Abort() // Shrinker starts new trans
 		ok = nfs.shrinkst.DoShrink(inum)
 		op = fstxn.Begin(nfs.fsstate)
@@ -334,7 +334,7 @@ func (nfs *Nfs) getAlloc(op *fstxn.FsTxn, dfh nfstypes.Nfs_fh3, name nfstypes.Fi
 			return op, nil, nil, nfstypes.NFS3ERR_NOSPC
 		}
 		if ip.IsShrinking() {
-			util.DPrintf(0, "getAlloc: abort to shrink")
+			util.DPrintf(1, "getAlloc: abort to shrink")
 			inum := ip.Inum
 			op.Abort() // Shrinker starts new trans
 			ok := nfs.shrinkst.DoShrink(inum)
