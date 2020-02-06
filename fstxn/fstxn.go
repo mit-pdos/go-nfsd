@@ -55,7 +55,7 @@ func (op *FsTxn) releaseInodes() {
 	}
 }
 
-func AllocInode(op *FsTxn, kind nfstypes.Ftype3) (*FsTxn, *inode.Inode) {
+func (op *FsTxn) AllocInode(kind nfstypes.Ftype3) *inode.Inode {
 	var ip *inode.Inode
 	inum := op.Atxn.AllocINum()
 	if inum != common.NULLINUM {
@@ -69,7 +69,7 @@ func AllocInode(op *FsTxn, kind nfstypes.Ftype3) (*FsTxn, *inode.Inode) {
 			ip.WriteInode(op.Atxn)
 		}
 	}
-	return op, ip
+	return ip
 }
 
 func (op *FsTxn) ReleaseInode(ip *inode.Inode) {

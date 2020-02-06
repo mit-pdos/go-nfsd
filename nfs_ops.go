@@ -53,6 +53,8 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	return reply
 }
 
+// getShrink may lookup an inode that is shrining. If so, do/help shrinking in a
+// transaction and redo lookup after shrinking.
 func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*fstxn.FsTxn, *inode.Inode, nfstypes.Nfsstat3) {
 	var op *fstxn.FsTxn
 	var ip *inode.Inode
@@ -69,11 +71,12 @@ func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*fstxn.FsTxn, *inode.Inode, nfst
 		}
 		inum := ip.Inum
 		util.DPrintf(1, "getShrink: abort to shrink")
-		op.Abort() // Shrinker starts new trans
+		op.Abort()
 		ok = nfs.shrinkst.DoShrink(inum)
 		op = fstxn.Begin(nfs.fsstate)
 		if !ok {
-			return op, ip, nfstypes.NFS3ERR_SERVERFAULT
+			err = nfstypes.NFS3ERR_SERVERFAULT
+			break
 		}
 		util.DPrintf(1, "getShrink: retry %d\n", op.Atxn.Id())
 	}
@@ -314,40 +317,44 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	return reply
 }
 
-// getAlloc is complicated because AllocInode() may start a new
-// transaction because it had to shrink the allocated inode first. If
-// so, doAlloc must lookup dip etc. again in the new transaction.
+// getAlloc is complicated because AllocInode() may return an inode
+// that needs to be shrunk, and shrinking runs in its own transaction.
 func (nfs *Nfs) getAlloc(op *fstxn.FsTxn, dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3) (*fstxn.FsTxn, *inode.Inode, *inode.Inode, nfstypes.Nfsstat3) {
 	var ip *inode.Inode
+	var dip *inode.Inode
+	var err = nfstypes.NFS3_OK
 	for {
-		id := op.Atxn.Id()
-		dip := op.GetInodeFh(dfh)
+		dip = op.GetInodeFh(dfh)
 		if dip == nil {
-			return op, nil, nil, nfstypes.NFS3ERR_STALE
+			err = nfstypes.NFS3ERR_STALE
+			break
 		}
 		inum, _ := dir.LookupName(dip, op, name)
 		if inum != common.NULLINUM {
-			return op, nil, nil, nfstypes.NFS3ERR_EXIST
+			err = nfstypes.NFS3ERR_EXIST
+			break
 		}
-		op, ip = fstxn.AllocInode(op, kind)
+		ip = op.AllocInode(kind)
 		if ip == nil {
-			return op, nil, nil, nfstypes.NFS3ERR_NOSPC
+			err = nfstypes.NFS3ERR_NOSPC
+			break
 		}
-		if ip.IsShrinking() {
-			util.DPrintf(1, "getAlloc: abort to shrink")
-			inum := ip.Inum
-			op.Abort() // Shrinker starts new trans
-			ok := nfs.shrinkst.DoShrink(inum)
-			op = fstxn.Begin(nfs.fsstate)
-			if !ok {
-				return op, nil, nil, nfstypes.NFS3ERR_SERVERFAULT
-			}
+		if !ip.IsShrinking() {
+			break
 		}
-		if op.Atxn.Id() == id {
-			return op, dip, ip, nfstypes.NFS3_OK
+		util.DPrintf(1, "getAlloc: abort to shrink")
+		inum = ip.Inum
+		op.Abort()
+		ok := nfs.shrinkst.DoShrink(inum)
+		op = fstxn.Begin(nfs.fsstate)
+		if !ok {
+			err = nfstypes.NFS3ERR_SERVERFAULT
+			break
 		}
+
 		util.DPrintf(1, "getAlloc: retry %d\n", op.Atxn.Id())
 	}
+	return op, dip, ip, err
 }
 
 func (nfs *Nfs) doDecLink(op *fstxn.FsTxn, ip *inode.Inode) {
