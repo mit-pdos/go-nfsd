@@ -5,12 +5,11 @@ import (
 
 	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/fake-bcache/bcache"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
 type FsSuper struct {
-	Disk         *bcache.Bcache
+	Disk         disk.Disk
 	Size         uint64
 	nLog         uint64 // including commit block
 	NBlockBitmap uint64
@@ -35,10 +34,10 @@ func MkFsSuper(sz uint64, name *string) *FsSuper {
 	}
 
 	// use the disk with a buffer cache
-	bc := bcache.MkBcache(d)
+	// bc := bcache.MkBcache(d)
 
 	return &FsSuper{
-		Disk:         bc,
+		Disk:         d,
 		Size:         sz,
 		nLog:         common.LOGSIZE,
 		NBlockBitmap: nblockbitmap,

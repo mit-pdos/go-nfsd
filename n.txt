@@ -114,3 +114,15 @@ gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -Wall -MD -ggdb
 objdump -S kernel > kernel.asm
 objdump -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel.sym
 [xv6 (xv6-64)]$  
+
+* <2020-02-11 Tue>: performance benefit of bcache
+** without bcache
+- in-server
+smallfile: 10055.8 file/s with 1 threads
+largefile: 50 MB througput 491.38 MB/s
+- mounting nfs
+[goose-nfs (master)]$ go run ./cmd/fs-largefile/main.go 
+fs-largefile: 50 MB througput 159.74 MB/s
+[goose-nfs (master)]$ go run ./cmd/fs-smallfile/main.go 
+fs-smallfile: 2459.8 file/sec
+** with bcache

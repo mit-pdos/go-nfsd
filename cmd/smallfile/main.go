@@ -65,7 +65,7 @@ func mkdata(sz uint64) []byte {
 
 func PSmallFile() {
 	const N = 10 * time.Second
-	const NTHREAD = 4
+	const NTHREAD = 1
 	for i := 1; i <= NTHREAD; i++ {
 		res := goose_nfs.Parallel(i, BENCHDISKSZ,
 			func(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) int {
