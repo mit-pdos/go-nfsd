@@ -197,9 +197,23 @@ func (ts *TestState) readcheck(fh nfstypes.Nfs_fh3, off uint64, data []byte) {
 }
 
 func newTest(t *testing.T) *TestState {
+	return newTestDiskOrMem(t, false)
+}
+
+func newMemTest(t *testing.T) *TestState {
+	return newTestDiskOrMem(t, true)
+}
+
+func newTestDiskOrMem(t *testing.T, mem bool) *TestState {
 	checkFlags()
 	fmt.Printf("%s\n", t.Name())
-	return &TestState{t: t, clnt: MkNfsClient(DISKSZ)}
+	ts := &TestState{t: t}
+	if mem {
+		ts.clnt = &NfsClient{srv: MakeNfs(nil, DISKSZ)}
+	} else {
+		ts.clnt = MkNfsClient(DISKSZ)
+	}
+	return ts
 }
 
 func (ts *TestState) Close() {
@@ -724,7 +738,7 @@ func TestTooLargeFile(t *testing.T) {
 }
 
 func TestInodeExhaust(t *testing.T) {
-	ts := newTest(t)
+	ts := newTestDiskOrMem(t, true)
 	defer ts.Close()
 
 	for j := 0; j < 4; j++ {

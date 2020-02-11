@@ -75,9 +75,12 @@ func (nfs *Nfs) doShutdown(destroy bool) {
 	nfs.shrinkst.Shutdown()
 	nfs.fsstate.Txn.Shutdown()
 
-	if destroy {
+	if destroy && nfs.Name != nil {
 		util.DPrintf(1, "Destroy %v\n", *nfs.Name)
-		os.Remove(*nfs.Name)
+		err := os.Remove(*nfs.Name)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	util.DPrintf(1, "Shutdown done\n")
