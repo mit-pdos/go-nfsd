@@ -13,12 +13,13 @@ import (
 const BCACHESZ uint64 = 512
 
 type Bcache struct {
-	// d      disk.Disk
+	d      disk.Disk
 	bcache *cache.Cache
 }
 
 func MkBcache(d disk.Disk) *Bcache {
 	return &Bcache{
+		d:      d,
 		bcache: cache.MkCache(BCACHESZ),
 	}
 }
@@ -29,7 +30,7 @@ func (bc *Bcache) Read(bn uint64) disk.Block {
 		panic("readBlock")
 	}
 	if cslot.Obj == nil {
-		cslot.Obj = disk.Read(bn)
+		cslot.Obj = bc.d.Read(bn)
 	}
 	b := cslot.Obj.(disk.Block)
 	blk := make([]byte, disk.BlockSize)
@@ -45,7 +46,7 @@ func (bc *Bcache) Write(bn uint64, b disk.Block) {
 	if cslot != nil {
 		cslot.Obj = b
 	}
-	disk.Write(bn, b)
+	bc.d.Write(bn, b)
 }
 
 //func (bc *Bcache) Close() {
@@ -53,7 +54,7 @@ func (bc *Bcache) Write(bn uint64, b disk.Block) {
 //}
 
 func (bc *Bcache) Barrier() {
-	disk.Barrier()
+	bc.d.Barrier()
 }
 
 func (bc *Bcache) Size() uint64 {

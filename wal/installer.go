@@ -1,7 +1,7 @@
 package wal
 
 import (
-	"github.com/mit-pdos/goose-nfsd/fake-bcache/bcache"
+	"github.com/mit-pdos/goose-nfsd/bcache"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 

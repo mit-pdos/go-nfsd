@@ -114,3 +114,11 @@ gcc -fno-pic -static -fno-builtin -fno-strict-aliasing -Wall -MD -ggdb
 objdump -S kernel > kernel.asm
 objdump -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel.sym
 [xv6 (xv6-64)]$  
+
+* <2020-02-12 Wed>: performance with buffer cache
+- in-memory
+smallfile: 9802.3 file/s with 1 threads
+largefile: 50 MB througput 426.76 MB/s
+- mounted
+fs-smallfile: 2680.1 file/sec
+fs-largefile: 50 MB througput 158.66 MB/s

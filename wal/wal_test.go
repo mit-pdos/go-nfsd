@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/bcache"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/fake-bcache/bcache"
 )
 
 type logWrapper struct {
