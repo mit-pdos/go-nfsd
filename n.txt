@@ -126,3 +126,10 @@ fs-largefile: 50 MB througput 159.74 MB/s
 [goose-nfs (master)]$ go run ./cmd/fs-smallfile/main.go 
 fs-smallfile: 2459.8 file/sec
 ** with bcache
+- in-memory
+smallfile: 9802.3 file/s with 1 threads
+largefile: 50 MB througput 426.76 MB/s
+- mounted
+fs-smallfile: 2680.1 file/sec
+fs-largefile: 50 MB througput 158.66 MB/s
+
