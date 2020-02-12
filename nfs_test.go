@@ -13,7 +13,6 @@ import (
 
 	"testing"
 
-	"github.com/mit-pdos/goose-nfsd/bcache"
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
@@ -606,8 +605,8 @@ func TestClearHole(t *testing.T) {
 	ts.ReadEof(fh, 2*sz, sz)
 }
 
-func (ts *TestState) evict(names []string) {
-	const N uint64 = bcache.BCACHESZ * 2
+func (ts *TestState) many(names []string) {
+	const N uint64 = 1024
 	var wg sync.WaitGroup
 	if N*uint64(len(names)) > DISKSZ {
 		panic("Disk is too small")
@@ -629,14 +628,14 @@ func (ts *TestState) evict(names []string) {
 	wg.Wait()
 }
 
-func TestSerialEvict(t *testing.T) {
+func TestSerialMany(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 
-	ts.evict([]string{"f0"})
+	ts.many([]string{"f0"})
 }
 
-func TestConcurEvict(t *testing.T) {
+func TestConcurMany(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 	const N = 4
@@ -646,7 +645,7 @@ func TestConcurEvict(t *testing.T) {
 		names[i] = "f" + strconv.Itoa(i)
 	}
 
-	ts.evict(names)
+	ts.many(names)
 }
 
 func TestWriteLargeFile(t *testing.T) {
