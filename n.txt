@@ -121,15 +121,13 @@ objdump -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > kernel.sym
 smallfile: 10055.8 file/s with 1 threads
 largefile: 50 MB througput 491.38 MB/s
 - mounting nfs
-[goose-nfs (master)]$ go run ./cmd/fs-largefile/main.go 
-fs-largefile: 50 MB througput 159.74 MB/s
-[goose-nfs (master)]$ go run ./cmd/fs-smallfile/main.go 
 fs-smallfile: 2459.8 file/sec
+fs-largefile: 50 MB througput 159.74 MB/s
 ** with bcache
-- in-memory
+- in-server
 smallfile: 9802.3 file/s with 1 threads
 largefile: 50 MB througput 426.76 MB/s
-- mounted
+- mounting nfs
 fs-smallfile: 2680.1 file/sec
 fs-largefile: 50 MB througput 158.66 MB/s
 
