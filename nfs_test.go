@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tchajed/goose/machine/disk"
 
 	"testing"
@@ -64,6 +65,7 @@ func (ts *TestState) Lookup(name string, succeed bool) nfstypes.Nfs_fh3 {
 }
 
 func (ts *TestState) Getattr(fh nfstypes.Nfs_fh3, sz uint64) nfstypes.Fattr3 {
+	require.NotNil(ts.t, fh.Data, "Getattr on nil file handle")
 	attr := ts.clnt.GetattrOp(fh)
 	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
 	assert.Equal(ts.t, nfstypes.NF3REG, attr.Resok.Obj_attributes.Ftype)
@@ -72,6 +74,7 @@ func (ts *TestState) Getattr(fh nfstypes.Nfs_fh3, sz uint64) nfstypes.Fattr3 {
 }
 
 func (ts *TestState) GetattrDir(fh nfstypes.Nfs_fh3) nfstypes.Fattr3 {
+	require.NotNil(ts.t, fh.Data, "GetattrDir on nil file handle")
 	attr := ts.clnt.GetattrOp(fh)
 	assert.Equal(ts.t, nfstypes.NFS3_OK, attr.Status)
 	assert.Equal(ts.t, attr.Resok.Obj_attributes.Ftype, nfstypes.NF3DIR)
@@ -79,6 +82,7 @@ func (ts *TestState) GetattrDir(fh nfstypes.Nfs_fh3) nfstypes.Fattr3 {
 }
 
 func (ts *TestState) GetattrFail(fh nfstypes.Nfs_fh3) {
+	require.NotNil(ts.t, fh.Data, "GetattrFail on nil file handle")
 	attr := ts.clnt.GetattrOp(fh)
 	assert.Equal(ts.t, attr.Status, nfstypes.NFS3ERR_STALE)
 }
