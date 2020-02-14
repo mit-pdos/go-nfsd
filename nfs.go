@@ -102,7 +102,7 @@ func (nfs *Nfs) Crash() {
 
 func (nfs *Nfs) makeRootDir() {
 	op := fstxn.Begin(nfs.fsstate)
-	ip := op.GetInodeInum(common.ROOTINUM)
+	ip := op.GetInodeInumFree(common.ROOTINUM)
 	if ip == nil {
 		panic("makeRootDir")
 	}
