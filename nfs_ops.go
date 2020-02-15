@@ -342,7 +342,7 @@ func (nfs *Nfs) getAlloc(op *fstxn.FsTxn, dfh nfstypes.Nfs_fh3, name nfstypes.Fi
 		if !ip.IsShrinking() {
 			break
 		}
-		util.DPrintf(0, "getAlloc: abort to shrink")
+		util.DPrintf(0, "getAlloc: abort alloc # %v to shrink", ip.Inum)
 		inum = ip.Inum
 		op.Abort()
 		ok := nfs.shrinkst.DoShrink(inum)

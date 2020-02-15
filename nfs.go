@@ -94,10 +94,11 @@ func (nfs *Nfs) ShutdownNfs() {
 	nfs.doShutdown(false)
 }
 
+// Terminates shrinker thread immediately
 func (nfs *Nfs) Crash() {
-	util.DPrintf(1, "Crash\n")
+	util.DPrintf(0, "Crash: terminate shrinker\n")
 	nfs.shrinkst.Crash()
-	// nfs.fsstate.Txn.Crash()
+	nfs.ShutdownNfs()
 }
 
 func (nfs *Nfs) makeRootDir() {
