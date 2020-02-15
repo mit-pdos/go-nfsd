@@ -812,6 +812,10 @@ func TestRestartReclaim(t *testing.T) {
 	ts.clnt.srv = MakeNfs(ts.clnt.srv.Name, DISKSZ)
 	ts.Lookup("x", false)
 
+	// Create will try re-allocate inode fhx.Ino, but abort since
+	// it must be shrunk first (because above the server
+	// ''crashed'' immediately after remove). Then, retrying,
+	// Create will allocate the next inode.
 	ts.Create("x")
 	fh3 := ts.Lookup("x", true)
 	fht := fh.MakeFh(fh3)
