@@ -1,6 +1,7 @@
 package goose_nfs
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/tchajed/goose/machine/disk"
@@ -47,8 +48,19 @@ func MkNfs(sz uint64) *Nfs {
 }
 
 func MakeNfs(name *string, sz uint64) *Nfs {
+	var d disk.Disk
+	if name == nil {
+		d = disk.NewMemDisk(sz)
+	} else {
+		util.DPrintf(1, "MakeNfs: creating file disk at %s", *name)
+		var err error
+		d, err = disk.NewFileDisk(*name, sz)
+		if err != nil {
+			panic(fmt.Errorf("could not create file disk: %v", err))
+		}
+	}
 	// run first so that disk is initialized before mkLog
-	super := super.MkFsSuper(sz, name)
+	super := super.MkFsSuper(d)
 	util.DPrintf(1, "Super: sz %d %v\n", sz, super)
 
 	txn := txn.MkTxn(super) // runs recovery

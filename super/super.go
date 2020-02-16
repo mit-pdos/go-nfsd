@@ -5,7 +5,6 @@ import (
 
 	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/util"
 )
 
 type FsSuper struct {
@@ -18,20 +17,9 @@ type FsSuper struct {
 	Maxaddr      uint64
 }
 
-func MkFsSuper(sz uint64, name *string) *FsSuper {
+func MkFsSuper(d disk.Disk) *FsSuper {
+	sz := d.Size()
 	nblockbitmap := (sz / common.NBITBLOCK) + 1
-	var d disk.Disk
-	if name != nil {
-		util.DPrintf(1, "MkFsSuper: open file disk %s\n", *name)
-		file, err := disk.NewFileDisk(*name, sz)
-		if err != nil {
-			panic("MkFsSuper: couldn't create disk image")
-		}
-		d = file
-	} else {
-		util.DPrintf(1, "MkFsSuper: create mem disk\n")
-		d = disk.NewMemDisk(sz)
-	}
 
 	return &FsSuper{
 		Disk:         d,
