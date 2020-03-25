@@ -2,6 +2,10 @@ package kvs
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
+	"path/filepath"
+	"strconv"
 
 	"github.com/tchajed/goose/machine/disk"
 
@@ -17,7 +21,6 @@ import (
 //
 
 const DISKSZ uint64 = 10 * 1000
-const DISKNAME string = "goose_kvs.img"
 
 type KVS struct {
 	super       *super.FsSuper
@@ -31,7 +34,14 @@ type KVPair struct {
 }
 
 func MkKVS() *KVS {
-	d, err := disk.NewFileDisk(DISKNAME, DISKSZ)
+	r := rand.Uint64()
+	tmpdir := "/dev/shm"
+	f, err := os.Stat(tmpdir)
+	if !(err == nil && f.IsDir()) {
+		tmpdir = os.TempDir()
+	}
+	n := filepath.Join(tmpdir, "goose"+strconv.FormatUint(r, 16)+".img")
+	d, err := disk.NewFileDisk(n, DISKSZ)
 	if err != nil {
 		panic(fmt.Errorf("could not create file disk: %v", err))
 	}
