@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/tchajed/goose/machine/disk"
 
@@ -34,6 +35,7 @@ type KVPair struct {
 }
 
 func MkKVS() *KVS {
+	rand.Seed(int64(time.Now().UnixNano()))
 	r := rand.Uint64()
 	tmpdir := "/dev/shm"
 	f, err := os.Stat(tmpdir)
