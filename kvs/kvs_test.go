@@ -47,4 +47,5 @@ func TestGetAndPuts(t *testing.T) {
 			}
 		}
 	}
+	kvs.Delete()
 }
