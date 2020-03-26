@@ -8,7 +8,8 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/addr"
-	"github.com/mit-pdos/goose-nfsd/buf"
+	"github.com/mit-pdos/goose-nfsd/buftxn"
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 )
@@ -19,16 +20,16 @@ import (
 //
 
 const DISKSZ uint64 = 10 * 1000
+const PRESENTBNUM uint64 = common.LOGSIZE
 
 type KVS struct {
-	name        *string
-	super       *super.FsSuper
-	txn         *txn.Txn
-	presentBufs *buf.BufMap
+	name  *string
+	super *super.FsSuper
+	txn   *txn.Txn
 }
 
 type KVPair struct {
-	Key addr.Addr
+	Key uint64
 	Val []byte
 }
 
@@ -39,6 +40,7 @@ func MkKVS() *KVS {
 		tmpdir = os.TempDir()
 	}
 	n := filepath.Join(tmpdir, "goose_kvs.img")
+	os.Remove(n)
 	d, err := disk.NewFileDisk(n, DISKSZ)
 	if err != nil {
 		panic(fmt.Errorf("could not create file disk: %v", err))
@@ -46,40 +48,28 @@ func MkKVS() *KVS {
 
 	fsSuper := super.MkFsSuper(d)
 	kvs := &KVS{
-		name:        &n,
-		presentBufs: buf.MkBufMap(),
-		super:       fsSuper,
-		txn:         txn.MkTxn(fsSuper),
+		name:  &n,
+		super: fsSuper,
+		txn:   txn.MkTxn(fsSuper),
 	}
 	return kvs
 }
 
 func (kvs *KVS) MultiPut(pairs []KVPair) bool {
-	var bufs []*buf.Buf
+	btxn := buftxn.Begin(kvs.txn)
 	for _, p := range pairs {
-		b := kvs.presentBufs.Lookup(p.Key)
-		if b == nil {
-			b = kvs.txn.Load(p.Key)
-			kvs.presentBufs.Insert(b)
-		}
-		if uint64(len(p.Val)*8) != b.Addr.Sz {
-			panic("overwrite")
-		}
-		b.Blk = p.Val
-		bufs = append(bufs, b)
+		akey := addr.MkAddr(p.Key+common.LOGSIZE, 0, disk.BlockSize*8)
+		btxn.OverWrite(akey, p.Val)
 	}
-	ok := kvs.txn.CommitWait(bufs, true, kvs.txn.GetTransId())
+	ok := btxn.CommitWait(true)
 	return ok
 }
 
-func (kvs *KVS) Get(key addr.Addr) *KVPair {
-	// only return a key if it has been added to the map
-	// otherwise return nil
-	var data []byte
-	b := kvs.presentBufs.Lookup(key)
-	if b != nil {
-		data = b.Blk
-	}
+func (kvs *KVS) Get(key uint64) *KVPair {
+	btxn := buftxn.Begin(kvs.txn)
+	akey := addr.MkAddr(key+common.LOGSIZE, 0, disk.BlockSize*8)
+	data := btxn.ReadBuf(akey).Blk
+	btxn.CommitWait(true)
 	return &KVPair{
 		Key: key,
 		Val: data,
