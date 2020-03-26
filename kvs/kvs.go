@@ -12,6 +12,7 @@ import (
 
 	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/buf"
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 )
@@ -62,13 +63,13 @@ func (kvs *KVS) MultiPut(pairs []KVPair) bool {
 	for _, p := range pairs {
 		b := kvs.presentBufs.Lookup(p.Key)
 		if b == nil {
-			b = kvs.txn.Load(p.Key)
+			b = kvs.txn.Load(p.Key, common.NBITBLOCK)
 			kvs.presentBufs.Insert(b)
 		}
-		if uint64(len(p.Val)*8) != b.Addr.Sz {
+		if uint64(len(p.Val)*8) != b.Sz {
 			panic("overwrite")
 		}
-		b.Blk = p.Val
+		b.Data = p.Val
 		bufs = append(bufs, b)
 	}
 	ok := kvs.txn.CommitWait(bufs, true, kvs.txn.GetTransId())
@@ -81,7 +82,7 @@ func (kvs *KVS) Get(key addr.Addr) *KVPair {
 	var data []byte
 	b := kvs.presentBufs.Lookup(key)
 	if b != nil {
-		data = b.Blk
+		data = b.Data
 	}
 	return &KVPair{
 		Key: key,

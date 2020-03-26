@@ -52,7 +52,7 @@ func (fs *FsSuper) DataStart() common.Bnum {
 }
 
 func (fs *FsSuper) Block2addr(blkno common.Bnum) addr.Addr {
-	return addr.MkAddr(blkno, 0, common.NBITBLOCK)
+	return addr.MkAddr(blkno, 0)
 }
 
 func (fs *FsSuper) NInode() common.Inum {
@@ -61,9 +61,5 @@ func (fs *FsSuper) NInode() common.Inum {
 
 func (fs *FsSuper) Inum2Addr(inum common.Inum) addr.Addr {
 	return addr.MkAddr(fs.InodeStart()+common.Bnum(uint64(inum)/common.INODEBLK),
-		(uint64(inum)%common.INODEBLK)*common.INODESZ*8, common.INODESZ*8)
-}
-
-func (fs *FsSuper) DiskBlockSize(addr addr.Addr) bool {
-	return addr.Sz == common.NBITBLOCK
+		(uint64(inum)%common.INODEBLK)*common.INODESZ*8)
 }

@@ -91,7 +91,7 @@ func (op *FsTxn) GetInodeLocked(inum common.Inum) *inode.Inode {
 	cslot := op.LockInode(inum)
 	if cslot.Obj == nil {
 		addr := op.Fs.Super.Inum2Addr(inum)
-		buf := op.Atxn.Buftxn.ReadBuf(addr)
+		buf := op.Atxn.Buftxn.ReadBuf(addr, common.INODESZ*8)
 		i := inode.Decode(buf, inum)
 		util.DPrintf(1, "GetInodeLocked # %v: read inode from disk\n", inum)
 		cslot.Obj = i

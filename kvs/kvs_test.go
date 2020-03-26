@@ -26,7 +26,7 @@ func TestGetAndPuts(t *testing.T) {
 	addrs := []addr.Addr{}
 	vals := [][]byte{}
 	for i := 0; i < 10; i++ {
-		addrs = append(addrs, addr.MkAddr(uint64(i), 0, OBJSZ*8))
+		addrs = append(addrs, addr.MkAddr(uint64(i), 0))
 		vals = append(vals, mkdataval(byte(i), OBJSZ))
 		pairs = append(pairs, KVPair{addrs[i], vals[i]})
 	}
@@ -37,7 +37,7 @@ func TestGetAndPuts(t *testing.T) {
 	}
 
 	// ensure that get of a non-present key fails
-	addrs = append(addrs, addr.MkAddr(10, 0, OBJSZ*8))
+	addrs = append(addrs, addr.MkAddr(10, 0))
 	vals = append(vals, []byte{})
 	for i := 0; i < 11; i++ {
 		p := kvs.Get(addrs[i])
