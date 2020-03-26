@@ -113,7 +113,7 @@ func (ip *Inode) Encode() []byte {
 
 func Decode(buf *buf.Buf, inum common.Inum) *Inode {
 	ip := new(Inode)
-	dec := marshal.NewDec(buf.Blk)
+	dec := marshal.NewDec(buf.Data)
 	ip.Inum = inum
 	ip.Kind = nfstypes.Ftype3(dec.GetInt32())
 	ip.Nlink = dec.GetInt32()
@@ -149,7 +149,7 @@ func (ip *Inode) WriteInode(atxn *alloctxn.AllocTxn) {
 		panic("WriteInode")
 	}
 	d := ip.Encode()
-	atxn.Buftxn.OverWrite(atxn.Super.Inum2Addr(ip.Inum), d)
+	atxn.Buftxn.OverWrite(atxn.Super.Inum2Addr(ip.Inum), common.INODESZ*8, d)
 	util.DPrintf(1, "WriteInode %v\n", ip)
 }
 
@@ -286,7 +286,7 @@ func (ip *Inode) Read(atxn *alloctxn.AllocTxn, offset uint64, bytesToRead uint64
 		buf := atxn.ReadBlock(blkno)
 
 		for b := uint64(0); b < nbytes; b++ {
-			data = append(data, buf.Blk[byteoff+b])
+			data = append(data, buf.Data[byteoff+b])
 		}
 		n += nbytes
 		off += nbytes
@@ -325,11 +325,11 @@ func (ip *Inode) Write(atxn *alloctxn.AllocTxn, offset uint64,
 		}
 		if byteoff == 0 && nbytes == disk.BlockSize { // block overwrite?
 			addr := atxn.Super.Block2addr(blkno)
-			atxn.Buftxn.OverWrite(addr, data[0:nbytes])
+			atxn.Buftxn.OverWrite(addr, common.NBITBLOCK, data[0:nbytes])
 		} else {
 			buffer := atxn.ReadBlock(blkno)
 			for b := uint64(0); b < nbytes; b++ {
-				buffer.Blk[byteoff+b] = data[b]
+				buffer.Data[byteoff+b] = data[b]
 			}
 			buffer.SetDirty()
 		}

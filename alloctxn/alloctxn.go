@@ -66,7 +66,7 @@ func (atxn *AllocTxn) WriteBits(nums []uint64, blk uint64, alloc bool) {
 		if !alloc {
 			b = ^b
 		}
-		atxn.Buftxn.OverWrite(a, []byte{b})
+		atxn.Buftxn.OverWrite(a, 1, []byte{b})
 	}
 }
 
@@ -140,14 +140,14 @@ func (atxn *AllocTxn) ReadBlock(blkno common.Bnum) *buf.Buf {
 	util.DPrintf(5, "ReadBlock %d\n", blkno)
 	atxn.AssertValidBlock(blkno)
 	addr := atxn.Super.Block2addr(blkno)
-	return atxn.Buftxn.ReadBuf(addr)
+	return atxn.Buftxn.ReadBuf(addr, common.NBITBLOCK)
 }
 
 func (atxn *AllocTxn) ZeroBlock(blkno common.Bnum) {
 	util.DPrintf(5, "zero block %d\n", blkno)
 	buf := atxn.ReadBlock(blkno)
-	for i := range buf.Blk {
-		buf.Blk[i] = 0
+	for i := range buf.Data {
+		buf.Data[i] = 0
 	}
 	buf.SetDirty()
 }

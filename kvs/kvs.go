@@ -59,8 +59,8 @@ func MkKVS() *KVS {
 func (kvs *KVS) MultiPut(pairs []KVPair) bool {
 	btxn := buftxn.Begin(kvs.txn)
 	for _, p := range pairs {
-		akey := addr.MkAddr(p.Key+common.LOGSIZE, 0, disk.BlockSize*8)
-		btxn.OverWrite(akey, p.Val)
+		akey := addr.MkAddr(p.Key+common.LOGSIZE, 0)
+		btxn.OverWrite(akey, common.NBITBLOCK, p.Val)
 	}
 	ok := btxn.CommitWait(true)
 	return ok
@@ -68,8 +68,8 @@ func (kvs *KVS) MultiPut(pairs []KVPair) bool {
 
 func (kvs *KVS) Get(key uint64) *KVPair {
 	btxn := buftxn.Begin(kvs.txn)
-	akey := addr.MkAddr(key+common.LOGSIZE, 0, disk.BlockSize*8)
-	data := btxn.ReadBuf(akey).Blk
+	akey := addr.MkAddr(key+common.LOGSIZE, 0)
+	data := btxn.ReadBuf(akey, common.NBITBLOCK).Data
 	btxn.CommitWait(true)
 	return &KVPair{
 		Key: key,

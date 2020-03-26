@@ -134,7 +134,7 @@ func makeFs(super *super.FsSuper) {
 	util.DPrintf(1, "root %v\n", root)
 	raddr := super.Inum2Addr(common.ROOTINUM)
 	rootblk := root.Encode()
-	rootbuf := buf.MkBuf(raddr, rootblk)
+	rootbuf := buf.MkBuf(raddr, common.INODESZ*8, rootblk)
 	rootbuf.WriteDirect(super.Disk)
 
 	markAlloc(super, super.DataStart(), super.MaxBnum())
@@ -178,7 +178,7 @@ func markAlloc(super *super.FsSuper, n common.Bnum, m common.Bnum) {
 func readRootInode(super *super.FsSuper) *inode.Inode {
 	addr := super.Inum2Addr(common.ROOTINUM)
 	blk := super.Disk.Read(uint64(addr.Blkno))
-	buf := buf.MkBufLoad(addr, blk)
+	buf := buf.MkBufLoad(addr, common.INODESZ*8, blk)
 	i := inode.Decode(buf, common.ROOTINUM)
 	return i
 }
