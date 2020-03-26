@@ -3,6 +3,7 @@ package kvs
 import (
 	"fmt"
 	"log"
+	"os"
 	"testing"
 
 	"github.com/tchajed/goose/machine/disk"
@@ -18,7 +19,13 @@ func mkdataval(b byte, sz uint64) []byte {
 
 func TestGetAndPuts(t *testing.T) {
 	fmt.Printf("TestGetAndPuts\n")
-	kvs := MkKVS()
+
+	os.Remove(DISKNAME)
+	d, err := disk.NewFileDisk(DISKNAME, DISKSZ)
+	if err != nil {
+		panic(fmt.Errorf("could not create file disk: %v", err))
+	}
+	kvs := MkKVS(d)
 
 	pairs := []KVPair{}
 	keys := []uint64{}
@@ -47,4 +54,8 @@ func TestGetAndPuts(t *testing.T) {
 		log.Fatalf("Returned nonpresent key")
 	}*/
 	kvs.Delete()
+	err = os.Remove(DISKNAME)
+	if err != nil {
+		panic(err)
+	}
 }

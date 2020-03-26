@@ -1,9 +1,6 @@
 package kvs
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/addr"
@@ -31,13 +28,7 @@ type KVPair struct {
 	Val []byte
 }
 
-func MkKVS() *KVS {
-	os.Remove(DISKNAME)
-	d, err := disk.NewFileDisk(DISKNAME, DISKSZ)
-	if err != nil {
-		panic(fmt.Errorf("could not create file disk: %v", err))
-	}
-
+func MkKVS(d disk.Disk) *KVS {
 	fsSuper := super.MkFsSuper(d)
 	kvs := &KVS{
 		super: fsSuper,
@@ -69,8 +60,4 @@ func (kvs *KVS) Get(key uint64) *KVPair {
 
 func (kvs *KVS) Delete() {
 	kvs.txn.Shutdown()
-	err := os.Remove(DISKNAME)
-	if err != nil {
-		panic(err)
-	}
 }
