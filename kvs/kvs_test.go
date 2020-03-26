@@ -5,10 +5,8 @@ import (
 	"log"
 	"testing"
 
-	"github.com/mit-pdos/goose-nfsd/addr"
+	"github.com/tchajed/goose/machine/disk"
 )
-
-const OBJSZ uint64 = 128
 
 func mkdataval(b byte, sz uint64) []byte {
 	data := make([]byte, sz)
@@ -23,12 +21,12 @@ func TestGetAndPuts(t *testing.T) {
 	kvs := MkKVS()
 
 	pairs := []KVPair{}
-	addrs := []addr.Addr{}
+	keys := []uint64{}
 	vals := [][]byte{}
 	for i := 0; i < 10; i++ {
-		addrs = append(addrs, addr.MkAddr(uint64(i), 0))
-		vals = append(vals, mkdataval(byte(i), OBJSZ))
-		pairs = append(pairs, KVPair{addrs[i], vals[i]})
+		keys = append(keys, uint64(i))
+		vals = append(vals, mkdataval(byte(i), disk.BlockSize))
+		pairs = append(pairs, KVPair{keys[i], vals[i]})
 	}
 
 	ok := kvs.MultiPut(pairs)
@@ -36,15 +34,17 @@ func TestGetAndPuts(t *testing.T) {
 		log.Fatalf("Puts failed")
 	}
 
-	// ensure that get of a non-present key fails
-	addrs = append(addrs, addr.MkAddr(10, 0))
-	vals = append(vals, []byte{})
-	for i := 0; i < 11; i++ {
-		p := kvs.Get(addrs[i])
+	for i := 0; i < 10; i++ {
+		p := kvs.Get(keys[i])
 		for j := range p.Val {
 			if p.Val[j] != vals[i][j] {
-				log.Fatalf("Got %d, expected %d", p.Val, vals[i])
+				log.Fatalf("%d: Got %d, expected %d", i, p.Val[j], vals[i][j])
 			}
 		}
 	}
+	/*keys = append(keys, 12)
+	if kvs.Get(keys[10]) != nil {
+		log.Fatalf("Returned nonpresent key")
+	}*/
+	kvs.Delete()
 }
