@@ -3,7 +3,6 @@ package kvs
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/tchajed/goose/machine/disk"
 
@@ -20,10 +19,9 @@ import (
 //
 
 const DISKSZ uint64 = 10 * 1000
-const PRESENTBNUM uint64 = common.LOGSIZE
+const DISKNAME string = "goose_kvs.img"
 
 type KVS struct {
-	name  *string
 	super *super.FsSuper
 	txn   *txn.Txn
 }
@@ -34,22 +32,14 @@ type KVPair struct {
 }
 
 func MkKVS() *KVS {
-	var tmpdir string
-	tmpdir = "/dev/shm"
-	f, err := os.Stat(tmpdir)
-	if !(err == nil && f.IsDir()) {
-		tmpdir = os.TempDir()
-	}
-	n := filepath.Join(tmpdir, "goose_kvs.img")
-	os.Remove(n)
-	d, err := disk.NewFileDisk(n, DISKSZ)
+	os.Remove(DISKNAME)
+	d, err := disk.NewFileDisk(DISKNAME, DISKSZ)
 	if err != nil {
 		panic(fmt.Errorf("could not create file disk: %v", err))
 	}
 
 	fsSuper := super.MkFsSuper(d)
 	kvs := &KVS{
-		name:  &n,
 		super: fsSuper,
 		txn:   txn.MkTxn(fsSuper),
 	}
@@ -79,10 +69,8 @@ func (kvs *KVS) Get(key uint64) *KVPair {
 
 func (kvs *KVS) Delete() {
 	kvs.txn.Shutdown()
-	if kvs.name != nil {
-		err := os.Remove(*kvs.name)
-		if err != nil {
-			panic(err)
-		}
+	err := os.Remove(DISKNAME)
+	if err != nil {
+		panic(err)
 	}
 }
