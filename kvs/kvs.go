@@ -34,7 +34,8 @@ type KVPair struct {
 }
 
 func MkKVS() *KVS {
-	tmpdir := "/dev/shm"
+	var tmpdir string
+	tmpdir = "/dev/shm"
 	f, err := os.Stat(tmpdir)
 	if !(err == nil && f.IsDir()) {
 		tmpdir = os.TempDir()
