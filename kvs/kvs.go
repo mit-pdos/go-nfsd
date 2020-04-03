@@ -1,12 +1,9 @@
 package kvs
 
 import (
-	"github.com/tchajed/goose/machine/disk"
-
 	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 )
 
@@ -19,8 +16,7 @@ const DISKSZ uint64 = 10 * 1000
 const DISKNAME string = "goose_kvs.img"
 
 type KVS struct {
-	super *super.FsSuper
-	txn   *txn.Txn
+	txn *txn.Txn
 }
 
 type KVPair struct {
@@ -28,11 +24,9 @@ type KVPair struct {
 	Val []byte
 }
 
-func MkKVS(d disk.Disk) *KVS {
-	fsSuper := super.MkFsSuper(d)
+func MkKVS(txn *txn.Txn) *KVS {
 	kvs := &KVS{
-		super: fsSuper,
-		txn:   txn.MkTxn(fsSuper),
+		txn: txn,
 	}
 	return kvs
 }

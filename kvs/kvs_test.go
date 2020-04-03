@@ -6,6 +6,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/mit-pdos/goose-nfsd/super"
+	"github.com/mit-pdos/goose-nfsd/txn"
+	"github.com/mit-pdos/goose-nfsd/util"
 	"github.com/tchajed/goose/machine/disk"
 )
 
@@ -25,7 +28,11 @@ func TestGetAndPuts(t *testing.T) {
 	if err != nil {
 		panic(fmt.Errorf("could not create file disk: %v", err))
 	}
-	kvs := MkKVS(d)
+	super := super.MkFsSuper(d)
+	util.DPrintf(1, "Super: sz %d %v\n", DISKSZ, super)
+
+	txn := txn.MkTxn(super) // runs recovery
+	kvs := MkKVS(txn)
 
 	pairs := []KVPair{}
 	keys := []uint64{}
