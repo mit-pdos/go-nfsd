@@ -4,7 +4,10 @@ import (
 	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/common"
+	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
+	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/tchajed/goose/machine/disk"
 )
 
 //
@@ -24,7 +27,10 @@ type KVPair struct {
 	Val []byte
 }
 
-func MkKVS(txn *txn.Txn) *KVS {
+func MkKVS(d disk.FileDisk) *KVS {
+	super := super.MkFsSuper(d)
+	util.DPrintf(1, "Super: sz %d %v\n", DISKSZ, super)
+	txn := txn.MkTxn(super)
 	kvs := &KVS{
 		txn: txn,
 	}
