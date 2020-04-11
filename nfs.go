@@ -8,10 +8,8 @@ import (
 
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/dir"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
+	"github.com/mit-pdos/goose-nfsd/lockmap"
 	"github.com/mit-pdos/goose-nfsd/inode"
-	"github.com/mit-pdos/goose-nfsd/shrinker"
 	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
@@ -23,8 +21,10 @@ import (
 
 type Nfs struct {
 	Name     *string
-	fsstate  *fstxn.FsState
-	shrinkst *shrinker.ShrinkerSt
+	glocks   *lockmap.LockMap // for now, we only use block 0
+	fs       *super.FsSuper
+	txn      *txn.Txn
+	bitmap   []byte
 }
 
 func MkNfsMem(sz uint64) *Nfs {
@@ -65,27 +65,32 @@ func MakeNfs(name *string, sz uint64) *Nfs {
 
 	txn := txn.MkTxn(super) // runs recovery
 
-	i := readRootInode(super)
-	if i.Kind == 0 { // make a new file system?
-		makeFs(super)
-	}
+	makeFs(super)
 
-	st := fstxn.MkFsState(super, txn)
 	nfs := &Nfs{
 		Name:     name,
-		fsstate:  st,
-		shrinkst: shrinker.MkShrinkerSt(st),
+		glocks:   lockmap.MkLockMap(),
+		fs:       super,
+		txn:      txn,
 	}
-	if i.Kind == 0 {
-		nfs.makeRootDir()
-	}
+	nfs.makeRootDir()
+	nfs.readBitmap()
 	return nfs
+}
+
+func (nfs *Nfs) readBitmap() {
+	var bitmap []byte
+	start := nfs.fs.BitmapInodeStart()
+	for i := uint64(0); i < nfs.fs.NInodeBitmap; i++ {
+		blk := nfs.fs.Disk.Read(uint64(start) + i)
+		bitmap = append(bitmap, blk...)
+	}
+	nfs.bitmap = bitmap
 }
 
 func (nfs *Nfs) doShutdown(destroy bool) {
 	util.DPrintf(1, "Shutdown %v\n", destroy)
-	nfs.shrinkst.Shutdown()
-	nfs.fsstate.Txn.Shutdown()
+	nfs.txn.Shutdown()
 
 	if destroy && nfs.Name != nil {
 		util.DPrintf(1, "Destroy %v\n", *nfs.Name)
@@ -109,21 +114,10 @@ func (nfs *Nfs) ShutdownNfs() {
 // Terminates shrinker thread immediately
 func (nfs *Nfs) Crash() {
 	util.DPrintf(0, "Crash: terminate shrinker\n")
-	nfs.shrinkst.Crash()
 	nfs.ShutdownNfs()
 }
 
 func (nfs *Nfs) makeRootDir() {
-	op := fstxn.Begin(nfs.fsstate)
-	ip := op.GetInodeInumFree(common.ROOTINUM)
-	if ip == nil {
-		panic("makeRootDir")
-	}
-	dir.MkRootDir(ip, op)
-	ok := op.Commit()
-	if !ok {
-		panic("makeRootDir")
-	}
 }
 
 // Make an empty file system
@@ -136,6 +130,7 @@ func makeFs(super *super.FsSuper) {
 	rootblk := root.Encode()
 	rootbuf := buf.MkBuf(raddr, common.INODESZ*8, rootblk)
 	rootbuf.WriteDirect(super.Disk)
+	// util.DPrintf(1, "inode block: %v\n", super.Disk.Read(uint64(raddr.Blkno))[raddr.Off/8:raddr.Off/8+common.INODESZ])
 
 	markAlloc(super, super.DataStart(), super.MaxBnum())
 }
