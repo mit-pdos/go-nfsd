@@ -3,13 +3,12 @@ package goose_nfs
 import (
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/fh"
-	"github.com/mit-pdos/goose-nfsd/addr"
-	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
+
+	"github.com/mit-pdos/goose-nfsd/barebones"
 )
 
 //
@@ -22,120 +21,50 @@ import (
 // lock order).
 //
 
-// global locking
-func (nfs *Nfs) glockAcq() {
-	nfs.glocks.Acquire(0, 0)
+func parseBnfsstat(err barebones.Nfsstat3) nfstypes.Nfsstat3 {
+	return nfstypes.Nfsstat3(err)
 }
 
-func (nfs *Nfs) glockRel() {
-	nfs.glocks.Release(0, 0)
+func mkFh(fh3 nfstypes.Nfs_fh3) barebones.Fh {
+	fhOld := fh.MakeFh(fh3)
+	return barebones.Fh{Ino: fhOld.Ino, Gen: fhOld.Gen}
 }
 
-func (nfs *Nfs) getInode(buftxn *buftxn.BufTxn, inum common.Inum) *inode.Inode {
-	if inum >= nfs.fs.NInode() {
-		return nil
-	}
-	addr := nfs.fs.Inum2Addr(inum)
-	buf := buftxn.ReadBuf(addr, common.INODESZ*8)
-	return inode.Decode(buf, inum)
+func mkInodeFh3(ip *inode.Inode) nfstypes.Nfs_fh3 {
+	return fh.Fh{
+		Ino: ip.Inum,
+		Gen: ip.Gen,
+	}.MakeFh3()
 }
 
-func (nfs *Nfs) writeInode(buftxn *buftxn.BufTxn, ip *inode.Inode) {
-	addr := nfs.fs.Inum2Addr(ip.Inum)
-	buftxn.OverWrite(addr, common.INODESZ*8, ip.Encode())
-}
-
-func (nfs *Nfs) getInodeByFh3(buftxn *buftxn.BufTxn, fh3 nfstypes.Nfs_fh3) (*inode.Inode, nfstypes.Nfsstat3) {
-	fh := fh.MakeFh(fh3)
-	ip := nfs.getInode(buftxn, fh.Ino)
-	if ip == nil {
-		return nil, nfstypes.NFS3ERR_BADHANDLE
+func mkInodeFattr(ip *inode.Inode) nfstypes.Fattr3 {
+	return nfstypes.Fattr3{
+		Ftype: nfstypes.NF3DIR,
+		Mode:  0777,
+		Nlink: 1,
+		Uid:   nfstypes.Uid3(0),
+		Gid:   nfstypes.Gid3(0),
+		Size:  nfstypes.Size3(0), // size of file
+		Used:  nfstypes.Size3(0), // actual disk space used
+		Rdev: nfstypes.Specdata3{
+			Specdata1: nfstypes.Uint32(0),
+			Specdata2: nfstypes.Uint32(0),
+		},
+		Fsid:   nfstypes.Uint64(0),
+		Fileid: nfstypes.Fileid3(ip.Inum), // this is a unique id per file
+		Atime: nfstypes.Nfstime3{
+			Seconds: nfstypes.Uint32(0),
+			Nseconds: nfstypes.Uint32(0),
+		}, // last accessed
+		Mtime: nfstypes.Nfstime3{
+			Seconds: nfstypes.Uint32(0),
+			Nseconds: nfstypes.Uint32(0),
+		}, // last modified
+		Ctime: nfstypes.Nfstime3{
+			Seconds: nfstypes.Uint32(0),
+			Nseconds: nfstypes.Uint32(0),
+		}, // last time attributes were changed, including writes
 	}
-	if ip.Gen != fh.Gen {
-		return nil, nfstypes.NFS3ERR_STALE
-	}
-	return ip, nfstypes.NFS3_OK
-}
-
-func (nfs *Nfs) mkRootFattr() nfstypes.Fattr3 {
-	buftxn := buftxn.Begin(nfs.txn)
-	ip := nfs.getInode(buftxn, common.ROOTINUM)
-	return ip.MkFattr()
-}
-
-func (nfs *Nfs) lookupName(dip *inode.Inode, name nfstypes.Filename3) common.Inum {
-	if name == "." {
-		return dip.Inum
-	} else if name == ".." {
-		return dip.Parent
-	}
-	for i := 0; i < len(dip.Contents); i++ {
-		if dip.Contents[i] == 0 {
-			continue
-		}
-		if dip.Names[i] == name[0] {
-			return dip.Contents[i]
-		}
-	}
-	return 0
-}
-
-func (nfs *Nfs) allocInode(buftxn *buftxn.BufTxn, dip *inode.Inode) (*inode.Inode, nfstypes.Nfsstat3) {
-	for i := uint64(0); i < uint64(len(nfs.bitmap)) * 8; i++ {
-		byteNum := i / 8
-		bitNum := i % 8
-		if (nfs.bitmap[byteNum] & (1 << bitNum)) == 0 {
-			nfs.bitmap[byteNum] |= (1 << bitNum)
-			bitaddr := addr.MkBitAddr(i / common.NBITBLOCK, i % common.NBITBLOCK)
-			buftxn.OverWrite(bitaddr, 1, []byte{1 << bitNum})
-			ip := nfs.getInode(buftxn, i)
-			ip.InitInode(i, dip.Inum)
-			nfs.writeInode(buftxn, ip)
-			return ip, nfstypes.NFS3_OK
-		}
-	}
-	return nil, nfstypes.NFS3ERR_NOSPC
-}
-
-func (nfs *Nfs) allocDir(buftxn *buftxn.BufTxn, dip *inode.Inode, name nfstypes.Filename3) (*inode.Inode, nfstypes.Nfsstat3) {
-	if len(name) == 0 {
-		return nil, nfstypes.NFS3ERR_ACCES
-	}
-	if len(name) > 1 {
-		return nil, nfstypes.NFS3ERR_NAMETOOLONG
-	}
-	existing := nfs.lookupName(dip, name)
-	if existing != 0 {
-		return nil, nfstypes.NFS3ERR_EXIST
-	}
-	for i := 0; i < len(dip.Contents); i++ {
-		if dip.Contents[i] == 0 {
-			ip, err := nfs.allocInode(buftxn, dip)
-			if err != nfstypes.NFS3_OK {
-				return nil, err
-			}
-			dip.Contents[i] = ip.Inum
-			dip.Names[i] = name[0]
-			nfs.writeInode(buftxn, dip)
-			return ip, err
-		}
-	}
-	return nil, nfstypes.NFS3ERR_ACCES
-}
-
-func (nfs *Nfs) freeRecurse(buftxn *buftxn.BufTxn, dip *inode.Inode) {
-	for i := 0; i < len(dip.Contents); i++ {
-		if dip.Contents[i] == 0{
-			continue
-		}
-		ip := nfs.getInode(buftxn, dip.Contents[i])
-		nfs.freeRecurse(buftxn, ip)
-	}
-	byteNum := dip.Inum / 8
-	bitNum := dip.Inum % 8
-	nfs.bitmap[byteNum] &= ^(1 << bitNum)
-	bitaddr := addr.MkBitAddr(dip.Inum / common.NBITBLOCK, dip.Inum % common.NBITBLOCK)
-	buftxn.OverWrite(bitaddr, 1, []byte{ 0 })
 }
 
 func (nfs *Nfs) NFSPROC3_NULL() {
@@ -146,15 +75,14 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	var reply nfstypes.GETATTR3res
 
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
-	buftxn := buftxn.Begin(nfs.txn)
-	ip, err := nfs.getInodeByFh3(buftxn, args.Object)
-	if err != nfstypes.NFS3_OK {
-		reply.Status = err
+	fh := mkFh(args.Object)
+	ip, err := nfs.Barebones.OpGetAttr(fh)
+	reply.Status = parseBnfsstat(err)
+	if err != barebones.NFS3_OK {
 		return reply
 	}
-	reply.Status = nfstypes.NFS3_OK
 	reply.Resok = nfstypes.GETATTR3resok{
-		Obj_attributes: ip.MkFattr(),
+		Obj_attributes: mkInodeFattr(ip),
 	}
 
 	return reply
@@ -175,31 +103,21 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 
 	util.DPrintf(1, "NFS Lookup %v\n", args)
 
-	buftxn := buftxn.Begin(nfs.txn)
-
-	dip, err1 := nfs.getInodeByFh3(buftxn, args.What.Dir)
-	if err1 != nfstypes.NFS3_OK {
-		reply.Status = err1
-		nfs.glockRel()
+	fh := mkFh(args.What.Dir)
+	dip, ip, err := nfs.Barebones.OpLookup(fh, string(args.What.Name))
+	reply.Status = parseBnfsstat(err)
+	if err != barebones.NFS3_OK {
 		return reply
 	}
-	in := nfs.lookupName(dip, args.What.Name)
-	if in == 0 {
-		reply.Status = nfstypes.NFS3ERR_NOENT
-		nfs.glockRel()
-		return reply
-	}
-	ip := nfs.getInode(buftxn, in)
-	reply.Status = nfstypes.NFS3_OK
 	reply.Resok = nfstypes.LOOKUP3resok{
-		Object: ip.MkFh3(),
+		Object: mkInodeFh3(ip),
 		Obj_attributes: nfstypes.Post_op_attr{
 			Attributes_follow: true,
-			Attributes: ip.MkFattr(),
+			Attributes: mkInodeFattr(ip),
 		},
 		Dir_attributes: nfstypes.Post_op_attr{
 			Attributes_follow: true,
-			Attributes: dip.MkFattr(),
+			Attributes: mkInodeFattr(dip),
 		},
 	}
 
@@ -211,17 +129,16 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 
 	util.DPrintf(1, "NFS Access %v\n", args)
 
-	buftxn := buftxn.Begin(nfs.txn)
-	ip, err := nfs.getInodeByFh3(buftxn, args.Object)
-	if err != nfstypes.NFS3_OK {
-		reply.Status = err
+	fh := mkFh(args.Object)
+	ip, err := nfs.Barebones.OpGetAttr(fh)
+	reply.Status = parseBnfsstat(err)
+	if err != barebones.NFS3_OK {
 		return reply
 	}
-	reply.Status = nfstypes.NFS3_OK
 	reply.Resok = nfstypes.ACCESS3resok{
 		Obj_attributes: nfstypes.Post_op_attr{
 			Attributes_follow: true,
-			Attributes: ip.MkFattr(),
+			Attributes: mkInodeFattr(ip),
 		},
 		Access: nfstypes.Uint32(
 			nfstypes.ACCESS3_READ |
@@ -269,37 +186,20 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 
 	util.DPrintf(1, "NFS MakeDir %v\n", args)
 
-	buftxn := buftxn.Begin(nfs.txn)
-	nfs.glockAcq()
-
-	dip, err1 := nfs.getInodeByFh3(buftxn, args.Where.Dir)
-	if err1 != nfstypes.NFS3_OK {
-		reply.Status = err1
-		nfs.glockRel()
+	fh := mkFh(args.Where.Dir)
+	ip, err := nfs.Barebones.OpMkdir(fh, string(args.Where.Name))
+	reply.Status = parseBnfsstat(err)
+	if err != barebones.NFS3_OK {
 		return reply
 	}
-	ip, err2 := nfs.allocDir(buftxn, dip, args.Where.Name)
-	if err2 != nfstypes.NFS3_OK {
-		reply.Status = err2
-		nfs.glockRel()
-		return reply
-	}
-
-	buftxn.CommitWait(false)
-	nfs.glockRel()
-
-	reply.Status = nfstypes.NFS3_OK
 	reply.Resok = nfstypes.MKDIR3resok{
 		Obj: nfstypes.Post_op_fh3{
 			Handle_follows: true,
-			Handle: fh.Fh{
-				Ino: ip.Inum,
-				Gen: ip.Gen,
-			}.MakeFh3(),
+			Handle: mkInodeFh3(ip),
 		},
 		Obj_attributes: nfstypes.Post_op_attr{
 			Attributes_follow: true,
-			Attributes: ip.MkFattr(),
+			Attributes: mkInodeFattr(ip),
 		},
 		Dir_wcc: nfstypes.Wcc_data{
 			Before: nfstypes.Pre_op_attr{
@@ -354,44 +254,12 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 
 	util.DPrintf(1, "NFS Rmdir %v\n", args)
 
-	if args.Object.Name == "." {
-		reply.Status = nfstypes.NFS3ERR_INVAL
+	fh := mkFh(args.Object.Dir)
+	err := nfs.Barebones.OpRmdir(fh, string(args.Object.Name))
+	reply.Status = parseBnfsstat(err)
+	if err != barebones.NFS3_OK {
 		return reply
 	}
-	if args.Object.Name == ".." {
-		reply.Status = nfstypes.NFS3ERR_EXIST
-		return reply
-	}
-
-	buftxn := buftxn.Begin(nfs.txn)
-	nfs.glockAcq()
-
-	dip, err1 := nfs.getInodeByFh3(buftxn, args.Object.Dir)
-	if err1 != nfstypes.NFS3_OK {
-		reply.Status = err1
-		nfs.glockRel()
-		return reply
-	}
-	in := nfs.lookupName(dip, args.Object.Name)
-	if in == 0 {
-		reply.Status = nfstypes.NFS3ERR_NOENT
-		nfs.glockRel()
-		return reply
-	}
-	ip := nfs.getInode(buftxn, in)
-	nfs.freeRecurse(buftxn, ip)
-	for i := 0; i < len(dip.Contents); i++ {
-		if dip.Contents[i] == in {
-			dip.Contents[i] = 0
-			break
-		}
-	}
-	nfs.writeInode(buftxn, dip)
-
-	buftxn.CommitWait(false)
-	nfs.glockRel()
-
-	reply.Status = nfstypes.NFS3_OK
 	reply.Resok = nfstypes.RMDIR3resok{
 		Dir_wcc: nfstypes.Wcc_data{
 			Before: nfstypes.Pre_op_attr{
@@ -433,18 +301,18 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	return reply
 }
 
-func (nfs *Nfs) makeEntry3(ip *inode.Inode, name []byte, cookie uint64, nextEntry *nfstypes.Entryplus3) *nfstypes.Entryplus3 {
+func (nfs *Nfs) makeEntry3(entry barebones.Entry3, nextEntry *nfstypes.Entryplus3) *nfstypes.Entryplus3 {
 	return &nfstypes.Entryplus3{
-		Fileid: nfstypes.Fileid3(ip.Inum),
-		Name: nfstypes.Filename3(name),
-		Cookie: nfstypes.Cookie3(cookie), // indicates position in dirlist, used for partial dir listing
+		Fileid: nfstypes.Fileid3(entry.Inode.Inum),
+		Name: nfstypes.Filename3(entry.Name),
+		Cookie: nfstypes.Cookie3(entry.Cookie), // indicates position in dirlist, used for partial dir listing
 		Name_attributes: nfstypes.Post_op_attr{
 			Attributes_follow: true,
-			Attributes: ip.MkFattr(),
+			Attributes: mkInodeFattr(entry.Inode),
 		},
 		Name_handle: nfstypes.Post_op_fh3{
 			Handle_follows: true,
-			Handle: ip.MkFh3(),
+			Handle: mkInodeFh3(entry.Inode),
 		},
 		Nextentry: nextEntry,
 	}
@@ -454,30 +322,22 @@ func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.RE
 	var reply nfstypes.READDIRPLUS3res
 
 	util.DPrintf(1, "NFS ReadDirPlus %v\n", args)
-	buftxn := buftxn.Begin(nfs.txn)
-	dip, err := nfs.getInodeByFh3(buftxn, args.Dir)
-	if err != nfstypes.NFS3_OK {
-		reply.Status = err
+
+	fh := mkFh(args.Dir)
+	dip, bentries, err := nfs.Barebones.OpReadDirPlus(fh)
+	reply.Status = parseBnfsstat(err)
+	if err != barebones.NFS3_OK {
 		return reply
 	}
-	entries := nfs.makeEntry3(dip, []byte("."), 1, nil)
-	if dip.Parent != 0 {
-		pip := nfs.getInode(buftxn, dip.Parent)
-		entries = nfs.makeEntry3(pip, []byte(".."), 2, entries)
+
+	var entries *nfstypes.Entryplus3
+	for _, entry := range bentries {
+		entries = nfs.makeEntry3(entry, entries)
 	}
-	for ir := uint64(0); ir < uint64(len(dip.Contents)); ir++ {
-		i := uint64(len(dip.Contents)) - ir - 1
-		if dip.Contents[i] == 0 {
-			continue
-		}
-		ip := nfs.getInode(buftxn, dip.Contents[i])
-		entries = nfs.makeEntry3(ip, []byte{ dip.Names[i] }, i + 3, entries)
-	}
-	reply.Status = nfstypes.NFS3_OK
 	reply.Resok = nfstypes.READDIRPLUS3resok{
 		Dir_attributes: nfstypes.Post_op_attr{
 			Attributes_follow: true,
-			Attributes: dip.MkFattr(),
+			Attributes: mkInodeFattr(dip),
 		},
 		Cookieverf: nfstypes.Cookieverf3{}, // used to check if cookies are still valid
 		Reply: nfstypes.Dirlistplus3{
@@ -541,7 +401,7 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	reply.Resok = nfstypes.FSINFO3resok{
 		Obj_attributes: nfstypes.Post_op_attr{
 			Attributes_follow: true,
-			Attributes: nfs.mkRootFattr(),
+			Attributes: mkInodeFattr(nfs.Barebones.GetRootInode()),
 		},
 		Rtmax: rwUnit,
 		Rtpref: rwUnit,
@@ -565,11 +425,16 @@ func (nfs *Nfs) NFSPROC3_PATHCONF(args nfstypes.PATHCONF3args) nfstypes.PATHCONF
 	var reply nfstypes.PATHCONF3res
 
 	util.DPrintf(1, "NFS PathConf %v\n", args)
-	reply.Status = nfstypes.NFS3_OK
+	fh := mkFh(args.Object)
+	ip, err := nfs.Barebones.OpGetAttr(fh)
+	reply.Status = parseBnfsstat(err)
+	if err != barebones.NFS3_OK {
+		return reply
+	}
 	reply.Resok = nfstypes.PATHCONF3resok{
 		Obj_attributes: nfstypes.Post_op_attr{
 			Attributes_follow: true,
-			Attributes: nfs.mkRootFattr(),
+			Attributes: mkInodeFattr(ip),
 		},
 		Linkmax: 0,
 		Name_max: 1, // max filename length
