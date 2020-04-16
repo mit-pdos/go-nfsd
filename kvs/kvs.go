@@ -6,7 +6,6 @@ import (
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
-	"github.com/mit-pdos/goose-nfsd/util"
 	"github.com/tchajed/goose/machine/disk"
 )
 
@@ -15,10 +14,10 @@ import (
 // Keys == Block addresses
 //
 
-const DISKSZ uint64 = 10 * 1000
 const DISKNAME string = "goose_kvs.img"
 
 type KVS struct {
+	sz  uint64
 	txn *txn.Txn
 }
 
@@ -27,11 +26,11 @@ type KVPair struct {
 	Val []byte
 }
 
-func MkKVS(d disk.FileDisk) *KVS {
+func MkKVS(d disk.FileDisk, sz uint64) *KVS {
 	super := super.MkFsSuper(d)
-	util.DPrintf(1, "Super: sz %d %v\n", DISKSZ, super)
 	txn := txn.MkTxn(super)
 	kvs := &KVS{
+		sz:  sz,
 		txn: txn,
 	}
 	return kvs

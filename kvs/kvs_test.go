@@ -9,6 +9,8 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 )
 
+const DISKSZ = 10000
+
 func mkdataval(b byte, sz uint64) []byte {
 	data := make([]byte, sz)
 	for i := range data {
@@ -25,7 +27,7 @@ func TestGetAndPuts(t *testing.T) {
 	if err != nil {
 		panic(fmt.Errorf("could not create file disk: %v", err))
 	}
-	kvs := MkKVS(d)
+	kvs := MkKVS(d, DISKSZ)
 
 	pairs := []KVPair{}
 	keys := []uint64{}
