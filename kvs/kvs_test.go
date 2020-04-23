@@ -28,13 +28,13 @@ func TestGetAndPuts(t *testing.T) {
 	if err != nil {
 		panic(fmt.Errorf("could not create file disk: %v", err))
 	}
-	kvs := MkKVS(d, DISKSZ-common.LOGSIZE)
+	kvs := MkKVS(d, DISKSZ)
 
 	pairs := []KVPair{}
 	keys := []uint64{}
 	vals := [][]byte{}
 	for i := 0; i < 10; i++ {
-		keys = append(keys, uint64(i))
+		keys = append(keys, common.LOGSIZE+uint64(i))
 		vals = append(vals, mkdataval(byte(i), disk.BlockSize))
 		pairs = append(pairs, KVPair{keys[i], vals[i]})
 	}

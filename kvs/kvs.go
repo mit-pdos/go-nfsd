@@ -29,11 +29,8 @@ type KVPair struct {
 }
 
 func MkKVS(d disk.FileDisk, sz uint64) *KVS {
-	if sz+common.LOGSIZE > d.Size() {
+	if sz > d.Size() {
 		panic("kvs larger than disk")
-	}
-	if sz+common.LOGSIZE < sz {
-		panic("overflow")
 	}
 	super := super.MkFsSuper(d)
 	txn := txn.MkTxn(super)
@@ -47,10 +44,10 @@ func MkKVS(d disk.FileDisk, sz uint64) *KVS {
 func (kvs *KVS) MultiPut(pairs []KVPair) bool {
 	btxn := buftxn.Begin(kvs.txn)
 	for _, p := range pairs {
-		if p.Key > kvs.sz {
+		if p.Key >= kvs.sz || p.Key < common.LOGSIZE {
 			panic(fmt.Errorf("out-of-bounds put at %v", p.Key))
 		}
-		akey := addr.MkAddr(p.Key+common.LOGSIZE, 0)
+		akey := addr.MkAddr(p.Key, 0)
 		btxn.OverWrite(akey, common.NBITBLOCK, p.Val)
 	}
 	ok := btxn.CommitWait(true)
@@ -58,11 +55,11 @@ func (kvs *KVS) MultiPut(pairs []KVPair) bool {
 }
 
 func (kvs *KVS) Get(key uint64) (*KVPair, bool) {
-	if key > kvs.sz {
+	if key > kvs.sz || key < common.LOGSIZE {
 		panic(fmt.Errorf("out-of-bounds get at %v", key))
 	}
 	btxn := buftxn.Begin(kvs.txn)
-	akey := addr.MkAddr(key+common.LOGSIZE, 0)
+	akey := addr.MkAddr(key, 0)
 	data := btxn.ReadBuf(akey, common.NBITBLOCK).Data
 	ok := btxn.CommitWait(true)
 	return &KVPair{
