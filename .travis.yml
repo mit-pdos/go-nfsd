@@ -8,10 +8,6 @@ jobs:
     - go: "1.14.x"
       osx_image: "xcode11.3"
       os: osx
-    - go: "1.13.x"
-    - go: "1.12.x"
-      env:
-        GO111MODULE="on"
 
 install:
   - go get github.com/tchajed/goose/cmd/goose
