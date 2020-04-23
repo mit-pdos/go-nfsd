@@ -29,9 +29,10 @@ type KVPair struct {
 }
 
 func MkKVS(d disk.FileDisk, sz uint64) *KVS {
-	if sz > d.Size() {
+	/*if sz > d.Size() {
 		panic("kvs larger than disk")
-	}
+	}*/
+	// XXX just need to assume that the kvs is less than the disk size?
 	super := super.MkFsSuper(d)
 	txn := txn.MkTxn(super)
 	kvs := &KVS{
