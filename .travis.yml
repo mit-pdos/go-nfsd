@@ -19,4 +19,7 @@ script:
   - make goose-output
 
 notifications:
-  email: false
+  email:
+    - tchajed@mit.edu
+    - kaashoek@mit.edu
+    - nickolai@csail.mit.edu
