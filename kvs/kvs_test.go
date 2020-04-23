@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/tchajed/goose/machine/disk"
 )
 
@@ -27,7 +28,7 @@ func TestGetAndPuts(t *testing.T) {
 	if err != nil {
 		panic(fmt.Errorf("could not create file disk: %v", err))
 	}
-	kvs := MkKVS(d, DISKSZ)
+	kvs := MkKVS(d, DISKSZ-common.LOGSIZE)
 
 	pairs := []KVPair{}
 	keys := []uint64{}
@@ -44,7 +45,10 @@ func TestGetAndPuts(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		p := kvs.Get(keys[i])
+		p, ok := kvs.Get(keys[i])
+		if !ok {
+			log.Fatalf("Get failed?")
+		}
 		for j := range p.Val {
 			if p.Val[j] != vals[i][j] {
 				log.Fatalf("%d: Got %d, expected %d", i, p.Val[j], vals[i][j])
