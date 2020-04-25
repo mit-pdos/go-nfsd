@@ -68,9 +68,10 @@ func (nfs *BarebonesNfs) glockRel() {
 }
 
 func (nfs *BarebonesNfs) getInode(buftxn *buftxn.BufTxn, inum common.Inum) *inode.Inode {
-	if inum >= nfs.fs.NInode() {
-		return nil
-	}
+	// this will never trigger
+	// if inum >= nfs.fs.NInode() {
+	// 	return nil
+	// }
 	addr := nfs.fs.Inum2Addr(inum)
 	buf := buftxn.ReadBuf(addr, common.INODESZ*8)
 	return inode.Decode(buf, inum)
@@ -154,12 +155,21 @@ func (nfs *BarebonesNfs) allocDir(buftxn *buftxn.BufTxn, dip *inode.Inode, name 
 	err = NFS3ERR_ACCES
 	for i := uint64(0); i < uint64(len(dip.Contents)); i++ {
 		if dip.Contents[i] == 0 {
-			ipAlloc, errAlloc := nfs.allocInode(buftxn, dip)
-			ip = ipAlloc
-			err = errAlloc
-			if err != NFS3_OK {
-				break
-			}
+
+			/* BYPASS ALLOC START */
+			// here we allocate inodes statically
+			inum := 2 + i
+			ip = nfs.getInode(buftxn, inum)
+			ip.InitInode(inum, dip.Inum)
+			nfs.writeInode(buftxn, ip)
+			/* BYPASS ALLOC END */
+
+			// ipAlloc, errAlloc := nfs.allocInode(buftxn, dip)
+			// ip = ipAlloc
+			// err = errAlloc
+			// if err != NFS3_OK {
+			// 	break
+			// }
 			dip.Contents[i] = ip.Inum
 			dip.Names[i] = []byte(name)[0]
 			nfs.writeInode(buftxn, dip)
@@ -174,7 +184,7 @@ func (nfs *BarebonesNfs) freeRecurse(buftxn *buftxn.BufTxn, dip *inode.Inode) {
 		if dip.Contents[i] == 0{
 			continue
 		}
-		// try no recursion for now
+		// disable recursion for now
 		// ip := nfs.getInode(buftxn, dip.Contents[i])
 		// nfs.freeRecurse(buftxn, ip)
 	}

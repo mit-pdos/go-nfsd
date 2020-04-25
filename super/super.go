@@ -8,13 +8,14 @@ import (
 )
 
 type FsSuper struct {
-	Disk         disk.Disk
-	Size         uint64
-	nLog         uint64 // including commit block
-	NBlockBitmap uint64
-	NInodeBitmap uint64
-	nInodeBlk    uint64
-	Maxaddr      uint64
+	Disk              disk.Disk
+	Size              uint64
+	nLog              uint64 // including commit block
+	NBlockBitmap      uint64
+	NInodeBitmap      uint64
+	nInodeBlk         uint64
+	Maxaddr           uint64
+	InodeStartPrecomp uint64 // PRECOMPUTE FOR SIMPLICITY
 }
 
 func MkFsSuper(d disk.Disk) *FsSuper {
@@ -22,13 +23,14 @@ func MkFsSuper(d disk.Disk) *FsSuper {
 	nblockbitmap := (sz / common.NBITBLOCK) + 1
 
 	return &FsSuper{
-		Disk:         d,
-		Size:         sz,
-		nLog:         common.LOGSIZE,
-		NBlockBitmap: nblockbitmap,
-		NInodeBitmap: common.NINODEBITMAP,
-		nInodeBlk:    (common.NINODEBITMAP * common.NBITBLOCK * common.INODESZ) / disk.BlockSize,
-		Maxaddr:      sz}
+		Disk:              d,
+		Size:              sz,
+		nLog:              common.LOGSIZE,
+		NBlockBitmap:      nblockbitmap,
+		NInodeBitmap:      common.NINODEBITMAP,
+		nInodeBlk:         (common.NINODEBITMAP * common.NBITBLOCK * common.INODESZ) / disk.BlockSize,
+		Maxaddr:           sz,
+		InodeStartPrecomp: common.LOGSIZE + nblockbitmap + common.NINODEBITMAP }
 }
 
 func (fs *FsSuper) MaxBnum() common.Bnum {
@@ -44,7 +46,8 @@ func (fs *FsSuper) BitmapInodeStart() common.Bnum {
 }
 
 func (fs *FsSuper) InodeStart() common.Bnum {
-	return fs.BitmapInodeStart() + common.Bnum(fs.NInodeBitmap)
+	// return fs.BitmapInodeStart() + common.Bnum(fs.NInodeBitmap)
+	return common.Bnum(fs.InodeStartPrecomp)
 }
 
 func (fs *FsSuper) DataStart() common.Bnum {
@@ -60,6 +63,8 @@ func (fs *FsSuper) NInode() common.Inum {
 }
 
 func (fs *FsSuper) Inum2Addr(inum common.Inum) addr.Addr {
-	return addr.MkAddr(fs.InodeStart()+common.Bnum(uint64(inum)/common.INODEBLK),
-		(uint64(inum)%common.INODEBLK)*common.INODESZ*8)
+	// ONE INODE PER BLOCK
+	return addr.MkAddr(fs.InodeStart() + inum, 0)
+	// return addr.MkAddr(fs.InodeStart()+common.Bnum(uint64(inum)/common.INODEBLK),
+	// 	(uint64(inum)%common.INODEBLK)*common.INODESZ*8)
 }

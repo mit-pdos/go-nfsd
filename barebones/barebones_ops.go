@@ -7,7 +7,9 @@ import (
 
 func (nfs *BarebonesNfs) OpGetAttr(fh Fh) (*inode.Inode, Nfsstat3) {
 	buftxn := buftxn.Begin(nfs.txn)
-	return nfs.getInodeByFh(buftxn, fh)
+	ip, err := nfs.getInodeByFh(buftxn, fh)
+	buftxn.CommitWait(true)
+	return ip, err
 }
 
 func (nfs *BarebonesNfs) OpLookup(dfh Fh, name string) (*inode.Inode, *inode.Inode, Nfsstat3) {
@@ -67,8 +69,9 @@ func (nfs *BarebonesNfs) OpRmdir(dfh Fh, name string) (Nfsstat3) {
 		nfs.glockRel()
 		return NFS3ERR_NOENT
 	}
-	ip := nfs.getInode(buftxn, in)
-	nfs.freeRecurse(buftxn, ip)
+	// no freeing needed when statically allocating
+	// ip := nfs.getInode(buftxn, in)
+	// nfs.freeRecurse(buftxn, ip)
 	for i := uint64(0); i < uint64(len(dip.Contents)); i++ {
 		if dip.Contents[i] == in {
 			dip.Contents[i] = 0
@@ -77,7 +80,7 @@ func (nfs *BarebonesNfs) OpRmdir(dfh Fh, name string) (Nfsstat3) {
 	}
 	nfs.writeInode(buftxn, dip)
 
-	buftxn.CommitWait(false)
+	buftxn.CommitWait(true)
 	nfs.glockRel()
 
 	return NFS3_OK
