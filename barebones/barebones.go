@@ -74,7 +74,8 @@ func (nfs *BarebonesNfs) getInode(buftxn *buftxn.BufTxn, inum common.Inum) *inod
 	// }
 	addr := nfs.fs.Inum2Addr(inum)
 	buf := buftxn.ReadBuf(addr, common.INODESZ*8)
-	return inode.Decode(buf, inum)
+	ip := inode.Decode(buf, inum)
+	return ip
 }
 
 func (nfs *BarebonesNfs) GetRootInode() *inode.Inode {
@@ -84,9 +85,10 @@ func (nfs *BarebonesNfs) GetRootInode() *inode.Inode {
 
 func (nfs *BarebonesNfs) getInodeByFh(buftxn *buftxn.BufTxn, fh Fh) (*inode.Inode, Nfsstat3) {
 	ip := nfs.getInode(buftxn, fh.Ino)
-	if ip == nil {
-		return nil, NFS3ERR_BADHANDLE
-	}
+	// this will never trigger
+	// if ip == nil {
+	// 	return nil, NFS3ERR_BADHANDLE
+	// }
 	if ip.Gen != fh.Gen {
 		return nil, NFS3ERR_STALE
 	}
@@ -110,7 +112,7 @@ func (nfs *BarebonesNfs) lookupName(dip *inode.Inode, name string) common.Inum {
 		if dip.Contents[i] == 0 {
 			continue
 		}
-		if dip.Names[i] == []byte(name)[0] {
+		if dip.Names[i] == uint64([]byte(name)[0]) {
 			ip = dip.Contents[i]
 			break
 		}
@@ -171,7 +173,7 @@ func (nfs *BarebonesNfs) allocDir(buftxn *buftxn.BufTxn, dip *inode.Inode, name 
 			// 	break
 			// }
 			dip.Contents[i] = ip.Inum
-			dip.Names[i] = []byte(name)[0]
+			dip.Names[i] = uint64([]byte(name)[0])
 			nfs.writeInode(buftxn, dip)
 			break
 		}

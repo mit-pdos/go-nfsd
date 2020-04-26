@@ -21,7 +21,7 @@ type Inode struct {
 	Gen      uint64
 	Parent   common.Inum
 	Contents []common.Inum
-	Names    []byte
+	Names    []uint64 // would prefer bytes but no wp_Dec__GetBytes proof
 }
 
 func (ip *Inode) InitInode(inum common.Inum, parent common.Inum) {
@@ -30,7 +30,7 @@ func (ip *Inode) InitInode(inum common.Inum, parent common.Inum) {
 	ip.Parent = parent
 	ip.Gen = ip.Gen + 1
 	ip.Contents = make([]common.Inum, NENTRIES)
-	ip.Names = make([]byte, NENTRIES)
+	ip.Names = make([]uint64, NENTRIES)
 }
 
 func MkRootInode() *Inode {
@@ -44,7 +44,7 @@ func (ip *Inode) Encode() []byte {
 	enc.PutInt(ip.Gen)
 	enc.PutInt(ip.Parent)
 	enc.PutInts(ip.Contents)
-	enc.PutBytes(ip.Names)
+	enc.PutInts(ip.Names)
 	return enc.Finish()
 }
 
@@ -55,6 +55,6 @@ func Decode(buf *buf.Buf, inum common.Inum) *Inode {
 	ip.Gen = dec.GetInt()
 	ip.Parent = dec.GetInt()
 	ip.Contents = dec.GetInts(NENTRIES)
-	ip.Names = dec.GetBytes(NENTRIES)
+	ip.Names = dec.GetInts(NENTRIES)
 	return ip
 }

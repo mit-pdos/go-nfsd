@@ -118,7 +118,7 @@ func (nfs *BarebonesNfs) OpReadDirPlus(dfh Fh) (*inode.Inode, []Entry3, Nfsstat3
 			continue
 		}
 		ip := nfs.getInode(buftxn, dip.Contents[i])
-		entries = append(entries, makeEntry3(ip, []byte{ dip.Names[i] }, i + 3))
+		entries = append(entries, makeEntry3(ip, []byte{ byte(dip.Names[i]) }, i + 3))
 	}
 	return dip, entries, NFS3_OK
 }
