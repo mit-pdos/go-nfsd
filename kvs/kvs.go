@@ -62,10 +62,12 @@ func (kvs *KVS) Get(key uint64) (*KVPair, bool) {
 	btxn := buftxn.Begin(kvs.txn)
 	akey := addr.MkAddr(key, 0)
 	data := btxn.ReadBuf(akey, common.NBITBLOCK).Data
+	data_copy := make([]byte, len(data))
+	copy(data_copy, data)
 	ok := btxn.CommitWait(true)
 	return &KVPair{
 		Key: key,
-		Val: data,
+		Val: data_copy,
 	}, ok
 }
 
