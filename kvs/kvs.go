@@ -6,7 +6,6 @@ import (
 	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
 	"github.com/tchajed/goose/machine/disk"
@@ -29,13 +28,12 @@ type KVPair struct {
 	Val []byte
 }
 
-func MkKVS(d disk.FileDisk, sz uint64) *KVS {
+func MkKVS(d disk.Disk, sz uint64) *KVS {
 	/*if sz > d.Size() {
 		panic("kvs larger than disk")
 	}*/
 	// XXX just need to assume that the kvs is less than the disk size?
-	super := super.MkFsSuper(d)
-	txn := txn.MkTxn(super)
+	txn := txn.MkTxn(d)
 	kvs := &KVS{
 		sz:  sz,
 		txn: txn,

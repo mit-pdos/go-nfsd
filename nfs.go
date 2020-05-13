@@ -63,7 +63,7 @@ func MakeNfs(name *string, sz uint64) *Nfs {
 	super := super.MkFsSuper(d)
 	util.DPrintf(1, "Super: sz %d %v\n", sz, super)
 
-	txn := txn.MkTxn(super) // runs recovery
+	txn := txn.MkTxn(d) // runs recovery
 
 	i := readRootInode(super)
 	if i.Kind == 0 { // make a new file system?
