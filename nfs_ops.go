@@ -78,7 +78,7 @@ func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*fstxn.FsTxn, *inode.Inode, nfst
 			err = nfstypes.NFS3ERR_SERVERFAULT
 			break
 		}
-		util.DPrintf(1, "getShrink: retry %d\n", op.Atxn.Id())
+		util.DPrintf(1, "getShrink: retry %p\n", op.Atxn.Id())
 	}
 	return op, ip, err
 }
@@ -352,7 +352,7 @@ func (nfs *Nfs) getAlloc(op *fstxn.FsTxn, dfh nfstypes.Nfs_fh3, name nfstypes.Fi
 			break
 		}
 
-		util.DPrintf(1, "getAlloc: retry %d\n", op.Atxn.Id())
+		util.DPrintf(1, "getAlloc: retry %p\n", op.Atxn.Id())
 	}
 	return op, dip, ip, err
 }
