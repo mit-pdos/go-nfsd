@@ -41,8 +41,9 @@ func Begin(super *super.FsSuper, txn *txn.Txn, balloc *alloc.Alloc, ialloc *allo
 	return atxn
 }
 
-func (atxn *AllocTxn) Id() txn.TransId {
-	return atxn.Buftxn.Id
+// Id returns a pointer to the BufTxn for debug printing only
+func (atxn *AllocTxn) Id() *buftxn.BufTxn {
+	return atxn.Buftxn
 }
 
 func (atxn *AllocTxn) AllocINum() common.Inum {

@@ -47,7 +47,7 @@ func (shrinkst *ShrinkerSt) DoShrink(inum common.Inum) bool {
 		if ip == nil {
 			panic("shrink")
 		}
-		util.DPrintf(1, "%d: doShrink %v\n", op.Atxn.Id(), ip.Inum)
+		util.DPrintf(1, "%p: doShrink %v\n", op.Atxn.Id(), ip.Inum)
 		more = ip.Shrink(op.Atxn)
 		ok = op.Commit()
 		if !ok {
