@@ -55,6 +55,12 @@ func (ip *Inode) Read(btxn *buftxn.BufTxn, s *super.FsSuper, offset uint64, byte
 	return data, false
 }
 
+func (ip *Inode) WriteInode(btxn *buftxn.BufTxn, s *super.FsSuper) {
+	d := ip.Encode()
+	btxn.OverWrite(s.Inum2Addr(ip.Inum), common.INODESZ*8, d)
+	util.DPrintf(1, "WriteInode %v\n", ip)
+}
+
 // Returns number of bytes written and error
 func (ip *Inode) Write(btxn *buftxn.BufTxn, s *super.FsSuper, offset uint64, count uint64, dataBuf []byte) (uint64, bool) {
 	util.DPrintf(5, "Write: off %d cnt %d\n", offset, count)
@@ -78,12 +84,6 @@ func (ip *Inode) Write(btxn *buftxn.BufTxn, s *super.FsSuper, offset uint64, cou
 		ip.WriteInode(btxn, s)
 	}
 	return count, true
-}
-
-func (ip *Inode) WriteInode(btxn *buftxn.BufTxn, s *super.FsSuper) {
-	d := ip.Encode()
-	btxn.OverWrite(s.Inum2Addr(ip.Inum), common.INODESZ*8, d)
-	util.DPrintf(1, "WriteInode %v\n", ip)
 }
 
 func ReadInode(btxn *buftxn.BufTxn, s *super.FsSuper, inum common.Inum) *Inode {
