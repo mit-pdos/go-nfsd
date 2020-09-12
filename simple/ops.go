@@ -92,9 +92,23 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	util.DPrintf(1, "NFS Lookup %v\n", args)
 	var reply nfstypes.LOOKUP3res
 
-	// XXX look up in top-level directory
+	// The filename must be a single letter.
+	// 'A' corresponds to inode 0, etc.
+	fn := args.What.Name
+	if len(fn) != 1 {
+		reply.Status = nfstypes.NFS3ERR_NOENT
+		return reply
+	}
 
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	inum := uint64(fn[0] - 'A')
+	if inum == common.ROOTINUM || inum >= nfs.s.NInode() {
+		reply.Status = nfstypes.NFS3ERR_NOENT
+		return reply
+	}
+
+	fh := fh.Fh{Ino: inum, Gen: 0}
+	reply.Resok.Object = fh.MakeFh3()
+	reply.Status = nfstypes.NFS3_OK
 	return reply
 }
 
@@ -113,7 +127,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	txn := buftxn.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
-	if inum >= nfs.s.NInode() {
+	if inum == common.ROOTINUM || inum >= nfs.s.NInode() {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
@@ -145,7 +159,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	txn := buftxn.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
-	if inum >= nfs.s.NInode() {
+	if inum == common.ROOTINUM || inum >= nfs.s.NInode() {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
