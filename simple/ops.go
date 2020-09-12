@@ -280,7 +280,21 @@ func (nfs *Nfs) NFSPROC3_LINK(args nfstypes.LINK3args) nfstypes.LINK3res {
 func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3res {
 	util.DPrintf(1, "NFS Readdir %v\n", args)
 	var reply nfstypes.READDIR3res
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+
+	e2 := &nfstypes.Entry3{
+		Fileid:    nfstypes.Fileid3(2),
+		Name:      nfstypes.Filename3("b"),
+		Cookie:    nfstypes.Cookie3(1),
+		Nextentry: nil,
+	}
+	e1 := &nfstypes.Entry3{
+		Fileid:    nfstypes.Fileid3(1),
+		Name:      nfstypes.Filename3("a"),
+		Cookie:    nfstypes.Cookie3(0),
+		Nextentry: e2,
+	}
+	reply.Status = nfstypes.NFS3_OK
+	reply.Resok.Reply = nfstypes.Dirlist3{Entries: e1, Eof: true}
 	return reply
 }
 
