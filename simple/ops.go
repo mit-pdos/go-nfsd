@@ -22,6 +22,28 @@ func fh2ino(fh3 nfstypes.Nfs_fh3) common.Inum {
 	return fh.Ino
 }
 
+func rootFattr() nfstypes.Fattr3 {
+	return nfstypes.Fattr3{
+		Ftype: nfstypes.NF3DIR,
+		Mode:  0777,
+		Nlink: 1,
+		Uid:   nfstypes.Uid3(0),
+		Gid:   nfstypes.Gid3(0),
+		Size:  nfstypes.Size3(0),
+		Used:  nfstypes.Size3(0),
+		Rdev: nfstypes.Specdata3{Specdata1: nfstypes.Uint32(0),
+			Specdata2: nfstypes.Uint32(0)},
+		Fsid:   nfstypes.Uint64(0),
+		Fileid: nfstypes.Fileid3(common.ROOTINUM),
+		Atime: nfstypes.Nfstime3{Seconds: nfstypes.Uint32(0),
+			Nseconds: nfstypes.Uint32(0)},
+		Mtime: nfstypes.Nfstime3{Seconds: nfstypes.Uint32(0),
+			Nseconds: nfstypes.Uint32(0)},
+		Ctime: nfstypes.Nfstime3{Seconds: nfstypes.Uint32(0),
+			Nseconds: nfstypes.Uint32(0)},
+	}
+}
+
 func (nfs *Nfs) NFSPROC3_NULL() {
 	util.DPrintf(0, "NFS Null\n")
 }
@@ -30,10 +52,14 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
 
-	// XXX: special case for directory: common.ROOTINUM
-
 	txn := buftxn.Begin(nfs.t)
 	inum := fh2ino(args.Object)
+
+	if inum == common.ROOTINUM {
+		reply.Status = nfstypes.NFS3_OK
+		reply.Resok.Obj_attributes = rootFattr()
+		return reply
+	}
 
 	if inum >= nfs.s.NInode() {
 		reply.Status = nfstypes.NFS3ERR_INVAL
@@ -55,6 +81,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 }
 
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
+	util.DPrintf(1, "NFS SetAttr %v\n", args)
 	var reply nfstypes.SETATTR3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
@@ -62,6 +89,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 
 // Lookup must lock child inode to find gen number
 func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
+	util.DPrintf(1, "NFS Lookup %v\n", args)
 	var reply nfstypes.LOOKUP3res
 
 	// XXX look up in top-level directory
@@ -71,6 +99,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 }
 
 func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
+	util.DPrintf(1, "NFS Access %v\n", args)
 	var reply nfstypes.ACCESS3res
 	reply.Status = nfstypes.NFS3_OK
 	reply.Resok.Access = nfstypes.Uint32(nfstypes.ACCESS3_READ | nfstypes.ACCESS3_LOOKUP | nfstypes.ACCESS3_MODIFY | nfstypes.ACCESS3_EXTEND | nfstypes.ACCESS3_DELETE | nfstypes.ACCESS3_EXECUTE)
@@ -172,90 +201,107 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 }
 
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
+	util.DPrintf(1, "NFS Create %v\n", args)
 	var reply nfstypes.CREATE3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
+	util.DPrintf(1, "NFS Mkdir %v\n", args)
 	var reply nfstypes.MKDIR3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_SYMLINK(args nfstypes.SYMLINK3args) nfstypes.SYMLINK3res {
+	util.DPrintf(1, "NFS Symlink %v\n", args)
 	var reply nfstypes.SYMLINK3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_READLINK(args nfstypes.READLINK3args) nfstypes.READLINK3res {
+	util.DPrintf(1, "NFS Readlink %v\n", args)
 	var reply nfstypes.READLINK3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
+	util.DPrintf(1, "NFS Mknod %v\n", args)
 	var reply nfstypes.MKNOD3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
+	util.DPrintf(1, "NFS Remove %v\n", args)
 	var reply nfstypes.REMOVE3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
+	util.DPrintf(1, "NFS Rmdir %v\n", args)
 	var reply nfstypes.RMDIR3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
+	util.DPrintf(1, "NFS Rename %v\n", args)
 	var reply nfstypes.RENAME3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_LINK(args nfstypes.LINK3args) nfstypes.LINK3res {
+	util.DPrintf(1, "NFS Link %v\n", args)
 	var reply nfstypes.LINK3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3res {
+	util.DPrintf(1, "NFS Readdir %v\n", args)
 	var reply nfstypes.READDIR3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.READDIRPLUS3res {
+	util.DPrintf(1, "NFS Readdirplus %v\n", args)
 	var reply nfstypes.READDIRPLUS3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_FSSTAT(args nfstypes.FSSTAT3args) nfstypes.FSSTAT3res {
+	util.DPrintf(1, "NFS Fsstat %v\n", args)
 	var reply nfstypes.FSSTAT3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
+	util.DPrintf(1, "NFS Fsinfo %v\n", args)
 	var reply nfstypes.FSINFO3res
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	reply.Status = nfstypes.NFS3_OK
+	reply.Resok.Wtmax = nfstypes.Uint32(4096)
+	reply.Resok.Maxfilesize = nfstypes.Size3(4096)
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_PATHCONF(args nfstypes.PATHCONF3args) nfstypes.PATHCONF3res {
+	util.DPrintf(1, "NFS Pathconf %v\n", args)
 	var reply nfstypes.PATHCONF3res
 	reply.Status = nfstypes.NFS3ERR_NOTSUPP
 	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
+	util.DPrintf(1, "NFS Commit %v\n", args)
 	var reply nfstypes.COMMIT3res
 	txn := buftxn.Begin(nfs.t)
 	ok := txn.CommitWait(true)
