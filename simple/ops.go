@@ -159,6 +159,8 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	txn := buftxn.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
+	util.DPrintf(1, "inum %d %d\n", inum, nfs.s.NInode())
+
 	if inum == common.ROOTINUM || inum >= nfs.s.NInode() {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
@@ -282,13 +284,13 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	var reply nfstypes.READDIR3res
 
 	e2 := &nfstypes.Entry3{
-		Fileid:    nfstypes.Fileid3(2),
+		Fileid:    nfstypes.Fileid3(3),
 		Name:      nfstypes.Filename3("b"),
 		Cookie:    nfstypes.Cookie3(1),
 		Nextentry: nil,
 	}
 	e1 := &nfstypes.Entry3{
-		Fileid:    nfstypes.Fileid3(1),
+		Fileid:    nfstypes.Fileid3(2),
 		Name:      nfstypes.Filename3("a"),
 		Cookie:    nfstypes.Cookie3(0),
 		Nextentry: e2,
