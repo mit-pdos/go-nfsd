@@ -60,6 +60,10 @@ func MkNfsClient() *NfsClient {
 	}
 }
 
+//
+// XXX avoid duplication with nfs_clnt.go
+//
+
 func (clnt *NfsClient) ReadDirOp(dir nfstypes.Nfs_fh3, cnt uint64) nfstypes.READDIR3res {
 	args := nfstypes.READDIR3args{Dir: dir, Count: nfstypes.Count3(100)}
 	reply := clnt.srv.NFSPROC3_READDIR(args)
@@ -74,6 +78,15 @@ func (clnt *NfsClient) WriteOp(fh nfstypes.Nfs_fh3, off uint64, data []byte, how
 		Stable: how,
 		Data:   data}
 	reply := clnt.srv.NFSPROC3_WRITE(args)
+	return &reply
+}
+
+func (clnt *NfsClient) ReadOp(fh nfstypes.Nfs_fh3, off uint64, sz uint64) *nfstypes.READ3res {
+	args := nfstypes.READ3args{
+		File:   fh,
+		Offset: nfstypes.Offset3(off),
+		Count:  nfstypes.Count3(sz)}
+	reply := clnt.srv.NFSPROC3_READ(args)
 	return &reply
 }
 
@@ -110,6 +123,18 @@ func (ts *TestState) Write(fh nfstypes.Nfs_fh3, data []byte, how nfstypes.Stable
 	assert.Equal(ts.t, nfstypes.Count3(len(data)), reply.Resok.Count)
 }
 
+func (ts *TestState) Read(fh nfstypes.Nfs_fh3, off uint64, sz uint64) []byte {
+	reply := ts.clnt.ReadOp(fh, off, sz)
+	assert.Equal(ts.t, nfstypes.NFS3_OK, reply.Status)
+	assert.Equal(ts.t, nfstypes.Count3(sz), reply.Resok.Count)
+	return reply.Resok.Data
+}
+
+func (ts *TestState) readcheck(fh nfstypes.Nfs_fh3, off uint64, data []byte) {
+	d := ts.Read(fh, off, uint64(len(data)))
+	assert.Equal(ts.t, data, d)
+}
+
 func TestReadDir(t *testing.T) {
 	checkFlags()
 	ts := newTest(t)
@@ -130,4 +155,5 @@ func TestFile(t *testing.T) {
 	fh := fh.Fh{common.Inum(2), uint64(0)}
 	data := mkdata(4096)
 	ts.Write(fh.MakeFh3(), data, nfstypes.FILE_SYNC)
+	ts.readcheck(fh.MakeFh3(), 0, data)
 }
