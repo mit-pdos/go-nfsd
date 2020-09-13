@@ -93,13 +93,17 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	// The filename must be a single letter.
 	// 'A' corresponds to inode 0, etc.
 	fn := args.What.Name
-	if len(fn) != 1 {
-		reply.Status = nfstypes.NFS3ERR_NOENT
-		return reply
+
+	var inum common.Inum
+	if fn == "a" {
+		inum = 2
 	}
 
-	inum := uint64(fn[0] - 'A')
-	if inum == common.ROOTINUM || inum >= nInode() {
+	if fn == "b" {
+		inum = 3
+	}
+
+	if inum == 0 || inum == common.ROOTINUM || inum >= nInode() {
 		reply.Status = nfstypes.NFS3ERR_NOENT
 		return reply
 	}
