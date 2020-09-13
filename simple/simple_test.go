@@ -152,7 +152,7 @@ func TestReadDir(t *testing.T) {
 func TestFile(t *testing.T) {
 	ts := newTest(t)
 
-	fh := fh.Fh{common.Inum(2), uint64(0)}
+	fh := fh.Fh{Ino: common.Inum(2), Gen: uint64(0)}
 	data := mkdata(4096)
 	ts.Write(fh.MakeFh3(), data, nfstypes.FILE_SYNC)
 	ts.readcheck(fh.MakeFh3(), 0, data)
