@@ -6,14 +6,12 @@ import (
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/lockmap"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
 type Nfs struct {
 	t *txn.Txn
-	s *super.FsSuper
 	l *lockmap.LockMap
 }
 
@@ -61,13 +59,13 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 		return reply
 	}
 
-	if inum >= nfs.s.NInode() {
+	if inum >= nInode() {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
 
 	nfs.l.Acquire(inum)
-	ip := ReadInode(txn, nfs.s, inum)
+	ip := ReadInode(txn, inum)
 	reply.Resok.Obj_attributes = ip.MkFattr()
 	ok := txn.CommitWait(true)
 	if ok {
@@ -101,7 +99,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 	}
 
 	inum := uint64(fn[0] - 'A')
-	if inum == common.ROOTINUM || inum >= nfs.s.NInode() {
+	if inum == common.ROOTINUM || inum >= nInode() {
 		reply.Status = nfstypes.NFS3ERR_NOENT
 		return reply
 	}
@@ -127,15 +125,15 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	txn := buftxn.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
-	if inum == common.ROOTINUM || inum >= nfs.s.NInode() {
+	if inum == common.ROOTINUM || inum >= nInode() {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
 
 	nfs.l.Acquire(inum)
-	ip := ReadInode(txn, nfs.s, inum)
+	ip := ReadInode(txn, inum)
 
-	data, eof := ip.Read(txn, nfs.s, uint64(args.Offset), uint64(args.Count))
+	data, eof := ip.Read(txn, uint64(args.Offset), uint64(args.Count))
 
 	ok := txn.CommitWait(true)
 	if ok {
@@ -159,17 +157,17 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	txn := buftxn.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
-	util.DPrintf(1, "inum %d %d\n", inum, nfs.s.NInode())
+	util.DPrintf(1, "inum %d %d\n", inum, nInode())
 
-	if inum == common.ROOTINUM || inum >= nfs.s.NInode() {
+	if inum == common.ROOTINUM || inum >= nInode() {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
 
 	nfs.l.Acquire(inum)
-	ip := ReadInode(txn, nfs.s, inum)
+	ip := ReadInode(txn, inum)
 
-	count, writeok := ip.Write(txn, nfs.s, uint64(args.Offset), uint64(args.Count), args.Data)
+	count, writeok := ip.Write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
 	if !writeok {
 		nfs.l.Release(inum)
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
