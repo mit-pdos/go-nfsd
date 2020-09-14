@@ -14,5 +14,5 @@ func nInode() common.Inum {
 }
 
 func inum2Addr(inum common.Inum) addr.Addr {
-	return addr.MkAddr(0, (uint64(inum) * common.INODESZ * 8))
+	return addr.MkAddr(common.LOGSIZE, (uint64(inum) * common.INODESZ * 8))
 }
