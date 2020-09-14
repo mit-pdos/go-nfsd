@@ -20,5 +20,10 @@ func MakeNfs(name string) *simple.Nfs {
 		panic(fmt.Errorf("could not create file disk: %v", err))
 	}
 
-	return simple.MakeNfs(d)
+	nfs := simple.MakeNfs(d)
+	if nfs == nil {
+		panic("could not initialize nfs")
+	}
+
+	return nfs
 }

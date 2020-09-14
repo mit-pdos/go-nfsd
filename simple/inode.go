@@ -112,3 +112,11 @@ func (ip *Inode) MkFattr() nfstypes.Fattr3 {
 			Nseconds: nfstypes.Uint32(0)},
 	}
 }
+
+func inodeInit(btxn *buftxn.BufTxn) {
+	for i := common.Inum(0); i < nInode(); i++ {
+		ip := ReadInode(btxn, i)
+		ip.Data = common.LOGSIZE + 1 + i
+		ip.WriteInode(btxn)
+	}
+}
