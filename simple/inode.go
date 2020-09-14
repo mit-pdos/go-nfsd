@@ -46,7 +46,8 @@ func (ip *Inode) Read(btxn *buftxn.BufTxn, offset uint64, bytesToRead uint64) ([
 	var data = make([]byte, 0)
 
 	buf := btxn.ReadBuf(block2addr(ip.Data), common.NBITBLOCK)
-	for b := uint64(0); b < count; b++ {
+	countCopy := count
+	for b := uint64(0); b < countCopy; b++ {
 		data = append(data, buf.Data[offset+b])
 	}
 
