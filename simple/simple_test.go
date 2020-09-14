@@ -35,7 +35,8 @@ func checkFlags() {
 }
 
 type NfsClient struct {
-	srv *Nfs
+	srv  *Nfs
+	name string
 }
 
 func MkNfsClient() *NfsClient {
@@ -56,7 +57,8 @@ func MkNfsClient() *NfsClient {
 	}
 
 	return &NfsClient{
-		srv: MakeNfs(d),
+		srv:  MakeNfs(d),
+		name: n,
 	}
 }
 
@@ -111,6 +113,14 @@ func newTest(t *testing.T) *TestState {
 	return ts
 }
 
+func (ts *TestState) Close() {
+	util.DPrintf(1, "Destroy %v\n", ts.clnt.name)
+	err := os.Remove(ts.clnt.name)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func (ts *TestState) ReadDir() nfstypes.Dirlist3 {
 	reply := ts.clnt.ReadDirOp(fh.MkRootFh3(), disk.BlockSize)
 	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
@@ -138,6 +148,7 @@ func (ts *TestState) readcheck(fh nfstypes.Nfs_fh3, off uint64, data []byte) {
 func TestReadDir(t *testing.T) {
 	checkFlags()
 	ts := newTest(t)
+	defer ts.Close()
 
 	dl3 := ts.ReadDir()
 	ne3 := dl3.Entries
@@ -151,6 +162,7 @@ func TestReadDir(t *testing.T) {
 
 func TestFile(t *testing.T) {
 	ts := newTest(t)
+	defer ts.Close()
 
 	fh := fh.Fh{Ino: common.Inum(2), Gen: uint64(0)}
 	data := mkdata(4096)
