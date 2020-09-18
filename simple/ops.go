@@ -45,6 +45,19 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 	util.DPrintf(0, "NFS Null\n")
 }
 
+func validInum(inum common.Inum) bool {
+	if inum == 0 {
+		return false
+	}
+	if inum == common.ROOTINUM {
+		return false
+	}
+	if inum >= nInode() {
+		return false
+	}
+	return true
+}
+
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3res {
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
@@ -58,7 +71,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 		return reply
 	}
 
-	if inum >= nInode() {
+	if !validInum(inum) {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
@@ -86,7 +99,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 
 	util.DPrintf(1, "inum %d %d\n", inum, nInode())
 
-	if inum == common.ROOTINUM || inum >= nInode() {
+	if !validInum(inum) {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
@@ -139,7 +152,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 		inum = 3
 	}
 
-	if inum == 0 || inum == common.ROOTINUM || inum >= nInode() {
+	if !validInum(inum) {
 		reply.Status = nfstypes.NFS3ERR_NOENT
 		return reply
 	}
@@ -165,7 +178,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	txn := buftxn.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
-	if inum == common.ROOTINUM || inum >= nInode() {
+	if !validInum(inum) {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
@@ -209,7 +222,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 
 	util.DPrintf(1, "inum %d %d\n", inum, nInode())
 
-	if inum == common.ROOTINUM || inum >= nInode() {
+	if !validInum(inum) {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
@@ -385,7 +398,7 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	txn := buftxn.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
-	if inum == common.ROOTINUM || inum >= nInode() {
+	if !validInum(inum) {
 		reply.Status = nfstypes.NFS3ERR_INVAL
 		return reply
 	}
