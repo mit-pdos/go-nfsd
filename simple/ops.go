@@ -372,12 +372,22 @@ func (nfs *Nfs) NFSPROC3_PATHCONF(args nfstypes.PATHCONF3args) nfstypes.PATHCONF
 func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	util.DPrintf(1, "NFS Commit %v\n", args)
 	var reply nfstypes.COMMIT3res
+
 	txn := buftxn.Begin(nfs.t)
+	inum := fh2ino(args.File)
+
+	if inum == common.ROOTINUM || inum >= nInode() {
+		reply.Status = nfstypes.NFS3ERR_INVAL
+		return reply
+	}
+
+	nfs.l.Acquire(inum)
 	ok := txn.CommitWait(true)
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
 		reply.Status = nfstypes.NFS3ERR_IO
 	}
+	nfs.l.Release(inum)
 	return reply
 }
