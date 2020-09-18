@@ -14,7 +14,6 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
 
@@ -122,7 +121,7 @@ func (ts *TestState) Close() {
 }
 
 func (ts *TestState) ReadDir() nfstypes.Dirlist3 {
-	reply := ts.clnt.ReadDirOp(fh.MkRootFh3(), disk.BlockSize)
+	reply := ts.clnt.ReadDirOp(MkRootFh3(), disk.BlockSize)
 	assert.Equal(ts.t, reply.Status, nfstypes.NFS3_OK)
 	return reply.Resok.Reply
 }
@@ -164,7 +163,7 @@ func TestFile(t *testing.T) {
 	ts := newTest(t)
 	defer ts.Close()
 
-	fh := fh.Fh{Ino: common.Inum(2), Gen: uint64(0)}
+	fh := Fh{Ino: common.Inum(2)}
 	data := mkdata(4096)
 	ts.Write(fh.MakeFh3(), data, nfstypes.FILE_SYNC)
 	ts.readcheck(fh.MakeFh3(), 0, data)

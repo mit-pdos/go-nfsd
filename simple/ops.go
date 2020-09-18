@@ -3,7 +3,6 @@ package simple
 import (
 	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/lockmap"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/txn"
@@ -16,7 +15,7 @@ type Nfs struct {
 }
 
 func fh2ino(fh3 nfstypes.Nfs_fh3) common.Inum {
-	fh := fh.MakeFh(fh3)
+	fh := MakeFh(fh3)
 	return fh.Ino
 }
 
@@ -145,7 +144,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 		return reply
 	}
 
-	fh := fh.Fh{Ino: inum, Gen: 0}
+	fh := Fh{Ino: inum}
 	reply.Resok.Object = fh.MakeFh3()
 	reply.Status = nfstypes.NFS3_OK
 	return reply
@@ -188,6 +187,16 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 
 	nfs.l.Release(inum)
 	return reply
+}
+
+func (nfs *Nfs) foo() {
+	nfs.NFSPROC3_READ(nfstypes.READ3args{
+		File: nfstypes.Nfs_fh3{
+			Data: nil,
+		},
+		Offset: nfstypes.Offset3(0),
+		Count: nfstypes.Count3(0),
+	})
 }
 
 func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {

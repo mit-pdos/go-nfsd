@@ -1,7 +1,6 @@
 package simple
 
 import (
-	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 
 	"log"
@@ -14,7 +13,7 @@ func (nfs *Nfs) MOUNTPROC3_MNT(args nfstypes.Dirpath3) nfstypes.Mountres3 {
 	reply := new(nfstypes.Mountres3)
 	log.Printf("Mount %v\n", args)
 	reply.Fhs_status = nfstypes.MNT3_OK
-	reply.Mountinfo.Fhandle = fh.MkRootFh3().Data
+	reply.Mountinfo.Fhandle = MkRootFh3().Data
 	return *reply
 }
 
