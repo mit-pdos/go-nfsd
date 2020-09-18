@@ -195,7 +195,7 @@ func (nfs *Nfs) foo() {
 			Data: nil,
 		},
 		Offset: nfstypes.Offset3(0),
-		Count: nfstypes.Count3(0),
+		Count:  nfstypes.Count3(0),
 	})
 }
 
