@@ -191,7 +191,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	ok := txn.CommitWait(true)
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
-		reply.Resok.Count = nfstypes.Count3(len(data))
+		reply.Resok.Count = nfstypes.Count3(uint64(len(data)))
 		reply.Resok.Data = data
 		reply.Resok.Eof = eof
 	} else {
