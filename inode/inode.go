@@ -267,7 +267,7 @@ func (ip *Inode) Read(atxn *alloctxn.AllocTxn, offset uint64, bytesToRead uint64
 		return nil, true
 	}
 	var count uint64 = bytesToRead
-	if count >= offset+ip.Size {
+	if offset+count >= ip.Size {
 		count = ip.Size - offset
 	}
 	util.DPrintf(5, "Read: off %d cnt %d\n", offset, count)
