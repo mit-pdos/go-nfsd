@@ -241,7 +241,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
-		reply.Resok.Count = nfstypes.Count3(count)
+		reply.Resok.Count = nfstypes.Count3(uint32(count))
 		reply.Resok.Committed = nfstypes.FILE_SYNC
 	} else {
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
