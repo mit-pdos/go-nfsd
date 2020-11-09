@@ -70,6 +70,10 @@ func (ip *Inode) Write(btxn *buftxn.BufTxn, offset uint64, count uint64, dataBuf
 		return 0, false
 	}
 
+	if util.SumOverflows(offset, count) {
+		return 0, false
+	}
+
 	if offset+count > disk.BlockSize {
 		return 0, false
 	}
