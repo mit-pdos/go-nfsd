@@ -237,38 +237,12 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		return reply
 	}
 
-	var ok bool
-	if args.Stable == nfstypes.FILE_SYNC {
-		// RFC: "FILE_SYNC, the server must commit the
-		// data written plus all file system metadata
-		// to stable storage before returning results."
-		ok = txn.CommitWait(true)
-	} else if args.Stable == nfstypes.DATA_SYNC {
-		// RFC: "DATA_SYNC, then the server must commit
-		// all of the data to stable storage and
-		// enough of the metadata to retrieve the data
-		// before returning."
-		ok = txn.CommitWait(true)
-	} else {
-		// RFC:	"UNSTABLE, the server is free to commit
-		// any part of the data and the metadata to
-		// stable storage, including all or none,
-		// before returning a reply to the
-		// client. There is no guarantee whether or
-		// when any uncommitted data will subsequently
-		// be committed to stable storage. The only
-		// guarantees made by the server are that it
-		// will not destroy any data without changing
-		// the value of verf and that it will not
-		// commit the data and metadata at a level
-		// less than that requested by the client."
-		ok = txn.CommitWait(false)
-	}
+	ok := txn.CommitWait(true)
 
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 		reply.Resok.Count = nfstypes.Count3(count)
-		reply.Resok.Committed = args.Stable
+		reply.Resok.Committed = nfstypes.FILE_SYNC
 	} else {
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 	}
