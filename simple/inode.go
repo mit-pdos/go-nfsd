@@ -51,8 +51,10 @@ func (ip *Inode) Read(btxn *buftxn.BufTxn, offset uint64, bytesToRead uint64) ([
 		data = append(data, buf.Data[offset+b])
 	}
 
-	util.DPrintf(10, "Read: off %d cnt %d -> %v\n", offset, count, data)
-	return data, false
+	eof := (offset+count >= ip.Size)
+
+	util.DPrintf(10, "Read: off %d cnt %d -> %v, %v\n", offset, count, data, eof)
+	return data, eof
 }
 
 func (ip *Inode) WriteInode(btxn *buftxn.BufTxn) {
