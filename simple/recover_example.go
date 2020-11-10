@@ -26,7 +26,7 @@ func RecoverExample(d disk.Disk) {
 		l: lockmap,
 	}
 
-	go exampleWorker(nfs, 3)
-	go exampleWorker(nfs, 3)
-	go exampleWorker(nfs, 4)
+	go func() { exampleWorker(nfs, 3) }()
+	go func() { exampleWorker(nfs, 3) }()
+	go func() { exampleWorker(nfs, 4) }()
 }
