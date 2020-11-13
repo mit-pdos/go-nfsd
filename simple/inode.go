@@ -78,6 +78,10 @@ func (ip *Inode) Write(btxn *buftxn.BufTxn, offset uint64, count uint64, dataBuf
 		return 0, false
 	}
 
+	if offset > ip.Size {
+		return 0, false
+	}
+
 	buffer := btxn.ReadBuf(block2addr(ip.Data), common.NBITBLOCK)
 	for b := uint64(0); b < count; b++ {
 		buffer.Data[offset+b] = dataBuf[b]
