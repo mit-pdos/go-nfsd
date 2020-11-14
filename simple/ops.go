@@ -114,20 +114,32 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 			count, writeok := ip.Write(txn, ip.Size, newsize-ip.Size, data)
 			if !writeok || count != newsize-ip.Size {
 				reply.Status = nfstypes.NFS3ERR_NOSPC
-				nfs.l.Release(inum)
-				return reply
+			} else {
+				ok := txn.CommitWait(true)
+				if ok {
+					reply.Status = nfstypes.NFS3_OK
+				} else {
+					reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+				}
 			}
 		} else {
 			ip.Size = newsize
 			ip.WriteInode(txn)
-		}
-	}
 
-	ok := txn.CommitWait(true)
-	if ok {
-		reply.Status = nfstypes.NFS3_OK
+			ok := txn.CommitWait(true)
+			if ok {
+				reply.Status = nfstypes.NFS3_OK
+			} else {
+				reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+			}
+		}
 	} else {
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+		ok := txn.CommitWait(true)
+		if ok {
+			reply.Status = nfstypes.NFS3_OK
+		} else {
+			reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+		}
 	}
 
 	nfs.l.Release(inum)
