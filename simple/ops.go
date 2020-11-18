@@ -111,8 +111,8 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		newsize := uint64(args.New_attributes.Size.Size)
 		if ip.Size < newsize {
 			data := make([]byte, newsize-ip.Size)
-			count, writeok := ip.Write(txn, ip.Size, newsize-ip.Size, data)
-			if !writeok || count != newsize-ip.Size {
+			ip.Write(txn, ip.Size, newsize-ip.Size, data)
+			if ip.Size != newsize {
 				reply.Status = nfstypes.NFS3ERR_NOSPC
 			} else {
 				ok := txn.CommitWait(true)
