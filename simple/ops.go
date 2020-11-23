@@ -183,6 +183,26 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 	return reply
 }
 
+func NFSPROC3_READ_wp(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, txn *buftxn.BufTxn) {
+	ip := ReadInode(txn, inum)
+	data, eof := ip.Read(txn, uint64(args.Offset), uint64(args.Count))
+
+	reply.Resok.Count = nfstypes.Count3(uint32(len(data)))
+	reply.Resok.Data = data
+	reply.Resok.Eof = eof
+}
+
+func NFSPROC3_READ_internal(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, txn *buftxn.BufTxn) {
+	NFSPROC3_READ_wp(args, reply, inum, txn)
+
+	ok := txn.CommitWait(true)
+	if ok {
+		reply.Status = nfstypes.NFS3_OK
+	} else {
+		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+	}
+}
+
 func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	var reply nfstypes.READ3res
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
@@ -196,20 +216,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	}
 
 	nfs.l.Acquire(inum)
-	ip := ReadInode(txn, inum)
-
-	data, eof := ip.Read(txn, uint64(args.Offset), uint64(args.Count))
-
-	ok := txn.CommitWait(true)
-	if ok {
-		reply.Status = nfstypes.NFS3_OK
-		reply.Resok.Count = nfstypes.Count3(uint32(len(data)))
-		reply.Resok.Data = data
-		reply.Resok.Eof = eof
-	} else {
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
-	}
-
+	NFSPROC3_READ_internal(args, &reply, inum, txn)
 	nfs.l.Release(inum)
 	return reply
 }
