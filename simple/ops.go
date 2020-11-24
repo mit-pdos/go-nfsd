@@ -58,6 +58,22 @@ func validInum(inum common.Inum) bool {
 	return true
 }
 
+func NFSPROC3_GETATTR_wp(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, txn *buftxn.BufTxn) {
+	ip := ReadInode(txn, inum)
+	reply.Resok.Obj_attributes = ip.MkFattr()
+}
+
+func NFSPROC3_GETATTR_internal(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, txn *buftxn.BufTxn) {
+	NFSPROC3_GETATTR_wp(args, reply, inum, txn)
+
+	ok := txn.CommitWait(true)
+	if ok {
+		reply.Status = nfstypes.NFS3_OK
+	} else {
+		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+	}
+}
+
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3res {
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
@@ -77,17 +93,49 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	}
 
 	nfs.l.Acquire(inum)
+	NFSPROC3_GETATTR_internal(args, &reply, inum, txn)
+	nfs.l.Release(inum)
+	return reply
+}
+
+func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, txn *buftxn.BufTxn) bool {
 	ip := ReadInode(txn, inum)
-	reply.Resok.Obj_attributes = ip.MkFattr()
-	ok := txn.CommitWait(true)
-	if ok {
+
+	var ok bool
+	if args.New_attributes.Size.Set_it {
+		newsize := uint64(args.New_attributes.Size.Size)
+		if ip.Size < newsize {
+			data := make([]byte, newsize-ip.Size)
+			ip.Write(txn, ip.Size, newsize-ip.Size, data)
+			if ip.Size != newsize {
+				reply.Status = nfstypes.NFS3ERR_NOSPC
+			} else {
+				ok = true
+			}
+		} else {
+			ip.Size = newsize
+			ip.WriteInode(txn)
+			ok = true
+		}
+	} else {
+		ok = true
+	}
+
+	return ok
+}
+
+func NFSPROC3_SETATTR_internal(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, txn *buftxn.BufTxn) {
+	ok1 := NFSPROC3_SETATTR_wp(args, reply, inum, txn)
+	if !ok1 {
+		return
+	}
+
+	ok2 := txn.CommitWait(true)
+	if ok2 {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 	}
-
-	nfs.l.Release(inum)
-	return reply
 }
 
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
@@ -105,43 +153,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	}
 
 	nfs.l.Acquire(inum)
-	ip := ReadInode(txn, inum)
-
-	if args.New_attributes.Size.Set_it {
-		newsize := uint64(args.New_attributes.Size.Size)
-		if ip.Size < newsize {
-			data := make([]byte, newsize-ip.Size)
-			ip.Write(txn, ip.Size, newsize-ip.Size, data)
-			if ip.Size != newsize {
-				reply.Status = nfstypes.NFS3ERR_NOSPC
-			} else {
-				ok := txn.CommitWait(true)
-				if ok {
-					reply.Status = nfstypes.NFS3_OK
-				} else {
-					reply.Status = nfstypes.NFS3ERR_SERVERFAULT
-				}
-			}
-		} else {
-			ip.Size = newsize
-			ip.WriteInode(txn)
-
-			ok := txn.CommitWait(true)
-			if ok {
-				reply.Status = nfstypes.NFS3_OK
-			} else {
-				reply.Status = nfstypes.NFS3ERR_SERVERFAULT
-			}
-		}
-	} else {
-		ok := txn.CommitWait(true)
-		if ok {
-			reply.Status = nfstypes.NFS3_OK
-		} else {
-			reply.Status = nfstypes.NFS3ERR_SERVERFAULT
-		}
-	}
-
+	NFSPROC3_SETATTR_internal(args, &reply, inum, txn)
 	nfs.l.Release(inum)
 	return reply
 }
@@ -221,14 +233,32 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	return reply
 }
 
-func (nfs *Nfs) foo() {
-	nfs.NFSPROC3_READ(nfstypes.READ3args{
-		File: nfstypes.Nfs_fh3{
-			Data: nil,
-		},
-		Offset: nfstypes.Offset3(0),
-		Count:  nfstypes.Count3(0),
-	})
+func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, txn *buftxn.BufTxn) bool {
+	ip := ReadInode(txn, inum)
+
+	count, writeok := ip.Write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
+	if !writeok {
+		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+		return false
+	}
+
+	reply.Resok.Count = nfstypes.Count3(uint32(count))
+	reply.Resok.Committed = nfstypes.FILE_SYNC
+	return true
+}
+
+func NFSPROC3_WRITE_internal(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, txn *buftxn.BufTxn) {
+	ok1 := NFSPROC3_WRITE_wp(args, reply, inum, txn)
+	if !ok1 {
+		return
+	}
+
+	ok2 := txn.CommitWait(true)
+	if ok2 {
+		reply.Status = nfstypes.NFS3_OK
+	} else {
+		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
+	}
 }
 
 func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
@@ -247,25 +277,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	}
 
 	nfs.l.Acquire(inum)
-	ip := ReadInode(txn, inum)
-
-	count, writeok := ip.Write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
-	if !writeok {
-		nfs.l.Release(inum)
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
-		return reply
-	}
-
-	ok := txn.CommitWait(true)
-
-	if ok {
-		reply.Status = nfstypes.NFS3_OK
-		reply.Resok.Count = nfstypes.Count3(uint32(count))
-		reply.Resok.Committed = nfstypes.FILE_SYNC
-	} else {
-		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
-	}
-
+	NFSPROC3_WRITE_internal(args, &reply, inum, txn)
 	nfs.l.Release(inum)
 	return reply
 }
