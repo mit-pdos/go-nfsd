@@ -3,6 +3,7 @@ package goose_nfs
 import (
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"strconv"
 )
 
 type NfsClient struct {
@@ -143,14 +144,14 @@ func (clnt *NfsClient) ReadDirPlusOp(dir nfstypes.Nfs_fh3, cnt uint64) nfstypes.
 // Run parallel clients executing f(), each in their own directory
 func Parallel(nthread int, disksz uint64,
 	f func(clnt *NfsClient, dirfh nfstypes.Nfs_fh3) int) int {
-	names := []string{"d0", "d1", "d2", "d3"}
 	root := fh.MkRootFh3()
 	clnt := MkNfsClient(disksz)
 	count := make(chan int)
 	for i := 0; i < nthread; i++ {
 		go func(i int) {
-			clnt.MkDirOp(root, names[i])
-			reply := clnt.LookupOp(root, names[i])
+			name := "d" + strconv.Itoa(i)
+			clnt.MkDirOp(root, name)
+			reply := clnt.LookupOp(root, name)
 			if reply.Status != nfstypes.NFS3_OK {
 				panic("Parallel")
 			}
