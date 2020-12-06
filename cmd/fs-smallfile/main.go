@@ -21,7 +21,6 @@ func smallfile(name string, data []byte) {
 	if err != nil {
 		panic(err)
 	}
-	f.Sync()
 	f.Close()
 	err = os.Remove(name)
 	if err != nil {
@@ -56,7 +55,6 @@ func client(p string) int {
 
 func run(nt int) {
 	path := "/mnt/nfs/"
-	// path := "/home/kaashoek/tmp/shm"
 	count := make(chan int)
 	for i := 0; i < nt; i++ {
 		d := "d" + strconv.Itoa(i)
