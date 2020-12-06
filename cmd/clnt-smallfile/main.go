@@ -146,6 +146,38 @@ func mkdata(sz uint64) []byte {
 	return data
 }
 
+func psmallfile(root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_none rfc1057.Opaque_auth) {
+	const N = 10 * time.Second
+	const NTHREAD = 1
+	count := make(chan int)
+	for i := 1; i <= NTHREAD; i++ {
+		go func(i int) {
+			nfs := pmap_client("localhost", rfc1813.NFS_PROGRAM, rfc1813.NFS_V3)
+			clnt := &nfsclnt{clnt: nfs, cred: cred_unix, verf: cred_none}
+			data := mkdata(uint64(100))
+			n := 0
+			start := time.Now()
+			for true {
+				s := strconv.Itoa(i)
+				smallfile(clnt, root_fh, "x"+s, data)
+				n++
+				t := time.Now()
+				elapsed := t.Sub(start)
+				if elapsed >= N {
+					count <- n
+					break
+				}
+			}
+		}(i)
+	}
+	n := 0
+	for i := 0; i < NTHREAD; i++ {
+		c := <-count
+		n += c
+	}
+	fmt.Printf("clnt-smallfile: %v file/s\n", float64(n)/N.Seconds())
+}
+
 func main() {
 	var err error
 
@@ -180,26 +212,5 @@ func main() {
 		fmt.Printf("flavor %d\n", flavor)
 	}
 
-	fmt.Printf("root fh %v\n", root_fh)
-
-	nfs := pmap_client("localhost", rfc1813.NFS_PROGRAM, rfc1813.NFS_V3)
-	clnt := &nfsclnt{clnt: nfs, cred: cred_unix, verf: cred_none}
-
-	const N = 10 * time.Second
-
-	start := time.Now()
-	i := 0
-	data := mkdata(uint64(100))
-	for true {
-		// null(nfs, cred_unix, cred_none, root_fh)
-		s := strconv.Itoa(i)
-		smallfile(clnt, root_fh, "x"+s, data)
-		i++
-		t := time.Now()
-		elapsed := t.Sub(start)
-		if elapsed >= N {
-			break
-		}
-	}
-	fmt.Printf("clnt-smallfile: %v file/s\n", float64(i)/N.Seconds())
+	psmallfile(root_fh, cred_unix, cred_none)
 }
