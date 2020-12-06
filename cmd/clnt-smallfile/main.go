@@ -11,6 +11,9 @@ import (
 	"github.com/zeldovich/go-rpcgen/xdr"
 )
 
+const N = 10 * time.Second
+const NTHREAD = 10
+
 func pmap_client(host string, prog, vers uint32) *rfc1057.Client {
 	var cred rfc1057.Opaque_auth
 	cred.Flavor = rfc1057.AUTH_NONE
@@ -146,36 +149,38 @@ func mkdata(sz uint64) []byte {
 	return data
 }
 
-func psmallfile(root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_none rfc1057.Opaque_auth) {
-	const N = 10 * time.Second
-	const NTHREAD = 1
-	count := make(chan int)
-	for i := 1; i <= NTHREAD; i++ {
-		go func(i int) {
-			nfs := pmap_client("localhost", rfc1813.NFS_PROGRAM, rfc1813.NFS_V3)
-			clnt := &nfsclnt{clnt: nfs, cred: cred_unix, verf: cred_none}
-			data := mkdata(uint64(100))
-			n := 0
-			start := time.Now()
-			for true {
-				s := strconv.Itoa(i)
-				smallfile(clnt, root_fh, "x"+s, data)
-				n++
-				t := time.Now()
-				elapsed := t.Sub(start)
-				if elapsed >= N {
-					count <- n
-					break
-				}
-			}
-		}(i)
-	}
+func client(i int, root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_none rfc1057.Opaque_auth, count chan int) {
+	nfs := pmap_client("localhost", rfc1813.NFS_PROGRAM, rfc1813.NFS_V3)
+	clnt := &nfsclnt{clnt: nfs, cred: cred_unix, verf: cred_none}
+	data := mkdata(uint64(100))
 	n := 0
-	for i := 0; i < NTHREAD; i++ {
-		c := <-count
-		n += c
+	start := time.Now()
+	for true {
+		s := strconv.Itoa(i)
+		smallfile(clnt, root_fh, "x"+s, data)
+		n++
+		t := time.Now()
+		elapsed := t.Sub(start)
+		if elapsed >= N {
+			count <- n
+			break
+		}
 	}
-	fmt.Printf("clnt-smallfile: %v file/s\n", float64(n)/N.Seconds())
+}
+
+func pclient(root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_none rfc1057.Opaque_auth) {
+	for t := 1; t <= NTHREAD; t++ {
+		count := make(chan int)
+		for i := 1; i <= t; i++ {
+			go client(i, root_fh, cred_unix, cred_none, count)
+		}
+		n := 0
+		for i := 0; i < t; i++ {
+			c := <-count
+			n += c
+		}
+		fmt.Printf("clnt-smallfile: %v %v file/s\n", t, float64(n)/N.Seconds())
+	}
 }
 
 func main() {
@@ -212,5 +217,5 @@ func main() {
 		fmt.Printf("flavor %d\n", flavor)
 	}
 
-	psmallfile(root_fh, cred_unix, cred_none)
+	pclient(root_fh, cred_unix, cred_none)
 }
