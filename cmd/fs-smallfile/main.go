@@ -21,6 +21,7 @@ func smallfile(name string, data []byte) {
 	if err != nil {
 		panic(err)
 	}
+	f.Sync()
 	f.Close()
 	err = os.Remove(name)
 	if err != nil {
