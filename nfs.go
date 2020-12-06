@@ -37,7 +37,7 @@ func MkNfsName(name string, sz uint64) *Nfs {
 
 func MkNfs(sz uint64) *Nfs {
 	r := rand.Uint64()
-	tmpdir := "/dev/shm"
+	tmpdir := "/home/kaashoek/tmp/shm"
 	f, err := os.Stat(tmpdir)
 	if !(err == nil && f.IsDir()) {
 		tmpdir = os.TempDir()
