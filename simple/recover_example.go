@@ -18,15 +18,19 @@ func exampleWorker(nfs *Nfs, ino common.Inum) {
 	return
 }
 
-func RecoverExample(d disk.Disk) {
-	txn := txn.MkTxn(d)
+func Recover(d disk.Disk) *Nfs {
+	txn := txn.MkTxn(d) // runs recovery
 	lockmap := lockmap.MkLockMap()
 
 	nfs := &Nfs{
 		t: txn,
 		l: lockmap,
 	}
+	return nfs
+}
 
+func RecoverExample(d disk.Disk) {
+	nfs := Recover(d)
 	go func() { exampleWorker(nfs, 3) }()
 	go func() { exampleWorker(nfs, 3) }()
 	go func() { exampleWorker(nfs, 4) }()
