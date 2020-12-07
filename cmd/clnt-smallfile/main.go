@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
@@ -12,7 +14,7 @@ import (
 )
 
 const N = 10 * time.Second
-const NTHREAD = 10
+const NTHREAD = 1
 
 func pmap_client(host string, prog, vers uint32) *rfc1057.Client {
 	var cred rfc1057.Opaque_auth
@@ -154,10 +156,17 @@ func client(i int, root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_
 	clnt := &nfsclnt{clnt: nfs, cred: cred_unix, verf: cred_none}
 	data := mkdata(uint64(100))
 	n := 0
+	rand.Seed(time.Now().UnixNano())
+	r := rand.Int31()
+	d := "d" + strconv.Itoa(int(r))
+	err := os.MkdirAll(d+"/", 0700)
+	if err != nil {
+		panic(err)
+	}
 	start := time.Now()
+	s := strconv.Itoa(i)
 	for true {
-		s := strconv.Itoa(i)
-		smallfile(clnt, root_fh, "x"+s, data)
+		smallfile(clnt, root_fh, d+"/x"+s, data)
 		n++
 		t := time.Now()
 		elapsed := t.Sub(start)
