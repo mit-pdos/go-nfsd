@@ -1,0 +1,8 @@
+Potential improvements:
+
+- The txn layer could implement more fine-grained locking for CommitWait.
+  For example, if a transaction is writing full blocks (no inodes or
+  bits), it's not necessary to acquire the txn commit lock.  Even more
+  aggressively, txn could acquire locks (using a lockmap) for every disk
+  block that requires an installation read (sorting the disk block addrs
+  to avoid deadlock).  Not clear if that optimization is worth it, though.
