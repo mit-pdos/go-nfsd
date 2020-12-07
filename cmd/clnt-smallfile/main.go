@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"os"
 	"strconv"
 	"time"
 
@@ -158,15 +157,10 @@ func client(i int, root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_
 	n := 0
 	rand.Seed(time.Now().UnixNano())
 	r := rand.Int31()
-	d := "d" + strconv.Itoa(int(r))
-	err := os.MkdirAll(d+"/", 0700)
-	if err != nil {
-		panic(err)
-	}
+	s := strconv.Itoa(int(r))
 	start := time.Now()
-	s := strconv.Itoa(i)
 	for true {
-		smallfile(clnt, root_fh, d+"/x"+s, data)
+		smallfile(clnt, root_fh, "/x"+s, data)
 		n++
 		t := time.Now()
 		elapsed := t.Sub(start)
