@@ -5,4 +5,4 @@
 #
 
 killall -s SIGINT goose-nfsd
-sudo umount -f /mnt/nfs
+# sudo umount -f /mnt/nfs
