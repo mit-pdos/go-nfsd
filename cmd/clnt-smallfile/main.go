@@ -13,7 +13,7 @@ import (
 )
 
 const N = 10 * time.Second
-const NTHREAD = 1
+const NTHREAD = 20
 
 func pmap_client(host string, prog, vers uint32) *rfc1057.Client {
 	var cred rfc1057.Opaque_auth
@@ -117,6 +117,19 @@ func (c *nfsclnt) write(fh rfc1813.Nfs_fh3, off uint64, data []byte, how rfc1813
 	return &res
 }
 
+func (c *nfsclnt) mkdir(fh rfc1813.Nfs_fh3, name string) *rfc1813.MKDIR3res {
+	var res rfc1813.MKDIR3res
+
+	where := rfc1813.Diropargs3{Dir: fh, Name: rfc1813.Filename3(name)}
+	sattr := rfc1813.Sattr3{}
+	args := rfc1813.MKDIR3args{Where: where, Attributes: sattr}
+	err := c.clnt.Call(rfc1813.NFSPROC3_MKDIR, c.cred, c.verf, &args, &res)
+	if err != nil {
+		panic(err)
+	}
+	return &res
+}
+
 func smallfile(clnt *nfsclnt, dirfh rfc1813.Nfs_fh3, name string, data []byte) {
 	reply := clnt.lookup(dirfh, name)
 	if reply.Status == rfc1813.NFS3_OK {
@@ -153,14 +166,21 @@ func mkdata(sz uint64) []byte {
 func client(i int, root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_none rfc1057.Opaque_auth, count chan int) {
 	nfs := pmap_client("localhost", rfc1813.NFS_PROGRAM, rfc1813.NFS_V3)
 	clnt := &nfsclnt{clnt: nfs, cred: cred_unix, verf: cred_none}
+
 	data := mkdata(uint64(100))
-	n := 0
-	rand.Seed(time.Now().UnixNano())
-	r := rand.Int31()
-	s := strconv.Itoa(int(r))
+	name := "d" + strconv.Itoa(int(rand.Int31()))
+	clnt.mkdir(root_fh, name)
+	reply := clnt.lookup(root_fh, name)
+	if reply.Status != rfc1813.NFS3_OK {
+		panic("Parallel")
+	}
+	dirfh := reply.Resok.Object
+
 	start := time.Now()
+	n := 0
+	s := strconv.Itoa(int(i))
 	for true {
-		smallfile(clnt, root_fh, "/x"+s, data)
+		smallfile(clnt, dirfh, "x"+s, data)
 		n++
 		t := time.Now()
 		elapsed := t.Sub(start)
@@ -196,6 +216,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	rand.Seed(time.Now().UnixNano())
 
 	var cred_none rfc1057.Opaque_auth
 	cred_none.Flavor = rfc1057.AUTH_NONE
