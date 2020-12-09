@@ -13,7 +13,7 @@ import (
 )
 
 const N = 10 * time.Second
-const NTHREAD = 1
+const NTHREAD = 20
 
 func pmap_client(host string, prog, vers uint32) *rfc1057.Client {
 	var cred rfc1057.Opaque_auth
