@@ -13,7 +13,7 @@ import (
 )
 
 const N = 10 * time.Second
-const NTHREAD = 20
+const NTHREAD = 1
 
 func pmap_client(host string, prog, vers uint32) *rfc1057.Client {
 	var cred rfc1057.Opaque_auth
@@ -169,13 +169,16 @@ func client(i int, root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_
 
 	data := mkdata(uint64(100))
 	name := "d" + strconv.Itoa(int(rand.Int31()))
-	clnt.mkdir(root_fh, name)
+	r := clnt.mkdir(root_fh, name)
+	if r.Status != rfc1813.NFS3_OK {
+		fmt.Printf("r %v\n", r.Status)
+		panic("client: mkdir")
+	}
 	reply := clnt.lookup(root_fh, name)
 	if reply.Status != rfc1813.NFS3_OK {
-		panic("Parallel")
+		panic("client: lookup")
 	}
 	dirfh := reply.Resok.Object
-
 	start := time.Now()
 	n := 0
 	s := strconv.Itoa(int(i))
@@ -224,7 +227,7 @@ func main() {
 
 	mnt := pmap_client("localhost", rfc1813.MOUNT_PROGRAM, rfc1813.MOUNT_V3)
 
-	arg := rfc1813.Dirpath3("/")
+	arg := rfc1813.Dirpath3("/srv/nfs/")
 	var res rfc1813.Mountres3
 	err = mnt.Call(rfc1813.MOUNTPROC3_MNT, cred_none, cred_none, &arg, &res)
 	if err != nil {
