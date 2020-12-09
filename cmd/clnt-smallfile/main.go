@@ -227,7 +227,8 @@ func main() {
 
 	mnt := pmap_client("localhost", rfc1813.MOUNT_PROGRAM, rfc1813.MOUNT_V3)
 
-	arg := rfc1813.Dirpath3("/srv/nfs/")
+	// for Linux: arg := rfc1813.Dirpath3("/srv/nfs/")
+	arg := rfc1813.Dirpath3("/")
 	var res rfc1813.Mountres3
 	err = mnt.Call(rfc1813.MOUNTPROC3_MNT, cred_none, cred_none, &arg, &res)
 	if err != nil {
