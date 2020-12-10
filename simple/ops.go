@@ -3,16 +3,9 @@ package simple
 import (
 	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/lockmap"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
-
-type Nfs struct {
-	t *txn.Txn
-	l *lockmap.LockMap
-}
 
 func fh2ino(fh3 nfstypes.Nfs_fh3) common.Inum {
 	fh := MakeFh(fh3)
