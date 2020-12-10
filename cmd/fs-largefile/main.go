@@ -23,8 +23,14 @@ func makefile(name string, data []byte) {
 			panic(err)
 		}
 	}
-	f.Close()
-	f.Sync()
+	err = f.Sync()
+	if err != nil {
+		panic(err)
+	}
+	err = f.Close()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func mkdata(sz uint64) []byte {
