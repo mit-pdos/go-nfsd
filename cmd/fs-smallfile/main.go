@@ -9,7 +9,7 @@ import (
 
 const (
 	N       = 10 * time.Second
-	NTHREAD = 4
+	NTHREAD = 20
 )
 
 func smallfile(name string, data []byte) {
@@ -43,7 +43,7 @@ func client(p string) int {
 	i := 0
 	for {
 		s := strconv.Itoa(i)
-		smallfile(p+s, data)
+		smallfile(p+"/x"+s, data)
 		i++
 		t := time.Now()
 		elapsed := t.Sub(start)
