@@ -1,5 +1,5 @@
 # goose-nfsd
 
-[![Build Status](https://travis-ci.com/mit-pdos/goose-nfsd.svg?token=1SPwqpqUkmsUej6KT47u&branch=master)](https://travis-ci.com/mit-pdos/goose-nfsd)
+[![CI](https://github.com/mit-pdos/goose-nfsd/workflows/CI/badge.svg)](https://github.com/mit-pdos/goose-nfsd/actions?query=workflow%3ACI)
 
 An NFS implementation that works with [Goose](https://github.com/tchajed/goose).
