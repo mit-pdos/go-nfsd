@@ -1,9 +1,9 @@
 package simple
 
 import (
-	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/goose-nfsd/twophase"
 	"github.com/mit-pdos/goose-nfsd/util"
 )
 
@@ -51,15 +51,15 @@ func validInum(inum common.Inum) bool {
 	return true
 }
 
-func NFSPROC3_GETATTR_wp(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, txn *buftxn.BufTxn) {
+func NFSPROC3_GETATTR_wp(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, txn *twophase.TwoPhase) {
 	ip := ReadInode(txn, inum)
 	reply.Resok.Obj_attributes = ip.MkFattr()
 }
 
-func NFSPROC3_GETATTR_internal(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, txn *buftxn.BufTxn) {
+func NFSPROC3_GETATTR_internal(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, txn *twophase.TwoPhase) {
 	NFSPROC3_GETATTR_wp(args, reply, inum, txn)
 
-	ok := txn.CommitWait(true)
+	ok := txn.Commit()
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
@@ -71,7 +71,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
 
-	txn := buftxn.Begin(nfs.t)
+	txn := twophase.Begin(nfs.t, nfs.l)
 	inum := fh2ino(args.Object)
 
 	if inum == common.ROOTINUM {
@@ -85,13 +85,11 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 		return reply
 	}
 
-	nfs.l.Acquire(inum)
 	NFSPROC3_GETATTR_internal(args, &reply, inum, txn)
-	nfs.l.Release(inum)
 	return reply
 }
 
-func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, txn *buftxn.BufTxn) bool {
+func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, txn *twophase.TwoPhase) bool {
 	ip := ReadInode(txn, inum)
 
 	var ok bool
@@ -117,13 +115,13 @@ func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res
 	return ok
 }
 
-func NFSPROC3_SETATTR_internal(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, txn *buftxn.BufTxn) {
+func NFSPROC3_SETATTR_internal(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, txn *twophase.TwoPhase) {
 	ok1 := NFSPROC3_SETATTR_wp(args, reply, inum, txn)
 	if !ok1 {
 		return
 	}
 
-	ok2 := txn.CommitWait(true)
+	ok2 := txn.Commit()
 	if ok2 {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
@@ -135,7 +133,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	var reply nfstypes.SETATTR3res
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
 
-	txn := buftxn.Begin(nfs.t)
+	txn := twophase.Begin(nfs.t, nfs.l)
 	inum := fh2ino(args.Object)
 
 	util.DPrintf(1, "inum %d %d\n", inum, nInode())
@@ -145,9 +143,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		return reply
 	}
 
-	nfs.l.Acquire(inum)
 	NFSPROC3_SETATTR_internal(args, &reply, inum, txn)
-	nfs.l.Release(inum)
 	return reply
 }
 
@@ -188,7 +184,7 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 	return reply
 }
 
-func NFSPROC3_READ_wp(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, txn *buftxn.BufTxn) {
+func NFSPROC3_READ_wp(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, txn *twophase.TwoPhase) {
 	ip := ReadInode(txn, inum)
 	data, eof := ip.Read(txn, uint64(args.Offset), uint64(args.Count))
 
@@ -197,10 +193,10 @@ func NFSPROC3_READ_wp(args nfstypes.READ3args, reply *nfstypes.READ3res, inum co
 	reply.Resok.Eof = eof
 }
 
-func NFSPROC3_READ_internal(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, txn *buftxn.BufTxn) {
+func NFSPROC3_READ_internal(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, txn *twophase.TwoPhase) {
 	NFSPROC3_READ_wp(args, reply, inum, txn)
 
-	ok := txn.CommitWait(true)
+	ok := txn.Commit()
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
@@ -212,7 +208,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	var reply nfstypes.READ3res
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
 
-	txn := buftxn.Begin(nfs.t)
+	txn := twophase.Begin(nfs.t, nfs.l)
 	inum := fh2ino(args.File)
 
 	if !validInum(inum) {
@@ -220,13 +216,11 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 		return reply
 	}
 
-	nfs.l.Acquire(inum)
 	NFSPROC3_READ_internal(args, &reply, inum, txn)
-	nfs.l.Release(inum)
 	return reply
 }
 
-func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, txn *buftxn.BufTxn) bool {
+func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, txn *twophase.TwoPhase) bool {
 	ip := ReadInode(txn, inum)
 
 	count, writeok := ip.Write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
@@ -240,13 +234,13 @@ func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum
 	return true
 }
 
-func NFSPROC3_WRITE_internal(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, txn *buftxn.BufTxn) {
+func NFSPROC3_WRITE_internal(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, txn *twophase.TwoPhase) {
 	ok1 := NFSPROC3_WRITE_wp(args, reply, inum, txn)
 	if !ok1 {
 		return
 	}
 
-	ok2 := txn.CommitWait(true)
+	ok2 := txn.Commit()
 	if ok2 {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
@@ -259,7 +253,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
 
-	txn := buftxn.Begin(nfs.t)
+	txn := twophase.Begin(nfs.t, nfs.l)
 	inum := fh2ino(args.File)
 
 	util.DPrintf(1, "inum %d %d\n", inum, nInode())
@@ -269,9 +263,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		return reply
 	}
 
-	nfs.l.Acquire(inum)
 	NFSPROC3_WRITE_internal(args, &reply, inum, txn)
-	nfs.l.Release(inum)
 	return reply
 }
 
@@ -393,7 +385,7 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	util.DPrintf(1, "NFS Commit %v\n", args)
 	var reply nfstypes.COMMIT3res
 
-	txn := buftxn.Begin(nfs.t)
+	txn := twophase.Begin(nfs.t, nfs.l)
 	inum := fh2ino(args.File)
 
 	if !validInum(inum) {
@@ -401,13 +393,11 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 		return reply
 	}
 
-	nfs.l.Acquire(inum)
-	ok := txn.CommitWait(true)
+	ok := txn.Commit()
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
 		reply.Status = nfstypes.NFS3ERR_IO
 	}
-	nfs.l.Release(inum)
 	return reply
 }

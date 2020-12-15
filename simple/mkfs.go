@@ -3,9 +3,10 @@ package simple
 import (
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/goose-nfsd/buftxn"
 	"github.com/mit-pdos/goose-nfsd/lockmap"
+	"github.com/mit-pdos/goose-nfsd/twophase"
 	"github.com/mit-pdos/goose-nfsd/txn"
+	"github.com/mit-pdos/goose-nfsd/util"
 )
 
 type Nfs struct {
@@ -15,9 +16,10 @@ type Nfs struct {
 
 func Mkfs(d disk.Disk) *txn.Txn {
 	txn := txn.MkTxn(d)
-	btxn := buftxn.Begin(txn)
-	inodeInit(btxn)
-	ok := btxn.CommitWait(true)
+	l := lockmap.MkLockMap()
+	tptxn := twophase.Begin(txn, l)
+	inodeInit(tptxn)
+	ok := tptxn.Commit()
 	if !ok {
 		return nil
 	}
@@ -37,15 +39,14 @@ func Recover(d disk.Disk) *Nfs {
 
 func MakeNfs(d disk.Disk) *Nfs {
 	txn := txn.MkTxn(d) // runs recovery
+	lockmap := lockmap.MkLockMap()
 
-	btxn := buftxn.Begin(txn)
-	inodeInit(btxn)
-	ok := btxn.CommitWait(true)
+	tptxn := twophase.Begin(txn, lockmap)
+	inodeInit(tptxn)
+	ok := tptxn.Commit()
 	if !ok {
 		return nil
 	}
-
-	lockmap := lockmap.MkLockMap()
 
 	nfs := &Nfs{
 		t: txn,
