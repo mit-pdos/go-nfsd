@@ -49,5 +49,5 @@ func main() {
 	makefile(path, data)
 	elapsed := time.Now().Sub(start)
 	tput := float64(FILESIZE/MB) / elapsed.Seconds()
-	fmt.Printf("fs-largefile: %v MB througput %.2f MB/s\n", FILESIZE/MB, tput)
+	fmt.Printf("fs-largefile: %v MB throughput %.2f MB/s\n", FILESIZE/MB, tput)
 }
