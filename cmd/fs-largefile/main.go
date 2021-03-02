@@ -44,11 +44,10 @@ func mkdata(sz uint64) []byte {
 func main() {
 	path := "/mnt/nfs/large"
 
-	start := time.Now()
 	data := mkdata(WSIZE)
+	start := time.Now()
 	makefile(path, data)
-	t := time.Now()
-	elapsed := t.Sub(start)
+	elapsed := time.Now().Sub(start)
 	tput := float64(FILESIZE/MB) / elapsed.Seconds()
 	fmt.Printf("fs-largefile: %v MB througput %.2f MB/s\n", FILESIZE/MB, tput)
 }
