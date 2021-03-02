@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math/rand"
 	"net"
@@ -12,8 +13,8 @@ import (
 	"github.com/zeldovich/go-rpcgen/xdr"
 )
 
-const N = 10 * time.Second
-const NTHREAD = 20
+var N time.Duration
+var NTHREAD int
 
 func pmap_client(host string, prog, vers uint32) *rfc1057.Client {
 	var cred rfc1057.Opaque_auth
@@ -210,6 +211,9 @@ func pclient(root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_none r
 }
 
 func main() {
+	flag.DurationVar(&N, "benchtime", 10*time.Second, "time to run each iteration for")
+	flag.IntVar(&NTHREAD, "threads", 20, "number of threads to run till")
+
 	var err error
 
 	var unix rfc1057.Auth_unix
