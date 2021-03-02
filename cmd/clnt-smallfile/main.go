@@ -213,6 +213,7 @@ func pclient(root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_none r
 func main() {
 	flag.DurationVar(&N, "benchtime", 10*time.Second, "time to run each iteration for")
 	flag.IntVar(&NTHREAD, "threads", 20, "number of threads to run till")
+	flag.Parse()
 
 	var err error
 
