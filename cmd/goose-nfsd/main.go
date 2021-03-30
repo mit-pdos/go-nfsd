@@ -59,7 +59,7 @@ func main() {
 	if *diskfile != "" {
 		name = *diskfile
 	} else {
-		fmt.Printf("Argument '-diskfile <file>' required\n")
+		fmt.Printf("Argument '-disk <file>' required\n")
 		return
 	}
 	if *cpuprofile != "" {
