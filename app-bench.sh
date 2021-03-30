@@ -14,13 +14,26 @@ if [ $# -ne 2 ]
     echo "$0 xv6-repo top-dir"
     exit 1
 fi
+xv6_repo="$1"
+fs_dir="$2"
 
-echo "=== app-bench $1 $2 ==="
-cd "$2"
+echo "=== app-bench $xv6_repo $fs_dir ==="
+cd "$fs_dir"
 
-echo "=== git clone ==="
-time -p git clone --quiet $1 xv6
+time_file="/tmp/time"
 
-echo "=== compile xv6 ==="
+#echo "=== git clone ==="
+/usr/bin/time -f "clone real %e" -o "$time_file" git clone --quiet "$xv6_repo" xv6
+clone_time="$(cut -d ' ' -f3 < "$time_file")"
+cat "$time_file" 1>&2
+
+#echo "=== compile xv6 ==="
 cd xv6
-time -p make --quiet kernel
+/usr/bin/time -f "compile real %e user %U" -o "$time_file" make --quiet kernel
+compile_time="$(cut -d ' ' -f3 < "$time_file")"
+cat "$time_file" 1>&2
+
+total_time=$(awk "BEGIN{ print $clone_time + $compile_time }")
+throughput=$(awk "BEGIN{ print (1.0 / $total_time) }")
+echo "total real $total_time s" 1>&2
+echo "app-bench $throughput app/s"
