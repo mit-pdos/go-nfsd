@@ -23,12 +23,14 @@ fi
 cd "$GOOSE_NFSD_PATH"
 
 info "GoNFS"
+echo "fs=gonfs"
 ./run-goose-nfs.sh go run ./cmd/fs-smallfile -start=10 -threads=10
 ./run-goose-nfs.sh go run ./cmd/fs-largefile
 ./run-goose-nfs.sh ./app-bench.sh "$XV6_PATH" /mnt/nfs
 
 echo 1>&2
 info "Linux ext3 over NFS"
+echo "fs=linux"
 ./run-linux.sh go run ./cmd/fs-smallfile -start=10 -threads=10
 ./run-linux.sh go run ./cmd/fs-largefile
 ./run-linux.sh ./app-bench.sh "$XV6_PATH" /mnt/nfs
