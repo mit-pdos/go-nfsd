@@ -20,5 +20,5 @@ function cleanup {
 trap cleanup EXIT
 
 # taskset 0x3 $1 /mnt/nfs
-echo "run $@"
+echo "run $@" 1>&2
 "$@"

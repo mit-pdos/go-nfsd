@@ -15,5 +15,5 @@ function cleanup {
 }
 trap cleanup EXIT
 
-echo "run $@"
+echo "run $@" 1>&2
 "$@"
