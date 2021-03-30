@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
 
+# Produce data for figures 14 and 15 (lines of code).
+#
+# To run this script, set PERENNIAL_PATH, GOOSE_NFSD_PATH, and MARSHAL_PATH to
+# checkouts of those three projects.
+
 import glob
 import os
+import numpy as np
 import pandas as pd
+
+
+def goto_path(var_prefix):
+    assert var_prefix in ["perennial", "goose_nfsd", "marshal"]
+    os.chdir(os.environ[var_prefix.upper() + "_PATH"])
 
 
 def count_lines_file(p):
@@ -21,7 +32,7 @@ def wc_l(*patterns):
 
 def jrnl_cert_table():
     """Generate figure 14 (lines of code for JrnlCert)"""
-    os.chdir(os.environ["PERENNIAL_PATH"])
+    goto_path("perennial")
     helpers = wc_l(
         "src/Helpers/*.v",
         "src/iris_lib/*.v",
@@ -53,4 +64,113 @@ def jrnl_cert_table():
     )
 
 
+def program_proof_table():
+    """Generate figure 15 (lines of code for GoJrnl and SimpleNFS)"""
+
+    # get all lines of code from goose-nfsd
+    goto_path("goose_nfsd")
+    circ_c = wc_l("wal/0circular.go")
+    wal_c = wc_l("wal/*.go") - circ_c - wc_l("wal/*_test.go")
+    txn_c = wc_l("txn/txn.go")
+    buftxn_c = wc_l("buftxn/buftxn.go")
+    sep_buftxn_c = 0
+    lockmap_c = wc_l("lockmap/lock.go")
+    misc_c = wc_l("addr/addr.go", "buf/buf.go", "buf/bufmap.go")
+    goto_path("marshal")
+    misc_c += wc_l("marshal.go")
+    goto_path("goose_nfsd")
+    go_nfs_c = wc_l(
+        *"""lorder.go mount.go nfs.go nfs_ls.go nfs_ops.go alloc/alloc.go
+        alloctxn/alloctxn.go cache/cache.go cmd/goose-nfsd/main.go
+        common/common.go dcache/dcache.go dir/dir.go dir/dcache.go fh/nfs_fh.go
+        fstxn/*.go inode/* shrinker/shrinker.go super/super.go
+        txn/txn.go util/util.go""".split()
+    )
+    simple_c = wc_l("simple/0super.go", "simple/fh.go", "simple/ops.go")
+
+    # get all lines of proof from Perennial
+    goto_path("perennial")
+    os.chdir("src/program_proof")
+    circ_p = wc_l("wal/circ_proof*.v")
+    wal_p = (
+        wc_l("wal/*.v")
+        - wc_l("wal/circ_proof*.v")
+        # just an experiment, not used
+        - wc_l("wal/heapspec_list.v")
+    )
+    txn_p = wc_l("txn/*.v")
+    buftxn_p = wc_l("buftxn/buftxn_proof.v")
+    sep_buftxn_p = wc_l("buftxn/sep_buftxn_*.v")
+    lockmap_p = wc_l("*lockmap_proof.v")
+    misc_p = wc_l(
+        "addr/*.v",
+        "buf/*.v",
+        "disk_lib.v",
+        "marshal_block.v",
+        "marshal_proof.v",
+        "util_proof.v",
+    )
+    simple_p = wc_l("simple/*.v")
+
+    def ratio(n, m):
+        if m == 0:
+            return 0
+        return int(float(n) / m)
+
+    def entry(name, code, proof):
+        return (name, code, proof, ratio(proof, code))
+
+    schema = [
+        ("layer", "U25"),
+        ("Lines of code", "i8"),
+        ("Lines of proof", "i8"),
+        ("Ratio", "i8"),
+    ]
+
+    data = np.array(
+        [
+            entry("circular", circ_c, circ_p),
+            entry("wal", wal_c, wal_p),
+            entry("txn", txn_c, txn_p),
+            (
+                "buftxn",
+                buftxn_c,
+                buftxn_p,
+                0,
+            ),
+            (
+                "sepbuftxn",
+                sep_buftxn_c,
+                sep_buftxn_p,
+                ratio(buftxn_p + sep_buftxn_p, buftxn_c),
+            ),
+            entry("lockmap", lockmap_c, lockmap_p),
+            entry("Misc.", misc_c, misc_p),
+        ],
+        dtype=schema,
+    )
+    df = pd.DataFrame.from_records(data)
+    total_c = df["Lines of code"].sum()
+    total_p = df["Lines of proof"].sum()
+    df = df.append(
+        pd.DataFrame.from_records(
+            np.array(
+                [
+                    entry("GoJrnl total", total_c, total_p),
+                    entry("GoNFS", go_nfs_c, 0),
+                    entry("SimpleNFS", simple_c, simple_p),
+                ],
+                dtype=schema,
+            )
+        ),
+        ignore_index=True,
+    )
+    return df
+
+
+print("Fig 14 (lines of code in JrnlCert)")
 print(jrnl_cert_table().to_string(index=False))
+print()
+
+print("Fig 15 (lines of code for GoJrnl and SimpleNFS)")
+print(program_proof_table().to_string(index=False))
