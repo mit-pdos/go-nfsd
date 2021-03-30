@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
+
+set -eu
 
 #
 # Usage:  ./run-goose-nfs.sh  go run ./cmd/fs-smallfile/main.go
@@ -12,9 +14,11 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # root of repo
 cd $DIR
 
-disk_file="$1"
-if [ -z "$disk_file" ]; then
-    disk_file=/dev/shm/goose.img
+disk_file=/dev/shm/goose.img
+if [ "$1" = "-disk" ]; then
+    disk_file="$2"
+    shift
+    shift
 fi
 
 ./start-goose-nfs.sh -disk "$disk_file" || exit 1

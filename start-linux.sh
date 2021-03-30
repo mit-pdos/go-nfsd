@@ -1,7 +1,13 @@
-#!/bin/sh
+#!/bin/bash
+
+set -e
 
 #
-# Usage: ./start-linux.sh
+# Usage: ./start-linux.sh <disk file>
+#
+# set to /dev/shm/nfs3.img to use tmpfs, or a file to use the disk (through the host
+# file system), or a block device to use a partition directly (NOTE: it will be
+# overwritten; don't run as root)
 #
 
 # Requires /srv/nfs/bench to be set up for NFS export, otherwise you will get
@@ -16,12 +22,11 @@
 # to reload the export table
 #
 
-IMG=/tmp/nfs3.img
-# IMG=/home/kaashoek/tmp/nfs3.img
-rm -f $IMG
-dd status=none if=/dev/zero of=$IMG bs=4K count=100000
-mkfs.ext3 -q $IMG
-sudo mount -t ext3 -o data=journal -o loop $IMG /srv/nfs/bench
+disk_file="$1"
+rm -f "$disk_file"
+dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
+mkfs.ext3 -q "$disk_file"
+sudo mount -t ext3 -o data=journal -o loop "$disk_file" /srv/nfs/bench
 sudo systemctl start nfs-server.service
 sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
 sudo chmod 777 /srv/nfs/bench
