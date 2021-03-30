@@ -16,7 +16,7 @@ fi
 cd "$GOOSE_NFSD_PATH"
 
 threads=10
-if [ $# -gt 1 ]; then
+if [[ $# -gt 0 ]]; then
     threads="$1"
 fi
 
