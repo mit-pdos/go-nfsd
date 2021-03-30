@@ -2,13 +2,13 @@
 
 # run various performance benchmarks
 
-set -eo
+set -e
 
-if [ -d "$GOOSE_NFSD_PATH" ]; then
+if [ ! -d "$GOOSE_NFSD_PATH" ]; then
     echo "GOOSE_NFSD_PATH is unset" 1>&2
     exit 1
 fi
-if [ -d "$XV6_PATH" ]; then
+if [ ! -d "$XV6_PATH" ]; then
     echo "XV6_PATH is unset" 1>&2
     exit 1
 fi
