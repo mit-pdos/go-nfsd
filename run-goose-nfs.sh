@@ -12,7 +12,12 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # root of repo
 cd $DIR
 
-./start-goose-nfs.sh || exit 1
+disk_file="$1"
+if [ -z "$disk_file" ]; then
+    disk_file=/dev/shm/goose.img
+fi
+
+./start-goose-nfs.sh -disk "$disk_file" || exit 1
 
 function cleanup {
     ./stop-goose-nfs.sh

@@ -6,3 +6,4 @@
 
 killall -s SIGINT goose-nfsd
 sudo umount -f /mnt/nfs
+rm -f /dev/shm/goose.img
