@@ -15,7 +15,7 @@ cd $DIR
 ./start-goose-nfs.sh || exit 1
 
 function cleanup {
-    ./stop-goose-nfsd.sh
+    ./stop-goose-nfs.sh
 }
 trap cleanup EXIT
 
