@@ -26,6 +26,7 @@ rm -f "$disk_file"
 
 function cleanup {
     ./stop-goose-nfs.sh
+    rm -f "$disk_file"
 }
 trap cleanup EXIT
 
