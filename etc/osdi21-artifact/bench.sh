@@ -27,7 +27,7 @@ info "GoNFS"
 ./run-goose-nfs.sh go run ./cmd/fs-largefile
 ./run-goose-nfs.sh ./app-bench.sh "$XV6_PATH" /mnt/nfs
 
-echo
+echo 1>&2
 info "Linux ext3 over NFS"
 ./run-linux.sh go run ./cmd/fs-smallfile -start=10 -threads=10
 ./run-linux.sh go run ./cmd/fs-largefile

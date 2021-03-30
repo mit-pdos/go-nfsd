@@ -23,6 +23,6 @@ fi
 info "GoNFS smallfile scalability"
 ./run-goose-nfs.sh -disk ~/disk.img go run ./cmd/fs-smallfile -threads=$threads
 
-echo
+echo 1>&2
 info "Linux smallfile scalability"
 ./run-linux.sh     -disk ~/disk.img go run ./cmd/fs-smallfile -threads=$threads
