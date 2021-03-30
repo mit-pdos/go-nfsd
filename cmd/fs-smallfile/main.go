@@ -1,16 +1,15 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
 )
 
-const (
-	N       = 10 * time.Second
-	NTHREAD = 20
-)
+var N time.Duration
+var NTHREAD int
 
 func smallfile(name string, data []byte) {
 	f, err := os.Create(name)
@@ -76,7 +75,16 @@ func run(nt int) {
 }
 
 func main() {
-	for i := 1; i <= NTHREAD; i++ {
+	var start int
+	flag.DurationVar(&N, "benchtime", 10*time.Second, "time to run each iteration for")
+	flag.IntVar(&start, "start", 1, "number of threads to start at")
+	flag.IntVar(&NTHREAD, "threads", 20, "number of threads to run till")
+	flag.Parse()
+	if start < 1 {
+		panic("invalid start")
+	}
+
+	for i := start; i <= NTHREAD; i++ {
 		run(i)
 	}
 }

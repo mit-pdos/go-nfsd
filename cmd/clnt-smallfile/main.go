@@ -14,6 +14,7 @@ import (
 )
 
 var N time.Duration
+var STARTTHREAD int
 var NTHREAD int
 
 func pmap_client(host string, prog, vers uint32) *rfc1057.Client {
@@ -196,7 +197,7 @@ func client(i int, root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_
 }
 
 func pclient(root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_none rfc1057.Opaque_auth) {
-	for t := 1; t <= NTHREAD; t++ {
+	for t := STARTTHREAD; t <= NTHREAD; t++ {
 		count := make(chan int)
 		for i := 1; i <= t; i++ {
 			go client(i, root_fh, cred_unix, cred_none, count)
@@ -212,8 +213,13 @@ func pclient(root_fh rfc1813.Nfs_fh3, cred_unix rfc1057.Opaque_auth, cred_none r
 
 func main() {
 	flag.DurationVar(&N, "benchtime", 10*time.Second, "time to run each iteration for")
+	flag.IntVar(&STARTTHREAD, "start", 1, "number of threads to start at")
 	flag.IntVar(&NTHREAD, "threads", 20, "number of threads to run till")
 	flag.Parse()
+
+	if STARTTHREAD < 1 {
+		panic("invalid start")
+	}
 
 	var err error
 
