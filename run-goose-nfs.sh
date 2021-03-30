@@ -20,6 +20,7 @@ if [ "$1" = "-disk" ]; then
     shift
     shift
 fi
+rm -f "$disk_file"
 
 ./start-goose-nfs.sh -disk "$disk_file" || exit 1
 
