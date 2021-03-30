@@ -17,7 +17,7 @@ fi
 xv6_repo="$1"
 fs_dir="$2"
 
-echo "=== app-bench $xv6_repo $fs_dir ==="
+echo "=== app-bench $xv6_repo $fs_dir ===" 1>&2
 cd "$fs_dir"
 
 time_file="/tmp/time"
