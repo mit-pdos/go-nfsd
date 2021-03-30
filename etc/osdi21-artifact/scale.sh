@@ -15,9 +15,14 @@ if [ ! -d "$GOOSE_NFSD_PATH" ]; then
 fi
 cd "$GOOSE_NFSD_PATH"
 
+threads=10
+if [ $# -gt 1 ]; then
+    threads="$1"
+fi
+
 info "GoNFS smallfile scalability"
-./run-goose-nfs.sh -disk ~/disk.img go run ./cmd/fs-smallfile -threads=10
+./run-goose-nfs.sh -disk ~/disk.img go run ./cmd/fs-smallfile -threads=$threads
 
 echo
 info "Linux smallfile scalability"
-./run-linux.sh     -disk ~/disk.img go run ./cmd/fs-smallfile -threads=10
+./run-linux.sh     -disk ~/disk.img go run ./cmd/fs-smallfile -threads=$threads
