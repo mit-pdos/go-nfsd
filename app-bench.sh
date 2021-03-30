@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Usage: app-bench.sh xv6-repo path-to-fs
 #
@@ -34,6 +34,6 @@ compile_time="$(cut -d ' ' -f3 < "$time_file")"
 cat "$time_file" 1>&2
 
 total_time=$(awk "BEGIN{ print $clone_time + $compile_time }")
-throughput=$(awk "BEGIN{ print (1.0 / $total_time) }")
+throughput=$(awk "BEGIN{ print 1.0 / $total_time }")
 echo "total real $total_time s" 1>&2
 echo "app-bench $throughput app/s"
