@@ -8,11 +8,17 @@
 
 # go run ./cmd/goose-nfsd/ -disk /dev/shm/goose.img -cpuprofile=nfsd.prof &
 
-./start-goose-nfs.sh
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# root of repo
+cd $DIR
+
+./start-goose-nfs.sh || exit 1
+
+function cleanup {
+    ./stop-goose-nfsd.sh
+}
+trap cleanup EXIT
 
 # taskset 0x3 $1 /mnt/nfs
-echo "$@"
+echo "run $@"
 "$@"
-
-./stop-goose-nfs.sh
-
