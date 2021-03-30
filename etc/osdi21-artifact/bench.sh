@@ -8,7 +8,7 @@ blue=$(tput setaf 4)
 reset=$(tput sgr0)
 
 info() {
-  echo -e "${blue}$1${reset}"
+  echo -e "${blue}$1${reset}" 1>&2
 }
 
 if [ ! -d "$GOOSE_NFSD_PATH" ]; then
