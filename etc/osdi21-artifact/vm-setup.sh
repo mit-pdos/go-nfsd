@@ -20,7 +20,16 @@ cd ~/code
 git clone --recurse-submodules https://github.com/mit-pdos/perennial
 git clone https://github.com/mit-pdos/xv6-public
 git clone https://github.com/tchajed/marshal
+git clone https://github.com/tchajed/goose
 cd
+
+cat >> ~/.profile <<EOF
+export GOOSE_NFSD_PATH=$HOME/goose-nfsd
+export PERENNIAL_PATH=$HOME/code/perennial
+export MARSHAL_PATH=$HOME/code/marshal
+export XV6_PATH=$HOME/code/xv6-public
+export GOOSE_PATH=$HOME/code/goose
+EOF
 
 # Set up NFS client and server
 
@@ -35,6 +44,9 @@ echo "/srv/nfs/bench localhost(rw,sync,no_subtree_check)" | sudo tee -a /etc/exp
 ## but they can instead be started manually on each boot
 sudo systemctl enable rpcbind
 sudo systemctl enable rpc-statd
+sudo systemctl disable nfs-server
+# can't run goose-nfsd and Linux NFS server at the same time
+sudo systemctl stop nfs-server
 
 # Install Python dependencies
 
@@ -54,13 +66,11 @@ echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >> ~/.profile
 export PATH=/usr/local/go/bin:$PATH
 
 go install github.com/tchajed/goose/cmd/goose@latest
-
-cat >> ~/.profile <<EOF
-export GOOSE_NFSD_PATH=$HOME/goose-nfsd
-export PERENNIAL_PATH=$HOME/code/perennial
-export MARSHAL_PATH=$HOME/code/marshal
-export XV6_PATH=$HOME/code/xv6-public
-EOF
+# these are required in $GOPATH for goose to compile goose-nfsd
+export GOPATH=$HOME/go
+export GO111MODULE=off
+go get github.com/tchajed/goose/...
+go get github.com/mit-pdos/goose-nfsd/...
 
 # Install Coq
 

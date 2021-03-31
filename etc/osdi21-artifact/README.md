@@ -11,10 +11,20 @@ rule set up in VirtualBox so that `ssh -p 10322 ubuntu@localhost` should work.
 You might want to add your public key to the VM to avoid having to type the
 password every time.
 
+Note that GoNFS from the paper is called goose-nfsd in the code, and that
+JrnlCert is an anonymized name for the new version of the Perennial framework.
+
 ## Compiling the proofs
 
 The paper claims to have verified the GoJrnl implementation. You should check
-this by compiling the proofs in the `perennial` repo.
+this by compiling the proofs in the `perennial` repo:
+
+```sh
+cd ~/code/perennial
+make -j4
+```
+
+**This will take about 30 minutes.**
 
 ## Performance evaluation
 
