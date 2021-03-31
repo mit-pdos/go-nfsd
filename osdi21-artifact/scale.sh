@@ -31,7 +31,7 @@ echo "fs=linux"
 
 echo 1>&2
 info "Serial GoNFS (holding locks)"
-git apply etc/osdi21-artifact/serial.patch
+git apply osdi21-artifact/serial.patch
 echo "fs=serial-gonfs"
 ./bench/run-goose-nfs.sh -disk ~/disk.img go run ./cmd/fs-smallfile -start=1 -threads=1
 git restore wal/installer.go wal/logger.go
