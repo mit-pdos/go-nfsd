@@ -21,6 +21,7 @@ fi
 
 function cleanup {
     ./bench/stop-linux.sh
+    rm -f "$disk_file"
 }
 trap cleanup EXIT
 
