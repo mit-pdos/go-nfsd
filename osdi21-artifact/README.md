@@ -21,10 +21,26 @@ this by compiling the proofs in the `perennial` repo:
 
 ```sh
 cd ~/code/perennial
-make -j4
+make -j4 src/program_proof/simple/print_assumptions.vo
 ```
 
 **This will take about 30 minutes.**
+
+This only compiles the SimpleNFS top-level proof and all its dependencies,
+including the GoJrnl proofs (in `src/program_proof/buftxn/sep_buftxn_proof.v`
+and `sep_buftxn_recovery_proof.v`). The repository has a bunch of other research
+code in it that isn't related to this paper.
+
+We do proofs over Go using [Goose](https://github.com/tchajed/goose), which
+compiles Go code to a Coq model. The output is checked in to the Perennial repo
+for simplicity, but you can re-generate it from the goose-nfsd code:
+
+```sh
+cd ~/code/perennial
+rm -r external/Goose/github_com/mit_pdos/goose_nfsd
+./etc/update-goose.py --goose $GOOSE_PATH --nfsd $GOOSE_NFSD_PATH --skip-goose-examples --verbose
+git status
+```
 
 ## Performance evaluation
 
