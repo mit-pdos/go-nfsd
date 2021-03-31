@@ -17,7 +17,7 @@ git clone https://github.com/mit-pdos/goose-nfsd
 mkdir ~/code
 cd ~/code
 # TODO: use specific commits
-git clone https://github.com/mit-pdos/perennial
+git clone --recurse-submodules https://github.com/mit-pdos/perennial
 git clone https://github.com/mit-pdos/xv6-public
 git clone https://github.com/tchajed/marshal
 cd
@@ -54,3 +54,11 @@ export PERENNIAL_PATH=$HOME/code/perennial
 export MARSHAL_PATH=$HOME/code/marshal
 export XV6_PATH=$HOME/code/xv6-public
 EOF
+
+# Coq
+
+sudo apt-get install -y opam libgmp-dev
+opam init --auto-setup --bare
+opam switch create 4.11.0+flambda
+eval $(opam env)
+opam install -j2 coq.8.13.1
