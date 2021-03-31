@@ -14,6 +14,12 @@ password every time.
 Note that GoNFS from the paper is called goose-nfsd in the code, and that
 JrnlCert is an anonymized name for the new version of the Perennial framework.
 
+We've configured the VM with 4GB of RAM, but if you can afford 6GB or 8GB you
+may want to do that to speed up compilation (note that single-threaded
+compilation will take just over an hour and doesn't require much RAM, so more
+RAM isn't necessary). You'll definitely want to set it to the maximum number of
+cores you can afford to run the scalability experiment.
+
 ## Compiling the proofs
 
 The paper claims to have verified the GoJrnl implementation. You should check
@@ -97,4 +103,6 @@ numbers were included manually in the graph; you can easily find the numbers by
 looking at `data/bench.data` and looking at the "linux" column.
 
 Compare `fig/scale.png` to Figure 17 in the paper. The scaling should be roughly
-the same. Absolute performance depends highly on your drive's performance.
+the same, although if you don't have enough cores (or don't allocate them to the
+VM) then performance will flatten at a smaller number of clients. Absolute
+performance depends highly on your drive's performance.
