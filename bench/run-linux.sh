@@ -8,7 +8,7 @@ set -eu
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # root of repo
-cd $DIR
+cd $DIR/..
 
 disk_file=/dev/shm/nfs3.img
 if [ "$1" = "-disk" ]; then
@@ -17,10 +17,10 @@ if [ "$1" = "-disk" ]; then
     shift
 fi
 
-./start-linux.sh "$disk_file" || exit 1
+./bench/start-linux.sh "$disk_file" || exit 1
 
 function cleanup {
-    ./stop-linux.sh
+    ./bench/stop-linux.sh
 }
 trap cleanup EXIT
 

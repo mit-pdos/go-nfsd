@@ -8,6 +8,10 @@ set -eu
 # default disk is /dev/shm/goose.img but can be overriden by passing -disk again
 #
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# root of repo
+cd $DIR/..
+
 #go run ./cmd/goose-nfsd/ -disk ~/tmp/goose.img > nfs.out 2>&1 &
 go run ./cmd/goose-nfsd/ -disk /dev/shm/goose.img "$@" > nfs.out 2>&1 &
 sleep 2

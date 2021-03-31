@@ -12,7 +12,7 @@ set -eu
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # root of repo
-cd $DIR
+cd $DIR/..
 
 disk_file=/dev/shm/goose.img
 if [ "$1" = "-disk" ]; then
@@ -24,10 +24,10 @@ rm -f "$disk_file"
 dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
 sync "$disk_file"
 
-./start-goose-nfs.sh -disk "$disk_file" || exit 1
+./bench/start-goose-nfs.sh -disk "$disk_file" || exit 1
 
 function cleanup {
-    ./stop-goose-nfs.sh
+    ./bench/stop-goose-nfs.sh
     rm -f "$disk_file"
 }
 trap cleanup EXIT
