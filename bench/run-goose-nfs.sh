@@ -18,7 +18,7 @@ while true; do
     case "$1" in
     -disk)
         shift
-        disk="$1"
+        disk_file="$1"
         shift
         ;;
     --cpu-list)
