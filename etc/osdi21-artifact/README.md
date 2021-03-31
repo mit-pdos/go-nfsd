@@ -31,13 +31,9 @@ takes a few minutes
 
 ## Produce graphs
 
-3. Produce graphs
-
 ```sh
-./bench.py data/bench-raw.txt
-./scale.py data/scale-raw.txt
-gnuplot bench.plot
-gnuplot scale.plot
+./plot.sh
 ```
 
-TODO: run serial NFS workload
+(assumes you've put data in `data/bench-raw.txt` and `data/scale-raw.txt`, as
+above)
