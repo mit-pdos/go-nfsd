@@ -1,5 +1,5 @@
-set terminal pdf dashed noenhanced size 3.5in,1.5in
-set output "fig/bench.pdf"
+set terminal png noenhanced size 1050,450
+set output "fig/bench.png"
 
 set style data histogram
 set style histogram cluster gap 1

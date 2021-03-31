@@ -39,9 +39,7 @@ def parse_raw(lines):
         if item:
             data.append(item)
             continue
-        item = get_bench_data(
-            r"""(?P<bench>app)-bench (?P<val>[0-9.]*) app/s""", line
-        )
+        item = get_bench_data(r"""(?P<bench>app)-bench (?P<val>[0-9.]*) app/s""", line)
         if item:
             data.append(item)
             continue
@@ -58,5 +56,6 @@ if __name__ == "__main__":
 
     tidy_df = parse_raw(args.bench)
     df = tidy_df.pivot_table(index="bench", columns="fs", values="val")
+    df = df.reindex(index=["smallfile", "largefile", "app"])
     with open("data/bench.data", "w") as f:
-        print(df.to_csv(sep="\t"), end="", file=f)
+        print(df.to_csv(sep="\t", columns=["linux", "gonfs"]), end="", file=f)
