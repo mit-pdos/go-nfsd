@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -eu
-
 #
 # Usage:  ./run-goose-nfs.sh  go run ./cmd/fs-smallfile/main.go
 #
@@ -15,16 +13,36 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd $DIR/..
 
 disk_file=/dev/shm/goose.img
-if [ "$1" = "-disk" ]; then
-    disk_file="$2"
-    shift
-    shift
-fi
+cpu_list=""
+while true; do
+    case "$1" in
+    -disk)
+        shift
+        disk="$1"
+        shift
+        ;;
+    --cpu-list)
+        shift
+        cpu_list="$1"
+        shift
+        ;;
+    *)
+        break
+        ;;
+    esac
+done
+
+set -eu
+
 rm -f "$disk_file"
 dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
 sync "$disk_file"
 
-./bench/start-goose-nfs.sh -disk "$disk_file" || exit 1
+if [ -z "$cpu_list" ]; then
+    ./bench/start-goose-nfs.sh -disk "$disk_file" || exit 1
+else
+    taskset --cpu-list "$cpu_list" ./bench/start-goose-nfs.sh -disk "$disk_file" || exit 1
+fi
 
 function cleanup {
     ./bench/stop-goose-nfs.sh
