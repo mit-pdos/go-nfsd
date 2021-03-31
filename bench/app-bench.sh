@@ -32,6 +32,7 @@ cd xv6
 /usr/bin/time -f "compile real %e user %U" -o "$time_file" make --quiet kernel
 compile_time="$(cut -d ' ' -f3 < "$time_file")"
 cat "$time_file" 1>&2
+rm -f "$time_file"
 
 total_time=$(awk "BEGIN{ print $clone_time + $compile_time }")
 throughput=$(awk "BEGIN{ print 1.0 / $total_time }")
