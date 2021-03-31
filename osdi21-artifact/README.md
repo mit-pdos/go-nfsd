@@ -4,8 +4,11 @@
 
 Read the description below on the VM. You should be able to run all the commands in
 this artifact quickly with the exception of compiling Perennial, so to get
-started we recommend following these instructions in order. The `./scale.sh`
-script takes less than 5 minutes but you can skip it if you'd like.
+started we recommend following these instructions in order. Comparing the
+results and compiling the proofs in Perennial will take a bit more time.
+
+The `./scale.sh` script takes less than 5 minutes but you can also skip that if
+you'd like to do a quick sanity check.
 
 ### About the VM
 
@@ -19,7 +22,9 @@ You might want to add your public key to the VM to avoid having to type the
 password every time.
 
 The artifact (including this README) is located at
-`~/goose-nfsd/osdi21-artifact`.
+`~/goose-nfsd/osdi21-artifact`. The README.md file there might be out-of-date by
+the time you read this; please run `git pull` when you start, or follow the
+README on GitHub rather than in the VM.
 
 We've configured the VM with 4GB of RAM and 6 cores, but if you can afford 6GB
 or 8GB you may want to do that to speed up compilation (note that
@@ -67,7 +72,7 @@ cd ~/goose-nfsd/osdi21-artifact
 Instantaneous
 
 ```sh
-bench.sh | tee data/bench-raw.txt`
+./bench.sh | tee data/bench-raw.txt
 ```
 
 Takes about a minute. You can manually inspect the output file (which is fairly
@@ -101,6 +106,12 @@ numbers should generally line up.
 
 The exact performance results will vary depending on your machine, and suffer
 slightly from being run in a VM.
+
+You can get the figures out of the VM by running (from your host machine):
+
+```sh
+rsync -a -e 'ssh -p 10322' ubuntu@localhost:./goose-nfsd/osdi21-artifact/fig ./
+```
 
 Compare `fig/bench.png` to Figure 16 in the paper. The absolute performance
 numbers were included manually in the graph; you can easily find the numbers by
@@ -139,3 +150,6 @@ rm -r external/Goose/github_com/mit_pdos/goose_nfsd
 ./etc/update-goose.py --goose $GOOSE_PATH --nfsd $GOOSE_NFSD_PATH --skip-goose-examples --verbose
 git status
 ```
+
+The final `git status` command should report that the working tree has been
+restored to its previous state.
