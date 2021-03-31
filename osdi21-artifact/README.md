@@ -2,13 +2,11 @@
 
 ## Getting started
 
-Read the description below on the VM. You should be able to run all the commands in
-this artifact quickly with the exception of compiling Perennial, so to get
-started we recommend following these instructions in order. Comparing the
-results and compiling the proofs in Perennial will take a bit more time.
-
-The `./scale.sh` script takes less than 5 minutes but you can also skip that if
-you'd like to do a quick sanity check.
+Read the description below on the VM. You should be able to run all the commands
+in this artifact quickly with the exception of compiling Perennial, so to get
+started we recommend gathering all the data and skipping the compilation step.
+Comparing the results and compiling the proofs in Perennial will take a bit more
+time.
 
 ### About the VM
 
