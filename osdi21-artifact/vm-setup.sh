@@ -13,11 +13,10 @@ sudo apt-get install -y git python3-pip wget
 
 ## assumes https://github.com/mit-pdos/goose-nfsd has already been cloned to
 ## ~/goose-nfsd (since this is the easiest way to run this script)
+git clone --recurse-submodules https://github.com/mit-pdos/perennial
 
 mkdir ~/code
 cd ~/code
-# TODO: use specific commits
-git clone --recurse-submodules https://github.com/mit-pdos/perennial
 git clone https://github.com/mit-pdos/xv6-public
 git clone https://github.com/tchajed/marshal
 git clone https://github.com/tchajed/goose
@@ -25,7 +24,7 @@ cd
 
 cat >> ~/.profile <<EOF
 export GOOSE_NFSD_PATH=$HOME/goose-nfsd
-export PERENNIAL_PATH=$HOME/code/perennial
+export PERENNIAL_PATH=$HOME/perennial
 export MARSHAL_PATH=$HOME/code/marshal
 export XV6_PATH=$HOME/code/xv6-public
 export GOOSE_PATH=$HOME/code/goose

@@ -1,83 +1,84 @@
 # JrnlCert artifact
 
-## About the VM
+## Getting started
 
-The VM was created by installing the Ubuntu 20.04 live server image. The user
-account is `ubuntu` with password `ubuntu`, and the hostname is `jrnlcert-vm`.
-The user account has sudo access without a password.
+Read the description below on the VM. You should be able to run all the commands in
+this artifact quickly with the exception of compiling Perennial, so to get
+started we recommend following these instructions in order. The `./scale.sh`
+script takes less than 5 minutes but you can skip it if you'd like.
+
+### About the VM
+
+The VM was created by installing the Ubuntu 20.04 live server image in
+VirtualBox. **The user account is `ubuntu` with password `ubuntu`**. The user
+account has sudo access without a password.
 
 You can launch the VM headless and then SSH to it. There's a port forwarding
 rule set up in VirtualBox so that `ssh -p 10322 ubuntu@localhost` should work.
 You might want to add your public key to the VM to avoid having to type the
 password every time.
 
-Note that GoNFS from the paper is called goose-nfsd in the code, and that
-JrnlCert is an anonymized name for the new version of the Perennial framework.
+The artifact (including this README) is located at
+`~/goose-nfsd/osdi21-artifact`.
 
-We've configured the VM with 4GB of RAM, but if you can afford 6GB or 8GB you
-may want to do that to speed up compilation (note that single-threaded
-compilation will take just over an hour and doesn't require much RAM, so more
-RAM isn't necessary). You'll definitely want to set it to the maximum number of
-cores you can afford to run the scalability experiment.
+We've configured the VM with 4GB of RAM and 6 cores, but if you can afford 6GB
+or 8GB you may want to do that to speed up compilation (note that
+single-threaded compilation will take just over an hour and doesn't require much
+RAM, so more RAM isn't necessary). You'll definitely want to set it to the
+maximum number of cores you can afford for the scalability experiment.
 
-## Compiling the proofs
+## Claims
 
-The paper claims to have verified the GoJrnl implementation. You should check
-this by compiling the proofs in the `perennial` repo:
+The artifact concerns four claims in the paper:
 
-```sh
-cd ~/code/perennial
-make -j4 src/program_proof/simple/print_assumptions.vo
-```
-
-**This will take about 30 minutes.**
-
-This only compiles the SimpleNFS top-level proof and all its dependencies,
-including the GoJrnl proofs (in `src/program_proof/buftxn/sep_buftxn_proof.v`
-and `sep_buftxn_recovery_proof.v`). The repository has a bunch of other research
-code in it that isn't related to this paper.
-
-We do proofs over Go using [Goose](https://github.com/tchajed/goose), which
-compiles Go code to a Coq model. The output is checked in to the Perennial repo
-for simplicity, but you can re-generate it from the goose-nfsd code:
-
-```sh
-cd ~/code/perennial
-rm -r external/Goose/github_com/mit_pdos/goose_nfsd
-./etc/update-goose.py --goose $GOOSE_PATH --nfsd $GOOSE_NFSD_PATH --skip-goose-examples --verbose
-git status
-```
+1. GoJrnl's proof overhead is about 20x (in the tricky concurrent parts), while
+   SimpleNFS is only 7x. Measured by lines of code.
+2. The proofs for JrnlCert, GoJrnl, and SimpleNFS are complete.
+3. GoJrnl is functional when compared against ext3 (using journaled data and
+   over NFS for a fair comparison). We demonstrate this by showing GoNFS gets
+   close throughput in the benchmarks in Figure 16, which use a RAM-backed disk.
+4. GoJrnl is scalable. We demonstrate this by showing performance for the
+   smallfile benchmark scales with the number of clients, on an SSD (Figure 17).
 
 ## Performance evaluation
 
-### Set environment variables
+We've cloned several repositories for you into the VM, most notably:
 
-```sh
-export PERENNIAL_PATH=$HOME/code/perennial
-export GOOSE_NFSD_PATH=$HOME/code/goose-nfsd
-export MARSHAL_PATH=$HOME/code/marshal
-export XV6_PATH=$HOME/code/xv6-public
-```
+- https://github.com/mit-pdos/goose-nfsd (located at `~/goose-nfsd`): includes
+  GoJrnl, SimpleNFS, and GoNFS. The journal is implemented by the `buftxn`
+  package, SimpleNFS is in `simple/`, and the binary for `GoNFS` is
+  `cmd/goose-nfsd` (which imports various packages in this repo). The artifact
+  is implemented with several scripts in `osdi21-artifact` in this repo.
+- https://github.com/mit-pdos/perennial (located at `~/perennial`): the Perennial framework (renamed
+  JrnlCert for submission) and all program proofs for the journal and SimpleNFS.
 
 ### Gather data
+
+This should all be done in the artifact directory:
+
+```sh
+cd ~/goose-nfsd/osdi21-artifact
+```
 
 ```sh
 ./loc.py | tee data/lines-of-code.txt
 ```
 
-instantaneous
+Instantaneous
 
 ```sh
 bench.sh | tee data/bench-raw.txt`
 ```
 
-takes about a minute
+Takes about a minute. You can manually inspect the output file (which is fairly
+readable) if you'd like.
 
 ```sh
 ./scale.sh 10 | tee data/scale-raw.txt
 ```
 
-takes a few minutes
+**Takes a few minutes** (the 10 is the number of clients to run till; you can use a
+smaller number of you want it to finish faster).
 
 ### Produce graphs
 
@@ -87,6 +88,9 @@ takes a few minutes
 
 (assumes you've put data in `data/bench-raw.txt` and `data/scale-raw.txt`, as
 above)
+
+If you haven't run `./scale.sh` yet, then you can still generate the benchmark
+figure with `./bench.py data/bench-raw.txt && gnuplot bench.plot`.
 
 ### Check the output
 
@@ -100,9 +104,38 @@ slightly from being run in a VM.
 
 Compare `fig/bench.png` to Figure 16 in the paper. The absolute performance
 numbers were included manually in the graph; you can easily find the numbers by
-looking at `data/bench.data` and looking at the "linux" column.
+looking at `data/bench.data` and looking at the "linux" column. This benchmark
+seems to reproduce poorly in a VM, particularly the `app` workload.
 
 Compare `fig/scale.png` to Figure 17 in the paper. The scaling should be roughly
 the same, although if you don't have enough cores (or don't allocate them to the
 VM) then performance will flatten at a smaller number of clients. Absolute
 performance depends highly on your drive's performance.
+
+## Compiling the proofs
+
+The paper claims to have verified the GoJrnl implementation. You should check
+this by compiling the proofs in the `perennial` repo:
+
+```sh
+cd ~/perennial
+make -j4 src/program_proof/simple/print_assumptions.vo
+```
+
+**This will take 30-40 minutes, and 60-70 CPU minutes.**
+
+This only compiles the SimpleNFS top-level proof and all its dependencies,
+including the GoJrnl proofs (in `src/program_proof/buftxn/sep_buftxn_proof.v`
+and `sep_buftxn_recovery_proof.v`). The repository has a bunch of other research
+code in it that isn't related to this paper.
+
+We do proofs over Go using [Goose](https://github.com/tchajed/goose), which
+compiles Go code to a Coq model. The output is checked in to the Perennial repo
+for simplicity, but you can re-generate it from the goose-nfsd code:
+
+```sh
+cd ~/perennial
+rm -r external/Goose/github_com/mit_pdos/goose_nfsd
+./etc/update-goose.py --goose $GOOSE_PATH --nfsd $GOOSE_NFSD_PATH --skip-goose-examples --verbose
+git status
+```
