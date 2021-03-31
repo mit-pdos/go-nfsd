@@ -34,9 +34,8 @@ takes a few minutes
 3. Produce graphs
 
 ```sh
-bench.py bench-raw.txt > bench.data
+./bench.py bench-raw.txt
+./scale.py scale-raw.txt
 ```
-
-TODO: process smallfile
 
 TODO: copy in gnuplot scripts

@@ -26,24 +26,18 @@ def parse_raw(lines):
         if m:
             fs = m.group("fs")
             continue
-        item = get_bench_data(
-            r"""fs-(?P<bench>smallfile): \d* (?P<val>[0-9.]*) file/sec""", line
-        )
-        if item:
-            data.append(item)
-            continue
-        item = get_bench_data(
-            r"""fs-(?P<bench>largefile):.* throughput (?P<val>[0-9.]*) MB/s""",
+        m = re.match(
+            r"""fs-smallfile: (?P<clients>\d*) (?P<val>[0-9.]*) file/sec""",
             line,
         )
-        if item:
-            data.append(item)
-            continue
-        item = get_bench_data(
-            r"""(?P<bench>app)-bench (?P<val>[0-9.]*) app/s""", line
-        )
-        if item:
-            data.append(item)
+        if m:
+            data.append(
+                {
+                    "fs": fs,
+                    "clients": int(m.group("clients")),
+                    "throughput": float(m.group("val")),
+                }
+            )
             continue
         print("ignored line: " + line, end="", file=sys.stderr)
 
@@ -57,6 +51,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     tidy_df = parse_raw(args.bench)
-    df = tidy_df.pivot_table(index="bench", columns="fs", values="val")
-    with open("bench.data", "w") as f:
-        print(df.to_csv(sep="\t"), end="", file=f)
+    df = tidy_df.pivot_table(index="clients", columns="fs", values="throughput")
+    with open("gnfs.data", "w") as f:
+        print(df["gonfs"].to_csv(sep="\t", header=False), end="", file=f)
+    with open("linux-nfs.data", "w") as f:
+        print(df["linux"].to_csv(sep="\t", header=False), end="", file=f)
