@@ -74,9 +74,14 @@ go get github.com/mit-pdos/goose-nfsd/...
 # Install Coq
 
 sudo apt-get install -y libgmp-dev
+
 # use binary installer for opam since it has fewer dependencies than Ubuntu
 # package
-sh <(curl -sL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)
+wget https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh
+# echo is to answer question about where to install opam
+echo "" | sh install.sh --no-backup
+rm install.sh
+
 opam init --auto-setup --bare
 opam switch create 4.11.0+flambda
 eval $(opam env)
