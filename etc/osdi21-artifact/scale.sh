@@ -28,3 +28,10 @@ echo 1>&2
 info "Linux smallfile scalability"
 echo "fs=linux"
 ./bench/run-linux.sh     -disk ~/disk.img go run ./cmd/fs-smallfile -threads=$threads
+
+echo 1>&2
+info "Serial GoNFS (holding locks)"
+git apply etc/osdi21-artifact/serial.patch
+echo "fs=serial-gonfs"
+./bench/run-goose-nfs.sh -disk ~/disk.img go run ./cmd/fs-smallfile -start=1 -threads=1
+git restore wal/installer.go wal/logger.go
