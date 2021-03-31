@@ -1,3 +1,2 @@
-bench-raw.txt
-scale-raw.txt
-*.data
+/data/
+/fig/

@@ -12,19 +12,19 @@ export XV6_PATH=$HOME/code/xv6-public
 ## Lines of code table
 
 ```sh
-./loc.py
+./loc.py | tee data/lines-of-code.txt
 ```
 
 ## Gather data
 
 ```sh
-bench.sh | tee bench-raw.txt`
+bench.sh | tee data/bench-raw.txt`
 ```
 
 takes about a minute
 
 ```sh
-./scale.sh 10 | tee scale-raw.txt
+./scale.sh 10 | tee data/scale-raw.txt
 ```
 
 takes a few minutes
@@ -34,8 +34,10 @@ takes a few minutes
 3. Produce graphs
 
 ```sh
-./bench.py bench-raw.txt
-./scale.py scale-raw.txt
+./bench.py data/bench-raw.txt
+./scale.py data/scale-raw.txt
+gnuplot bench.plot
+gnuplot scale.plot
 ```
 
-TODO: copy in gnuplot scripts
+TODO: run serial NFS workload
