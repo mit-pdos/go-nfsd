@@ -68,4 +68,4 @@ sudo apt-get install -y opam libgmp-dev
 opam init --auto-setup --bare
 opam switch create 4.11.0+flambda
 eval $(opam env)
-opam install -j2 coq.8.13.1
+opam install -y -j4 coq.8.13.1
