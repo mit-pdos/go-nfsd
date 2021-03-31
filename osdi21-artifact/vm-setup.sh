@@ -73,6 +73,9 @@ go get github.com/mit-pdos/goose-nfsd/...
 
 # Install Coq
 
+# opam dependencies
+sudo apt-get install -y m4 bubblewrap
+# coq dependencies
 sudo apt-get install -y libgmp-dev
 
 # use binary installer for opam since it has fewer dependencies than Ubuntu
