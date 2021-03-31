@@ -52,7 +52,11 @@ if __name__ == "__main__":
 
     tidy_df = parse_raw(args.bench)
     df = tidy_df.pivot_table(index="clients", columns="fs", values="throughput")
+    # propagate serial results forward
+    df = df.fillna(method="ffill")
     with open("data/gnfs.data", "w") as f:
         print(df["gonfs"].to_csv(sep="\t", header=False), end="", file=f)
     with open("data/linux-nfs.data", "w") as f:
         print(df["linux"].to_csv(sep="\t", header=False), end="", file=f)
+    with open("data/serial.data", "w") as f:
+        print(df["serial-gonfs"].to_csv(sep="\t", header=False), end="", file=f)
