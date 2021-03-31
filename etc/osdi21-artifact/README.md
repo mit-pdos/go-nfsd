@@ -1,5 +1,11 @@
 # JrnlCert artifact
 
+## About the VM
+
+The VM was created by installing the Ubuntu 20.04 live server image. The user
+account is `ubuntu` with password `ubuntu`, and the hostname is `jrnlcert-vm`.
+The user account has sudo access without a password.
+
 ## Compiling the proofs
 
 The paper claims to have verified the GoJrnl implementation. You should check

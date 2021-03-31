@@ -8,12 +8,11 @@ cd
 
 sudo apt-get update
 sudo apt-get install -y git python3-pip wget
-# select US/Eastern time zone
-echo -e "12\n5" | sudo apt-get install -y tzdata
 
 # Get source code
 
-git clone https://github.com/mit-pdos/goose-nfsd
+## assumes https://github.com/mit-pdos/goose-nfsd has already been cloned to
+## ~/goose-nfsd (since this is the easiest way to run this script)
 
 mkdir ~/code
 cd ~/code
