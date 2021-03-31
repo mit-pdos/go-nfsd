@@ -51,6 +51,7 @@ wget https://golang.org/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
 echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >> ~/.profile
+export PATH=/usr/local/go/bin:$PATH
 
 go install github.com/tchajed/goose/cmd/goose@latest
 

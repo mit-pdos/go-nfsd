@@ -6,6 +6,11 @@ The VM was created by installing the Ubuntu 20.04 live server image. The user
 account is `ubuntu` with password `ubuntu`, and the hostname is `jrnlcert-vm`.
 The user account has sudo access without a password.
 
+You can launch the VM headless and then SSH to it. There's a port forwarding
+rule set up in VirtualBox so that `ssh -p 10322 ubuntu@localhost` should work.
+You might want to add your public key to the VM to avoid having to type the
+password every time.
+
 ## Compiling the proofs
 
 The paper claims to have verified the GoJrnl implementation. You should check
