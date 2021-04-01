@@ -20,6 +20,7 @@ cd ~/code
 git clone https://github.com/mit-pdos/xv6-public
 git clone https://github.com/tchajed/marshal
 git clone https://github.com/tchajed/goose
+git clone --depth=1 https://github.com/linux-test-project/ltp
 cd
 
 cat >> ~/.profile <<EOF
@@ -28,6 +29,7 @@ export PERENNIAL_PATH=$HOME/perennial
 export MARSHAL_PATH=$HOME/code/marshal
 export XV6_PATH=$HOME/code/xv6-public
 export GOOSE_PATH=$HOME/code/goose
+export LTP_PATH=$HOME/code/ltp
 EOF
 
 # Set up NFS client and server
@@ -46,6 +48,16 @@ sudo systemctl enable rpc-statd
 sudo systemctl disable nfs-server
 # can't run goose-nfsd and Linux NFS server at the same time
 sudo systemctl stop nfs-server
+
+# Set up Linux file-system tests
+
+sudo apt-get install -y autoconf m4 automake pkg-config
+cd "$LTP_PATH"
+make autotools
+./configure
+make -C testcases/kernel/fs/fsstress
+make -C testcases/kernel/fs/fsx-linux
+cd
 
 # Install Python dependencies
 
