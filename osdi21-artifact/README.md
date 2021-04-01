@@ -24,11 +24,9 @@ The artifact (including this README) is located at
 the time you read this; please run `git pull` when you start, or follow the
 README on GitHub rather than in the VM.
 
-We've configured the VM with 4GB of RAM and 6 cores, but if you can afford 6GB
-or 8GB you may want to do that to speed up compilation (note that
-single-threaded compilation will take just over an hour and doesn't require much
-RAM, so more RAM isn't necessary). You'll definitely want to set it to the
-maximum number of cores you can afford for the scalability experiment.
+We've configured the VM with 8GB of RAM and 6 cores. You'll definitely want to
+set it to the maximum number of cores you can afford for the scalability
+experiment. Less RAM also might work but could lower performance.
 
 ## Claims
 
