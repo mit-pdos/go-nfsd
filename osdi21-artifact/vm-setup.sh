@@ -83,6 +83,11 @@ export GO111MODULE=off
 go get github.com/tchajed/goose/...
 go get github.com/mit-pdos/goose-nfsd/...
 
+cd "$GOOSE_NFSD_PATH"
+# fetch dependencies
+go build ./cmd/goose-nfsd && rm goose-nfsd
+cd
+
 # Install Coq
 
 # opam dependencies
