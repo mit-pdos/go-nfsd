@@ -13,6 +13,8 @@ sudo apt-get install -y git python3-pip wget
 
 ## assumes https://github.com/mit-pdos/goose-nfsd has already been cloned to
 ## ~/goose-nfsd (since this is the easiest way to run this script)
+ln -s ~/goose-nfsd/osdi21-artifact ~/artifact
+
 git clone --recurse-submodules https://github.com/mit-pdos/perennial
 
 mkdir ~/code
@@ -83,7 +85,7 @@ export GO111MODULE=off
 go get github.com/tchajed/goose/...
 go get github.com/mit-pdos/goose-nfsd/...
 
-cd "$GOOSE_NFSD_PATH"
+cd ~/goose-nfsd
 # fetch dependencies
 go build ./cmd/goose-nfsd && rm goose-nfsd
 cd
@@ -106,3 +108,6 @@ opam init --auto-setup --bare
 opam switch create 4.11.0+flambda
 eval $(opam env)
 opam install -y -j4 coq.8.13.1
+
+sudo apt clean
+opam clean
