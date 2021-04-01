@@ -1,14 +1,24 @@
 # JrnlCert artifact
 
+[![License: CC BY
+4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+
+The text of this artifact is licensed under the Creative Commons Attribution 4.0
+license. The code is under the same MIT license as the parent repo.
+
 ## Getting started
 
-Read the description below on the VM. You should be able to run all the commands
-in this artifact quickly with the exception of compiling Perennial, so to get
-started we recommend gathering all the data and skipping the compilation step.
-Comparing the results and compiling the proofs in Perennial will take a bit more
-time.
+Read the description below on downloading and using the VM. You should be able
+to run all the commands in this artifact quickly (within 30 minutes) with the
+exception of compiling Perennial, so to get started we recommend gathering all
+the data and skipping the compilation step. Comparing the results and compiling
+the proofs in Perennial will take a bit more time.
 
 ### About the VM
+
+You can get the VM from Zenodo via DOI
+[10.5281/zenodo.4657116](https://zenodo.org/record/4657116). The download is a
+little over 3GB.
 
 The VM was created by installing the Ubuntu 20.04 live server image in
 VirtualBox. **The user account is `ubuntu` with password `ubuntu`**. The user
