@@ -114,7 +114,7 @@ rsync -a -e 'ssh -p 10322' ubuntu@localhost:./goose-nfsd/osdi21-artifact/fig ./
 Compare `fig/bench.png` to Figure 16 in the paper. The absolute performance
 numbers were included manually in the graph; you can easily find the numbers by
 looking at `data/bench.data` and looking at the "linux" column. This benchmark
-seems to reproduce poorly in a VM, particularly the `app` workload.
+seems to reproduce poorly in a VM, particularly the largefile workload.
 
 Compare `fig/scale.png` to Figure 17 in the paper. The scaling should be roughly
 the same, although if you don't have enough cores (or don't allocate them to the
