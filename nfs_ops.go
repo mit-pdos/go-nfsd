@@ -734,6 +734,7 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	util.DPrintf(1, "NFS FsInfo %v\n", args)
 	op := fstxn.Begin(nfs.fsstate)
 	reply.Resok.Wtmax = nfstypes.Uint32(op.Atxn.Buftxn.LogSzBytes())
+	reply.Resok.Wtpref = 16 * 4096
 	reply.Resok.Maxfilesize = nfstypes.Size3(inode.MaxFileSize())
 	commitReply(op, &reply.Status)
 	return reply
