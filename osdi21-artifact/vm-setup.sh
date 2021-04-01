@@ -52,7 +52,7 @@ sudo systemctl stop nfs-server
 # Set up Linux file-system tests
 
 sudo apt-get install -y autoconf m4 automake pkg-config
-cd "$LTP_PATH"
+cd ~/code/ltp
 make autotools
 ./configure
 make -C testcases/kernel/fs/fsstress
