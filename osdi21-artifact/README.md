@@ -125,8 +125,14 @@ rsync -a -e 'ssh -p 10322' ubuntu@localhost:./goose-nfsd/osdi21-artifact/fig ./
 
 Compare `fig/bench.png` to Figure 16 in the paper. The absolute performance
 numbers were included manually in the graph; you can easily find the numbers by
-looking at `data/bench.data` and looking at the "linux" column. This benchmark
-seems to reproduce poorly in a VM, particularly the largefile workload.
+looking at `data/bench.data` and looking at the "linux" column. We made a
+mistake and misconfigured this benchmark; with the fixed configuration, both
+file systems perform better and GoNFS gets better performance than Linux. This
+seems to be because it is able to take advantage of a much larger batch write
+size than the Linux NFS server. For the camera-ready version of the paper we
+already plan to expand the evaluation to better explain the performance on this
+microbenchmark (we may still be running Linux in a way that gets lower
+performance).
 
 Compare `fig/scale.png` to Figure 17 in the paper. The scaling should be roughly
 the same, although if you don't have enough cores (or don't allocate them to the
