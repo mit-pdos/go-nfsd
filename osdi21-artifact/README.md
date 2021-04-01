@@ -17,7 +17,7 @@ the proofs in Perennial will take a bit more time.
 ### About the VM
 
 You can get the VM from Zenodo via DOI
-[10.5281/zenodo.4657116](https://zenodo.org/record/4657116). The download is a
+[10.5281/zenodo.4657116](https://zenodo.org/record/4657115). The download is a
 little over 3GB.
 
 The VM was created by installing the Ubuntu 20.04 live server image in
