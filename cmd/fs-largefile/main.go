@@ -8,7 +8,7 @@ import (
 
 const (
 	MB       uint64 = 1024 * 1024
-	FILESIZE uint64 = 50 * MB
+	FILESIZE uint64 = 100 * MB
 	WSIZE    uint64 = 16 * 4096
 )
 
@@ -45,6 +45,7 @@ func main() {
 	path := "/mnt/nfs/large"
 
 	data := mkdata(WSIZE)
+	makefile(path+".warmup", data)
 	start := time.Now()
 	makefile(path, data)
 	elapsed := time.Now().Sub(start)
