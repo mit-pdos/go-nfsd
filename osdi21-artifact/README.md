@@ -67,7 +67,8 @@ cd ~/goose-nfsd/osdi21-artifact
 ./loc.py | tee data/lines-of-code.txt
 ```
 
-Instantaneous
+Instantaneous. The numbers won't match up exactly with the paper (see below
+under "Check output").
 
 ```sh
 ./bench.sh | tee data/bench-raw.txt
@@ -95,12 +96,13 @@ above)
 If you haven't run `./scale.sh` yet, then you can still generate the benchmark
 figure with `./bench.py data/bench-raw.txt && gnuplot bench.plot`.
 
-### Check the output
+### Check output
 
 Compare `data/lines-of-code.txt` to Figures 14 and 15 in the paper. The exact
 lines won't be the same because the code has changed slightly (and this artifact
 is automated differently from how the original data was gathered), but the
-numbers should generally line up.
+numbers should generally line up and the overall conclusion about proof overhead
+still holds.
 
 The exact performance results will vary depending on your machine, and suffer
 slightly from being run in a VM.

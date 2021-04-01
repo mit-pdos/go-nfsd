@@ -59,9 +59,7 @@ def jrnl_cert_table():
             helpers + ghost_state + program_logic,
         ),
     ]
-    return pd.DataFrame.from_records(
-        data, columns=["Component", "Lines of Coq"]
-    )
+    return pd.DataFrame.from_records(data, columns=["Component", "Lines of Coq"])
 
 
 def program_proof_table():
@@ -168,9 +166,9 @@ def program_proof_table():
     return df
 
 
-print("Fig 14 (lines of code in JrnlCert)")
+print("~ Fig 14 (lines of code in JrnlCert)")
 print(jrnl_cert_table().to_string(index=False))
 print()
 
-print("Fig 15 (lines of code for GoJrnl and SimpleNFS)")
+print("~ Fig 15 (lines of code for GoJrnl and SimpleNFS)")
 print(program_proof_table().to_string(index=False))
