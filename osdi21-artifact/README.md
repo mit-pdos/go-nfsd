@@ -1,4 +1,4 @@
-# JrnlCert artifact
+# Verifying a concurrent, crash-safe journaling system using JrnlCert (Artifact)
 
 [![License: CC BY
 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
@@ -6,7 +6,7 @@
 The text of this artifact is licensed under the Creative Commons Attribution 4.0
 license. The code is under the same MIT license as the parent repo.
 
-## Getting started
+# Getting started
 
 Read the description below on downloading and using the VM. You should be able
 to run all the commands in this artifact quickly (within 30 minutes) with the
@@ -50,6 +50,8 @@ The artifact concerns four claims in the paper:
    close throughput in the benchmarks in Figure 16, which use a RAM-backed disk.
 4. GoJrnl is scalable. We demonstrate this by showing performance for the
    smallfile benchmark scales with the number of clients, on an SSD (Figure 17).
+
+# Detailed instructions
 
 ## Performance evaluation
 
@@ -131,7 +133,7 @@ the same, although if you don't have enough cores (or don't allocate them to the
 VM) then performance will flatten at a smaller number of clients. Absolute
 performance depends highly on your drive's performance.
 
-## Compiling the proofs
+## Compile the proofs
 
 The paper claims to have verified the GoJrnl implementation. You should check
 this by compiling the proofs in the `perennial` repo:
