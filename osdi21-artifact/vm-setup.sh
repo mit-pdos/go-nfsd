@@ -15,7 +15,10 @@ sudo apt-get install -y git python3-pip wget
 ## ~/goose-nfsd (since this is the easiest way to run this script)
 ln -s ~/goose-nfsd/osdi21-artifact ~/artifact
 
-git clone --recurse-submodules https://github.com/mit-pdos/perennial
+git clone \
+    --branch osdi21-artifact \
+    --recurse-submodules \
+    https://github.com/mit-pdos/perennial
 
 mkdir ~/code
 cd ~/code
