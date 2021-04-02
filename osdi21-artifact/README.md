@@ -21,13 +21,13 @@ You can get the VM from Zenodo via DOI
 little over 3GB.
 
 The VM was created by installing the Ubuntu 20.04 live server image in
-VirtualBox. **The user account is `ubuntu` with password `ubuntu`**. The user
-account has sudo access without a password.
+VirtualBox. **The user account is `ubuntu` with no password** (that is, the
+empty password). The user account has sudo access without a password. After some
+basic setup, like installing ZSH, we ran [vm-setup.sh](vm-setup.sh).
 
 You can launch the VM headless and then SSH to it. There's a port forwarding
-rule set up in VirtualBox so that `ssh -p 10322 ubuntu@localhost` should work.
-You might want to add your public key to the VM to avoid having to type the
-password every time.
+rule set up in VirtualBox so that `ssh -p 10322 ubuntu@localhost` should work,
+without a password prompt.
 
 The artifact (including this README) is located at
 `~/goose-nfsd/osdi21-artifact`. The README.md file there might be out-of-date by
@@ -169,3 +169,13 @@ git status
 
 The final `git status` command should report that the working tree has been
 restored to its previous state.
+
+## Undocumented features
+
+These are features that we didn't think were important for evaluation but might
+be useful for our own reference.
+
+[`./eval.sh`](eval.sh) runs the whole evaluation, including plotting
+
+`./tests.sh` runs the fsstress and fsx-linux test suites from the Linux test
+project (all the setup for these is included in `vm-setup.sh`).
