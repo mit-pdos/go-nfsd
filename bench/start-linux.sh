@@ -25,9 +25,9 @@ set -e
 disk_file="$1"
 rm -f "$disk_file"
 dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
-mkfs.ext3 -q "$disk_file"
+mkfs.ext4 -q "$disk_file"
 sync "$disk_file"
-sudo mount -t ext3 -o data=journal -o loop "$disk_file" /srv/nfs/bench
+sudo mount -t ext4 -o data=journal -o loop "$disk_file" /srv/nfs/bench
 sudo systemctl start nfs-server.service
 sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
 sudo chmod 777 /srv/nfs/bench
