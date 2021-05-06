@@ -17,7 +17,7 @@ if [ "$1" = "-disk" ]; then
     shift
 fi
 
-./bench/start-linux.sh "$disk_file" data=ordered || exit 1
+./bench/start-linux.sh "$disk_file" data=journal || exit 1
 
 function cleanup {
     ./bench/stop-linux.sh
