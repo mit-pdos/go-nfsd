@@ -13,7 +13,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd $DIR/..
 
 fs="ext4"
-mount_opts=""
+mount_opts="data=journal"
 disk_file=/dev/shm/nfs3.img
 
 while true; do

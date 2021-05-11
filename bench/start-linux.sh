@@ -51,7 +51,7 @@ while true; do
   esac
 done
 
-if [ "$fs" = "ext4" -o "$fs" = "ext3" ]; then
+if [[ "$fs" == "ext4" ]] || [[ "$fs" = "ext3" ]]; then
   if [ -z "$mount_opts" ]; then
     mount_opts="data=journal"
   fi
