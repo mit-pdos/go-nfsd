@@ -749,7 +749,11 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 func (nfs *Nfs) NFSPROC3_PATHCONF(args nfstypes.PATHCONF3args) nfstypes.PATHCONF3res {
 	var reply nfstypes.PATHCONF3res
 	util.DPrintf(1, "NFS PathConf %v\n", args)
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	reply.Status = nfstypes.NFS3_OK
+	reply.Resok.Name_max = nfstypes.Uint32(dir.MAXNAMELEN)
+	reply.Resok.No_trunc = true
+	reply.Resok.Linkmax = 1
+	reply.Resok.Case_preserving = true
 	return reply
 }
 
