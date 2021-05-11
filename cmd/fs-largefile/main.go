@@ -1,16 +1,19 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"path"
 	"time"
 )
 
 const (
-	MB       uint64 = 1024 * 1024
-	FILESIZE uint64 = 100 * MB
-	WSIZE    uint64 = 16 * 4096
+	MB    uint64 = 1024 * 1024
+	WSIZE        = 16 * 4096
 )
+
+var FILESIZE uint64
 
 func makefile(name string, data []byte) {
 	f, err := os.Create(name)
@@ -42,13 +45,25 @@ func mkdata(sz uint64) []byte {
 }
 
 func main() {
-	path := "/mnt/nfs/large"
+	mnt := flag.String("mnt", "/mnt/nfs", "directory to write files to")
+	sizeMB := flag.Uint64("size", 100, "file size (in MB)")
+	deleteAfter := flag.Bool("delete", false, "delete files after running benchmark")
+	flag.Parse()
+
+	warmupFile := path.Join(*mnt, "large.warmup")
+	file := path.Join(*mnt, "large")
+	FILESIZE = *sizeMB * MB
 
 	data := mkdata(WSIZE)
-	makefile(path+".warmup", data)
+	makefile(warmupFile, data)
 	start := time.Now()
-	makefile(path, data)
+	makefile(file, data)
 	elapsed := time.Now().Sub(start)
 	tput := float64(FILESIZE/MB) / elapsed.Seconds()
 	fmt.Printf("fs-largefile: %v MB throughput %.2f MB/s\n", FILESIZE/MB, tput)
+
+	if *deleteAfter {
+		os.Remove(warmupFile)
+		os.Remove(file)
+	}
 }
