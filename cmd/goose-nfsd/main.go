@@ -55,7 +55,7 @@ var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var diskfile = flag.String("disk", "", "disk image")
 
 func main() {
-	flag.Uint64Var(&util.Debug, "debug", 100, "debug level (higher is more verbose)")
+	flag.Uint64Var(&util.Debug, "debug", 0, "debug level (higher is more verbose)")
 	flag.Parse()
 	var name string
 	if *diskfile != "" {
