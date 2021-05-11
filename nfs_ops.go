@@ -134,6 +134,8 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 		err = nfstypes.NFS3_OK
 	}
 	if err == nfstypes.NFS3_OK {
+		reply.Resok.Obj_wcc.After.Attributes_follow = true
+		reply.Resok.Obj_wcc.After.Attributes = ip.MkFattr()
 		commitReply(op, &reply.Status)
 	} else {
 		errRet(op, &reply.Status, err)
@@ -367,20 +369,24 @@ func (nfs *Nfs) doDecLink(op *fstxn.FsTxn, ip *inode.Inode) {
 	}
 }
 
-func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3, data []byte) (*fstxn.FsTxn, nfstypes.Nfsstat3) {
+func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3,
+	data []byte) (op *fstxn.FsTxn, err nfstypes.Nfsstat3, fattr nfstypes.Fattr3) {
 	beginOp := fstxn.Begin(nfs.fsstate)
-	op, dip, ip, err := nfs.getAlloc(beginOp, dfh, name, kind)
+	var dip, ip *inode.Inode
+	op, dip, ip, err = nfs.getAlloc(beginOp, dfh, name, kind)
 	if err != nfstypes.NFS3_OK {
-		return op, err
+		return
 	}
 	if ip == nil {
-		return op, nfstypes.NFS3ERR_NOSPC
+		err = nfstypes.NFS3ERR_NOSPC
+		return
 	}
 	if kind == nfstypes.NF3DIR {
 		ok := dir.InitDir(ip, op, dip.Inum)
 		if !ok {
 			nfs.doDecLink(op, ip)
-			return op, nfstypes.NFS3ERR_NOSPC
+			err = nfstypes.NFS3ERR_NOSPC
+			return
 		}
 		dip.Nlink = dip.Nlink + 1 // for ..
 		dip.WriteInode(op.Atxn)
@@ -389,27 +395,37 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 		_, ok := ip.Write(op.Atxn, uint64(0), uint64(len(data)), data)
 		if !ok {
 			nfs.doDecLink(op, ip)
-			return op, nfstypes.NFS3ERR_NOSPC
+			err = nfstypes.NFS3ERR_NOSPC
+			return
 		}
 	}
 	ok := dir.AddName(dip, op, ip.Inum, name)
 	if !ok {
 		nfs.doDecLink(op, ip)
-		return op, nfstypes.NFS3ERR_IO
+		err = nfstypes.NFS3ERR_IO
+		return
 	}
-	return op, nfstypes.NFS3_OK
+	err = nfstypes.NFS3_OK
+	fattr = ip.MkFattr()
+	return
 }
 
-// XXX deal with how
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 	var reply nfstypes.CREATE3res
 	util.DPrintf(1, "NFS Create %v\n", args)
-	op, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3REG, nil)
+	// XXX deal with how
+	if args.How.Mode == nfstypes.EXCLUSIVE {
+		reply.Status = nfstypes.NFS3ERR_NOTSUPP
+		return reply
+	}
+	op, err, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3REG, nil)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Create %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
 	}
+	reply.Resok.Obj_attributes.Attributes_follow = true
+	reply.Resok.Obj_attributes.Attributes = fattr
 	commitReply(op, &reply.Status)
 	return reply
 }
@@ -418,12 +434,14 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	var reply nfstypes.MKDIR3res
 
 	util.DPrintf(1, "NFS MakeDir %v\n", args)
-	op, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR, nil)
+	op, err, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR, nil)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Create %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
 	}
+	reply.Resok.Obj_attributes.Attributes_follow = true
+	reply.Resok.Obj_attributes.Attributes = fattr
 	commitReply(op, &reply.Status)
 	return reply
 }
@@ -433,12 +451,14 @@ func (nfs *Nfs) NFSPROC3_SYMLINK(args nfstypes.SYMLINK3args) nfstypes.SYMLINK3re
 	util.DPrintf(1, "NFS SymLink %v\n", args)
 
 	data := []byte(args.Symlink.Symlink_data)
-	op, err := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3LNK, data)
+	op, err, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3LNK, data)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "doCreate %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
 	}
+	reply.Resok.Obj_attributes.Attributes_follow = true
+	reply.Resok.Obj_attributes.Attributes = fattr
 
 	commitReply(op, &reply.Status)
 	return reply
