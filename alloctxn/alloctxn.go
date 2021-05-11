@@ -112,6 +112,7 @@ func (atxn *AllocTxn) PostAbort() {
 func (atxn *AllocTxn) AssertValidBlock(blkno common.Bnum) {
 	if blkno > 0 && (blkno < atxn.Super.DataStart() ||
 		blkno >= atxn.Super.MaxBnum()) {
+		util.DPrintf(0, "bad blkno %v (max=%v)\n", blkno, atxn.Super.MaxBnum())
 		panic("invalid blkno")
 	}
 }
