@@ -14,6 +14,7 @@ import (
 
 	goose_nfs "github.com/mit-pdos/goose-nfsd"
 	nfstypes "github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/goose-nfsd/util"
 )
 
 func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
@@ -54,8 +55,9 @@ var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var diskfile = flag.String("disk", "", "disk image")
 
 func main() {
-	var name string
+	flag.Uint64Var(&util.Debug, "debug", 100, "debug level (higher is more verbose)")
 	flag.Parse()
+	var name string
 	if *diskfile != "" {
 		name = *diskfile
 	} else {
