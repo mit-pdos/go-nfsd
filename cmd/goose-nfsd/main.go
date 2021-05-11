@@ -57,6 +57,10 @@ var diskfile = flag.String("disk", "", "disk image")
 func main() {
 	var unstable bool
 	flag.BoolVar(&unstable, "unstable", true, "use unstable writes if requested")
+
+	var filesizeMegabytes uint64
+	flag.Uint64Var(&filesizeMegabytes, "size", 400, "size of file system (in MB)")
+
 	flag.Uint64Var(&util.Debug, "debug", 0, "debug level (higher is more verbose)")
 	flag.Parse()
 	var name string
@@ -66,6 +70,9 @@ func main() {
 		fmt.Printf("Argument '-disk <file>' required\n")
 		return
 	}
+
+	diskBlocks := 1500 + filesizeMegabytes*1024/4
+
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
@@ -95,7 +102,7 @@ func main() {
 	}
 	defer pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, false)
 
-	nfs := goose_nfs.MkNfsName(name, uint64(100*1000))
+	nfs := goose_nfs.MkNfsName(name, diskBlocks)
 	nfs.Unstable = unstable
 	defer nfs.ShutdownNfs()
 
