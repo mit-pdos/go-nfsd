@@ -3,14 +3,16 @@
 set -e
 
 #
-# Usage: ./start-linux.sh <disk file> [ext4_opts]
+# Usage: ./start-linux.sh [-disk path] [-mount-opts opts] [-fs fs]
 #
 # set to /dev/shm/nfs3.img to use tmpfs, or a file to use the disk (through the host
 # file system), or a block device to use a partition directly (NOTE: it will be
 # overwritten; don't run as root)
 #
-# ext4_opts defaults to data=journal if not passed (use data=ordered for the
-# default mode where metadata is journaled but not data)
+# fs defaults to ext4
+#
+# opts defaults to data=journal if fs is ext3 or ext4 if not passed (use
+# data=ordered for the default mode where metadata is journaled but not data)
 
 # Requires /srv/nfs/bench to be set up for NFS export, otherwise you will get
 #
@@ -24,18 +26,52 @@ set -e
 # to reload the export table
 #
 
-disk_file="$1"
-ext4_opts="$2"
+fs="ext4"
 
-if [ -z "$ext4_opts" ]; then
-  ext4_opts="data=journal"
+while true; do
+  case "$1" in
+    -disk)
+      shift
+      disk_file="$1"
+      shift
+      ;;
+    -mount-opts)
+      shift
+      mount_opts="$1"
+      shift
+      ;;
+    -fs)
+      shift
+      fs="$1"
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [ "$fs" = "ext4" -o "$fs" = "ext3" ]; then
+  if [ -z "$mount_opts" ]; then
+    mount_opts="data=journal"
+  fi
 fi
 
-rm -f "$disk_file"
-dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
-mkfs.ext4 -q "$disk_file"
+if [ -z "$disk_file" ]; then
+  echo "-disk not provided" >&2
+  exit 1
+fi
+
+conv_flag="conv=notrunc"
+# block device, do not attempt to truncate
+if [ ! -b "$disk_file" ]; then
+   conv_flag=""
+fi
+
+dd status=none if=/dev/zero of="$disk_file" bs=4K "$conv_flag" count=100000
+mkfs."$fs" -q "$disk_file"
 sync "$disk_file"
-sudo mount -t ext4 -o "$ext4_opts" -o loop "$disk_file" /srv/nfs/bench
+sudo mount -t "$fs" -o "$fs_opts" -o loop "$disk_file" /srv/nfs/bench
 sudo systemctl start nfs-server.service
 sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
 sudo chmod 777 /srv/nfs/bench
