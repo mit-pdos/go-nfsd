@@ -25,6 +25,8 @@ type Nfs struct {
 	Name     *string
 	fsstate  *fstxn.FsState
 	shrinkst *shrinker.ShrinkerSt
+	// support unstable writes
+	Unstable bool
 }
 
 func MkNfsMem(sz uint64) *Nfs {
@@ -75,6 +77,7 @@ func MakeNfs(name *string, sz uint64) *Nfs {
 		Name:     name,
 		fsstate:  st,
 		shrinkst: shrinker.MkShrinkerSt(st),
+		Unstable: true,
 	}
 	if i.Kind == 0 {
 		nfs.makeRootDir()

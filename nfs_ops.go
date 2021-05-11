@@ -283,6 +283,10 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_NOSPC)
 		return reply
 	}
+	// if not supporting unstable writes, upgrade stability
+	if args.Stable == nfstypes.UNSTABLE && !nfs.Unstable {
+		args.Stable = nfstypes.DATA_SYNC
+	}
 	if args.Stable == nfstypes.FILE_SYNC {
 		// RFC: "FILE_SYNC, the server must commit the
 		// data written plus all file system metadata
