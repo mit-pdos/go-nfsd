@@ -51,6 +51,8 @@ while true; do
   esac
 done
 
+set -u
+
 if [[ "$fs" == "ext4" ]] || [[ "$fs" = "ext3" ]]; then
   if [ -z "$mount_opts" ]; then
     mount_opts="data=journal"
@@ -72,7 +74,7 @@ fi
 dd status=none if=/dev/zero of="$disk_file" bs=4K ${conv_flag:+"$conv_flag"} count=100000
 mkfs."$fs" -q "$disk_file"
 sync "$disk_file"
-sudo mount -t "$fs" -o "$fs_opts" -o loop "$disk_file" /srv/nfs/bench
+sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench
 sudo systemctl start nfs-server.service
 sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
 sudo chmod 777 /srv/nfs/bench
