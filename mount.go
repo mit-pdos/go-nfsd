@@ -3,24 +3,25 @@ package goose_nfs
 import (
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/goose-nfsd/util"
 
 	"log"
 )
 
 func (nfs *Nfs) MOUNTPROC3_NULL() {
-	log.Printf("Null\n")
+	util.DPrintf(1, "MOUNT Null\n")
 }
 
 func (nfs *Nfs) MOUNTPROC3_MNT(args nfstypes.Dirpath3) nfstypes.Mountres3 {
 	reply := new(nfstypes.Mountres3)
-	log.Printf("Mount %v\n", args)
+	util.DPrintf(1, "MOUNT Mount %v\n", args)
 	reply.Fhs_status = nfstypes.MNT3_OK
 	reply.Mountinfo.Fhandle = fh.MkRootFh3().Data
 	return *reply
 }
 
 func (nfs *Nfs) MOUNTPROC3_UMNT(args nfstypes.Dirpath3) {
-	log.Printf("Unmount %v\n", args)
+	util.DPrintf(1, "MOUNT Unmount %v\n", args)
 }
 
 func (nfs *Nfs) MOUNTPROC3_UMNTALL() {
