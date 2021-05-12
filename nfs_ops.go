@@ -36,7 +36,7 @@ func commitReply(op *fstxn.FsTxn, status *nfstypes.Nfsstat3) {
 }
 
 func (nfs *Nfs) NFSPROC3_NULL() {
-	util.DPrintf(0, "NFS Null\n")
+	util.DPrintf(1, "NFS Null\n")
 }
 
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3res {
@@ -70,7 +70,7 @@ func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*fstxn.FsTxn, *inode.Inode, nfst
 			break
 		}
 		inum := ip.Inum
-		util.DPrintf(0, "getShrink: abort to shrink")
+		util.DPrintf(1, "getShrink: abort to shrink")
 		op.Abort()
 		ok = nfs.shrinkst.DoShrink(inum)
 		op = fstxn.Begin(nfs.fsstate)
@@ -351,7 +351,7 @@ func (nfs *Nfs) getAlloc(op *fstxn.FsTxn, dfh nfstypes.Nfs_fh3, name nfstypes.Fi
 		if !ip.IsShrinking() {
 			break
 		}
-		util.DPrintf(0, "getAlloc: abort alloc # %v to shrink", ip.Inum)
+		util.DPrintf(1, "getAlloc: abort alloc # %v to shrink", ip.Inum)
 		inum = ip.Inum
 		op.Abort()
 		ok := nfs.shrinkst.DoShrink(inum)
