@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/pprof"
+	"syscall"
 
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
@@ -105,11 +106,37 @@ func main() {
 	srv.RegisterMany(nfstypes.MOUNT_PROGRAM_MOUNT_V3_regs(nfs))
 	srv.RegisterMany(nfstypes.NFS_PROGRAM_NFS_V3_regs(nfs))
 
-	sigs := make(chan os.Signal)
-	signal.Notify(sigs, os.Interrupt)
+	interruptSig := make(chan os.Signal, 1)
+	signal.Notify(interruptSig, os.Interrupt)
 	go func() {
-		<-sigs
+		<-interruptSig
 		listener.Close()
+	}()
+
+	statSig := make(chan os.Signal, 1)
+	signal.Notify(statSig, syscall.SIGUSR1)
+	go func() {
+		for {
+			<-statSig
+			stats := nfs.GetOpStats()
+			totalCount := uint32(0)
+			totalNanos := uint64(0)
+			for _, opCount := range stats {
+				op := opCount.Op
+				count := opCount.Count
+				timeNanos := opCount.TimeNanos
+				totalCount += count
+				totalNanos += timeNanos
+				microsPerOp := float64(timeNanos) / 1e3 / float64(count)
+				if count > 0 {
+					fmt.Fprintf(os.Stderr, "%12s %5d  avg: %0.1f us/op\n", op, count, microsPerOp)
+				}
+			}
+			if totalCount > 0 {
+				microsPerOp := float64(totalNanos) / 1e3 / float64(totalCount)
+				fmt.Fprintf(os.Stderr, "%12s %5d  avg: %0.1f us/op\n", "total", totalCount, microsPerOp)
+			}
+		}
 	}()
 
 	for {

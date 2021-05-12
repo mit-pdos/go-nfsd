@@ -1,6 +1,8 @@
 package goose_nfs
 
 import (
+	"time"
+
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
@@ -40,6 +42,7 @@ func (nfs *Nfs) NFSPROC3_NULL() {
 }
 
 func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_GETATTR, time.Now())
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
 	op := fstxn.Begin(nfs.fsstate)
@@ -84,6 +87,7 @@ func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*fstxn.FsTxn, *inode.Inode, nfst
 }
 
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_SETATTR, time.Now())
 	var reply nfstypes.SETATTR3res
 	var err = nfstypes.NFS3ERR_NOTSUPP
 
@@ -200,6 +204,7 @@ func (nfs *Nfs) getInodesLocked(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3) (
 
 // Lookup must lock child inode to find gen number
 func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_LOOKUP, time.Now())
 	var reply nfstypes.LOOKUP3res
 
 	util.DPrintf(1, "NFS Lookup %v\n", args)
@@ -218,6 +223,7 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 }
 
 func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_ACCESS, time.Now())
 	var reply nfstypes.ACCESS3res
 	util.DPrintf(1, "NFS Access %v\n", args)
 	reply.Status = nfstypes.NFS3_OK
@@ -243,6 +249,7 @@ func (nfs *Nfs) doRead(fh nfstypes.Nfs_fh3, kind nfstypes.Ftype3, offset, count 
 }
 
 func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_READ, time.Now())
 	var reply nfstypes.READ3res
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
 	op, data, eof, err := nfs.doRead(args.File, nfstypes.NF3REG,
@@ -260,6 +267,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 
 // XXX Mtime
 func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_WRITE, time.Now())
 	var reply nfstypes.WRITE3res
 	var ok = true
 
@@ -518,6 +526,7 @@ func (nfs *Nfs) doRemove(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, isdir bo
 }
 
 func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_REMOVE, time.Now())
 	var reply nfstypes.REMOVE3res
 	util.DPrintf(1, "NFS Remove %v\n", args)
 	op, err := nfs.doRemove(args.Object.Dir, args.Object.Name, false)

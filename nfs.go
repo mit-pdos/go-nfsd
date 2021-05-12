@@ -27,6 +27,9 @@ type Nfs struct {
 	shrinkst *shrinker.ShrinkerSt
 	// support unstable writes
 	Unstable bool
+	// statistics
+	opCounts [NUM_NFS_OPS]uint32
+	opNanos  [NUM_NFS_OPS]uint64
 }
 
 func MkNfsMem(sz uint64) *Nfs {
