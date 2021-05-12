@@ -53,9 +53,9 @@ if [ -n "$disk_file" ]; then
 fi
 
 if [ -z "$cpu_list" ]; then
-    ./bench/start-goose-nfs.sh -disk "$disk_file" || exit 1
+    ./bench/start-goose-nfs.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
 else
-    taskset --cpu-list "$cpu_list" ./bench/start-goose-nfs.sh -disk "$disk_file" || exit 1
+    taskset --cpu-list "$cpu_list" ./bench/start-goose-nfs.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
 fi
 
 function cleanup {
@@ -65,5 +65,6 @@ function cleanup {
 trap cleanup EXIT
 
 # taskset 0x3 $1 /mnt/nfs
+echo "# goose-nfsd -disk $disk_file ${extra_args[@]}" 1>&2
 echo "run $@" 1>&2
 "$@"

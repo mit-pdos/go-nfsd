@@ -22,6 +22,8 @@ def parse_raw(lines):
         return None
 
     for line in lines:
+        if re.match(r"""^#""", line):
+            continue
         m = re.match(r"""fs=(?P<fs>.*)""", line)
         if m:
             fs = m.group("fs")
