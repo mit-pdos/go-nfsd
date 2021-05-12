@@ -20,7 +20,7 @@ set -e
 #
 # 1. Create /srv/nfs/bench if it doesn't exist.
 # 2. Edit /etc/exports and add the line:
-# /srv/nfs/bench localhost(rw,sync,no_subtree_check)
+# /srv/nfs/bench localhost(rw,sync,no_subtree_check,fsid=0)
 # 3. Run
 # sudo exportfs -arv
 # to reload the export table

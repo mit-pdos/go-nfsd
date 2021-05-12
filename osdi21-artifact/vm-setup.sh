@@ -44,7 +44,7 @@ sudo mkdir -p /srv/nfs/bench
 sudo chown $USER:$USER /srv/nfs/bench
 sudo mkdir -p /mnt/nfs
 sudo chown $USER:$USER /mnt/nfs
-echo "/srv/nfs/bench localhost(rw,sync,no_subtree_check)" | sudo tee -a /etc/exports
+echo "/srv/nfs/bench localhost(rw,sync,no_subtree_check,fsid=0)" | sudo tee -a /etc/exports
 
 ## for simplicity we enable these services so they are automatically started,
 ## but they can instead be started manually on each boot
