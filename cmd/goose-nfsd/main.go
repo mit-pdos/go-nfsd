@@ -64,14 +64,14 @@ func reportStats(stats []goose_nfs.OpCount) {
 		microsPerOp := float64(timeNanos) / 1e3 / float64(count)
 		if count > 0 {
 			fmt.Fprintf(os.Stderr,
-				"%12s %5d  avg: %0.1f us/op\n",
+				"%14s %5d  avg: %0.1f us/op\n",
 				op, count, microsPerOp)
 		}
 	}
 	if totalCount > 0 {
 		microsPerOp := float64(totalNanos) / 1e3 / float64(totalCount)
 		fmt.Fprintf(os.Stderr,
-			"%12s %5d  avg: %0.1f us/op\n",
+			"%14s %5d  avg: %0.1f us/op\n",
 			"total", totalCount, microsPerOp)
 	}
 
