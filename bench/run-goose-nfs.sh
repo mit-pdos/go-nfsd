@@ -14,6 +14,7 @@ cd $DIR/..
 
 disk_file=/dev/shm/goose.img
 cpu_list=""
+extra_args=()
 while true; do
     case "$1" in
     -disk)
@@ -24,6 +25,16 @@ while true; do
     --cpu-list)
         shift
         cpu_list="$1"
+        shift
+        ;;
+    # some argument in -foo=value syntax
+    -*=*)
+        extra_args+=("$1")
+        shift
+        ;;
+    -*)
+        extra_args+=("$1" "$2")
+        shift
         shift
         ;;
     *)
