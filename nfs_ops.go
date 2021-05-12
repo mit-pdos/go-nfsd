@@ -426,6 +426,7 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 }
 
 func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_CREATE, time.Now())
 	var reply nfstypes.CREATE3res
 	util.DPrintf(1, "NFS Create %v\n", args)
 	// XXX deal with how
@@ -446,6 +447,7 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 }
 
 func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_MKDIR, time.Now())
 	var reply nfstypes.MKDIR3res
 
 	util.DPrintf(1, "NFS MakeDir %v\n", args)
@@ -540,6 +542,7 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 }
 
 func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_RMDIR, time.Now())
 	var reply nfstypes.RMDIR3res
 	util.DPrintf(1, "NFS Rmdir %v\n", args)
 	op, err := nfs.doRemove(args.Object.Dir, args.Object.Name, true)
@@ -584,6 +587,7 @@ func validateRename(op *fstxn.FsTxn, inodes []*inode.Inode, fromfh fh.Fh, tofh f
 }
 
 func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_RENAME, time.Now())
 	var reply nfstypes.RENAME3res
 	var dipto *inode.Inode
 	var dipfrom *inode.Inode
@@ -740,6 +744,7 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 }
 
 func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.READDIRPLUS3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_READDIRPLUS, time.Now())
 	var reply nfstypes.READDIRPLUS3res
 	util.DPrintf(1, "NFS ReadDirPlus %v\n", args)
 	op := fstxn.Begin(nfs.fsstate)
@@ -797,6 +802,7 @@ func (nfs *Nfs) NFSPROC3_PATHCONF(args nfstypes.PATHCONF3args) nfstypes.PATHCONF
 // written with a WRITE procedure call with the stable field set to
 // UNSTABLE.
 func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
+	defer nfs.recordOp(nfstypes.NFSPROC3_COMMIT, time.Now())
 	var reply nfstypes.COMMIT3res
 	util.DPrintf(1, "NFS Commit %v\n", args)
 	op := fstxn.Begin(nfs.fsstate)
