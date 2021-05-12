@@ -78,5 +78,5 @@ mkfs."$fs" -q "$disk_file"
 sync "$disk_file"
 sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench
 sudo systemctl start nfs-server.service
-sudo mount -t nfs -o vers=3 localhost:/srv/nfs/bench /mnt/nfs
+sudo mount -t nfs -o vers=3,wsize=65536,rsize=65536 localhost:/srv/nfs/bench /mnt/nfs
 sudo chmod 777 /srv/nfs/bench
