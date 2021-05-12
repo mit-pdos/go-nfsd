@@ -208,8 +208,11 @@ func (nfs *Nfs) NFSPROC3_LOOKUP(args nfstypes.LOOKUP3args) nfstypes.LOOKUP3res {
 		errRet(op, &reply.Status, err)
 		return reply
 	}
-	fh := fh.Fh{Ino: inodes[0].Inum, Gen: inodes[0].Gen}
+	i := inodes[0]
+	fh := fh.Fh{Ino: i.Inum, Gen: i.Gen}
 	reply.Resok.Object = fh.MakeFh3()
+	reply.Resok.Obj_attributes.Attributes_follow = true
+	reply.Resok.Obj_attributes.Attributes = i.MkFattr()
 	commitReply(op, &reply.Status)
 	return reply
 }
