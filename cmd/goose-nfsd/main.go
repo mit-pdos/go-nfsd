@@ -52,7 +52,6 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 }
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-var diskfile = flag.String("disk", "", "disk image")
 
 func main() {
 	var unstable bool
@@ -61,15 +60,11 @@ func main() {
 	var filesizeMegabytes uint64
 	flag.Uint64Var(&filesizeMegabytes, "size", 400, "size of file system (in MB)")
 
+	var diskfile string
+	flag.StringVar(&diskfile, "disk", "", "disk image (empty for MemDisk)")
+
 	flag.Uint64Var(&util.Debug, "debug", 0, "debug level (higher is more verbose)")
 	flag.Parse()
-	var name string
-	if *diskfile != "" {
-		name = *diskfile
-	} else {
-		fmt.Printf("Argument '-disk <file>' required\n")
-		return
-	}
 
 	diskBlocks := 1500 + filesizeMegabytes*1024/4
 
@@ -102,7 +97,7 @@ func main() {
 	}
 	defer pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, false)
 
-	nfs := goose_nfs.MkNfsName(name, diskBlocks)
+	nfs := goose_nfs.MkNfsName(diskfile, diskBlocks)
 	nfs.Unstable = unstable
 	defer nfs.ShutdownNfs()
 

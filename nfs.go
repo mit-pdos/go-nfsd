@@ -22,7 +22,7 @@ import (
 )
 
 type Nfs struct {
-	Name     *string
+	Name     string
 	fsstate  *fstxn.FsState
 	shrinkst *shrinker.ShrinkerSt
 	// support unstable writes
@@ -30,11 +30,11 @@ type Nfs struct {
 }
 
 func MkNfsMem(sz uint64) *Nfs {
-	return MakeNfs(nil, sz)
+	return MakeNfs("", sz)
 }
 
 func MkNfsName(name string, sz uint64) *Nfs {
-	return MakeNfs(&name, sz)
+	return MakeNfs(name, sz)
 }
 
 func MkNfs(sz uint64) *Nfs {
@@ -45,18 +45,17 @@ func MkNfs(sz uint64) *Nfs {
 		tmpdir = os.TempDir()
 	}
 	n := filepath.Join(tmpdir, "goose"+strconv.FormatUint(r, 16)+".img")
-	name := &n
-	return MakeNfs(name, sz)
+	return MakeNfs(n, sz)
 }
 
-func MakeNfs(name *string, sz uint64) *Nfs {
+func MakeNfs(name string, sz uint64) *Nfs {
 	var d disk.Disk
-	if name == nil {
+	if name == "" {
 		d = disk.NewMemDisk(sz)
 	} else {
-		util.DPrintf(1, "MakeNfs: creating file disk at %s", *name)
+		util.DPrintf(1, "MakeNfs: creating file disk at %s", name)
 		var err error
-		d, err = disk.NewFileDisk(*name, sz)
+		d, err = disk.NewFileDisk(name, sz)
 		if err != nil {
 			panic(fmt.Errorf("could not create file disk: %v", err))
 		}
@@ -90,9 +89,9 @@ func (nfs *Nfs) doShutdown(destroy bool) {
 	nfs.shrinkst.Shutdown()
 	nfs.fsstate.Txn.Shutdown()
 
-	if destroy && nfs.Name != nil {
-		util.DPrintf(1, "Destroy %v\n", *nfs.Name)
-		err := os.Remove(*nfs.Name)
+	if destroy && nfs.Name != "" {
+		util.DPrintf(1, "Destroy %v\n", nfs.Name)
+		err := os.Remove(nfs.Name)
 		if err != nil {
 			panic(err)
 		}

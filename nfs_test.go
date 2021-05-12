@@ -212,7 +212,7 @@ func newTestDiskOrMem(t *testing.T, mem bool) *TestState {
 	fmt.Printf("%s\n", t.Name())
 	ts := &TestState{t: t}
 	if mem {
-		ts.clnt = &NfsClient{srv: MakeNfs(nil, DISKSZ)}
+		ts.clnt = &NfsClient{srv: MakeNfs("", DISKSZ)}
 	} else {
 		ts.clnt = MkNfsClient(DISKSZ)
 	}
