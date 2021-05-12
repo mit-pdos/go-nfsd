@@ -52,6 +52,31 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 	return bool(res)
 }
 
+func reportStats(stats []goose_nfs.OpCount) {
+	totalCount := uint32(0)
+	totalNanos := uint64(0)
+	for _, opCount := range stats {
+		op := opCount.Op
+		count := opCount.Count
+		timeNanos := opCount.TimeNanos
+		totalCount += count
+		totalNanos += timeNanos
+		microsPerOp := float64(timeNanos) / 1e3 / float64(count)
+		if count > 0 {
+			fmt.Fprintf(os.Stderr,
+				"%12s %5d  avg: %0.1f us/op\n",
+				op, count, microsPerOp)
+		}
+	}
+	if totalCount > 0 {
+		microsPerOp := float64(totalNanos) / 1e3 / float64(totalCount)
+		fmt.Fprintf(os.Stderr,
+			"%12s %5d  avg: %0.1f us/op\n",
+			"total", totalCount, microsPerOp)
+	}
+
+}
+
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 func main() {
@@ -63,6 +88,9 @@ func main() {
 
 	var diskfile string
 	flag.StringVar(&diskfile, "disk", "", "disk image (empty for MemDisk)")
+
+	var dumpStats bool
+	flag.BoolVar(&dumpStats, "stats", false, "dump stats to stderr at end")
 
 	flag.Uint64Var(&util.Debug, "debug", 0, "debug level (higher is more verbose)")
 	flag.Parse()
@@ -111,6 +139,10 @@ func main() {
 	go func() {
 		<-interruptSig
 		listener.Close()
+		if dumpStats {
+			stats := nfs.GetOpStats()
+			reportStats(stats)
+		}
 	}()
 
 	statSig := make(chan os.Signal, 1)
@@ -119,23 +151,7 @@ func main() {
 		for {
 			<-statSig
 			stats := nfs.GetOpStats()
-			totalCount := uint32(0)
-			totalNanos := uint64(0)
-			for _, opCount := range stats {
-				op := opCount.Op
-				count := opCount.Count
-				timeNanos := opCount.TimeNanos
-				totalCount += count
-				totalNanos += timeNanos
-				microsPerOp := float64(timeNanos) / 1e3 / float64(count)
-				if count > 0 {
-					fmt.Fprintf(os.Stderr, "%12s %5d  avg: %0.1f us/op\n", op, count, microsPerOp)
-				}
-			}
-			if totalCount > 0 {
-				microsPerOp := float64(totalNanos) / 1e3 / float64(totalCount)
-				fmt.Fprintf(os.Stderr, "%12s %5d  avg: %0.1f us/op\n", "total", totalCount, microsPerOp)
-			}
+			reportStats(stats)
 		}
 	}()
 
