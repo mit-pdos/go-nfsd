@@ -60,7 +60,9 @@ fi
 
 function cleanup {
     ./bench/stop-goose-nfs.sh
-    rm -f "$disk_file"
+    if [ -f "$disk_file" ]; then
+        rm -f "$disk_file"
+    fi
 }
 trap cleanup EXIT
 

@@ -12,4 +12,7 @@ fi
 sudo umount -f /mnt/nfs
 sudo systemctl stop nfs-server.service
 sudo umount /srv/nfs/bench
-rm -f "$disk_file"
+# do not attempt to remove block devices
+if [ -f "$disk_file" ]; then
+    rm -f "$disk_file"
+fi
