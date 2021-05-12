@@ -34,9 +34,12 @@ done
 
 set -eu
 
-rm -f "$disk_file"
-dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
-sync "$disk_file"
+# empty disk file is valid and uses MemDisk
+if [ -n "$disk_file" ]; then
+    rm -f "$disk_file"
+    dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
+    sync "$disk_file"
+fi
 
 if [ -z "$cpu_list" ]; then
     ./bench/start-goose-nfs.sh -disk "$disk_file" || exit 1
