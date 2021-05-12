@@ -92,5 +92,5 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	n, elapsed := client(cred_unix)
-	fmt.Printf("null-bench: %0.1f RPCs/s\n", float64(n)/elapsed.Seconds())
+	fmt.Printf("null-bench: NULL takes %.1f us\n", float64(elapsed.Microseconds())/float64(n))
 }
