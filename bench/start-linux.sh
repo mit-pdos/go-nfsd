@@ -27,6 +27,8 @@ set -e
 #
 
 fs="ext4"
+disk_file=""
+mount_opts=""
 
 while true; do
   case "$1" in
