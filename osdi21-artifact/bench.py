@@ -61,4 +61,4 @@ if __name__ == "__main__":
     df = df.reindex(index=["smallfile", "largefile", "app"])
     df.rename(columns={"linux": "Linux", "gonfs": "GoNFS"}, inplace=True)
     with open("data/bench.data", "w") as f:
-        print(df.to_csv(sep="\t", columns=["linux", "gonfs"]), end="", file=f)
+        print(df.to_csv(sep="\t", columns=["Linux", "GoNFS"]), end="", file=f)
