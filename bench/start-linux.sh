@@ -66,14 +66,12 @@ if [ -z "$disk_file" ]; then
   exit 1
 fi
 
-conv_flag="conv=notrunc"
-# block device, do not attempt to truncate
-if [ -b "$disk_file" ]; then
-   conv_flag=""
+conv_arg=()
+if [ ! -b "$disk_file" ]; then
+  conv_arg+=("conv=notrunc")
 fi
 
-# conv_flag is skipped if empty
-dd status=none if=/dev/zero of="$disk_file" bs=4K ${conv_flag:+"$conv_flag"} count=100000
+dd status=none if=/dev/zero of="$disk_file" bs=4K "${conv_arg[@]}" count=200000
 mkfs."$fs" -q "$disk_file"
 sync "$disk_file"
 sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench

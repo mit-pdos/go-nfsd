@@ -45,8 +45,8 @@ done
 
 set -eu
 
-# empty disk file is valid and uses MemDisk
-if [ -n "$disk_file" ]; then
+# only zero a regular file
+if [ -f "$disk_file" ]; then
     rm -f "$disk_file"
     dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
     sync "$disk_file"
