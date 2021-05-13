@@ -45,10 +45,8 @@ done
 
 set -eu
 
-# only zero a regular file
-if [ -f "$disk_file" ]; then
-    rm -f "$disk_file"
-    dd status=none if=/dev/zero of="$disk_file" bs=4K count=100000
+if [ -e "$disk_file" ]; then
+    dd status=none if=/dev/zero of="$disk_file" bs=4K count=200000 conv=notrunc
     sync "$disk_file"
 fi
 
