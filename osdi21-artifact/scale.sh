@@ -3,10 +3,15 @@
 set -eu
 
 blue=$(tput setaf 4)
+red=$(tput setaf 1)
 reset=$(tput sgr0)
 
 info() {
   echo -e "${blue}$1${reset}" 1>&2
+}
+
+error() {
+  echo -e "${red}$1${reset}" 1>&2
 }
 
 if [ ! -d "$GOOSE_NFSD_PATH" ]; then
@@ -14,12 +19,39 @@ if [ ! -d "$GOOSE_NFSD_PATH" ]; then
     exit 1
 fi
 
+help() {
+  echo "Usage: $1 [-disk <disk file>] [threads]"
+  echo "disk defaults to ~/disk.img (assuming the root file system is on an SSD)"
+  echo "threads defaults to 10"
+}
+
+disk_file="$HOME/disk.img"
+while true; do
+  case "$1" in
+    -disk)
+      shift
+      disk_file="$1"
+      shift
+      ;;
+    -help)
+      help
+      exit 0
+      ;;
+    -*)
+      error "unexpected flag $1"
+      help
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
 threads=10
 if [[ $# -gt 0 ]]; then
     threads="$1"
 fi
-
-disk_file="$HOME/disk.img"
 
 cd "$GOOSE_NFSD_PATH"
 

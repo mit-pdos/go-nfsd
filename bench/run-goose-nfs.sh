@@ -65,6 +65,6 @@ function cleanup {
 trap cleanup EXIT
 
 # taskset 0x3 $1 /mnt/nfs
-echo "# goose-nfsd -disk $disk_file ${extra_args[@]}" 1>&2
+echo "# goose-nfsd -disk $disk_file ${extra_args[@]}"
 echo "run $@" 1>&2
 "$@"

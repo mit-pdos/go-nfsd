@@ -46,6 +46,6 @@ function cleanup {
 }
 trap cleanup EXIT
 
-echo "# Linux -disk $disk_file -fs $fs -mount-opts $mount_opts" 1>&2
+echo "# Linux -disk $disk_file -fs $fs -mount-opts $mount_opts"
 echo "run $@" 1>&2
 "$@"
