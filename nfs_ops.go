@@ -328,6 +328,8 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		reply.Status = nfstypes.NFS3_OK
 		reply.Resok.Count = nfstypes.Count3(count)
 		reply.Resok.Committed = args.Stable
+		reply.Resok.File_wcc.After.Attributes_follow = true
+		reply.Resok.File_wcc.After.Attributes = ip.MkFattr()
 	} else {
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 	}
