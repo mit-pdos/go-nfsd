@@ -2,6 +2,7 @@
 
 import sys
 import re
+from os.path import join
 
 import argparse
 import pandas as pd
@@ -46,19 +47,35 @@ def parse_raw(lines):
     return pd.DataFrame.from_records(data)
 
 
-if __name__ == "__main__":
+def from_tidy(tidy_df):
+    df = tidy_df.pivot_table(index="clients", columns="fs", values="throughput")
+    # propagate serial results forward
+    df.fillna(method="ffill", inplace=True)
+    return df
+
+
+def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("bench", type=argparse.FileType("r"))
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="data",
+        help="directory to output *.data files to",
+    )
+    parser.add_argument(
+        "bench", type=argparse.FileType("r"), help="path to scale.sh raw output"
+    )
 
     args = parser.parse_args()
 
-    tidy_df = parse_raw(args.bench)
-    df = tidy_df.pivot_table(index="clients", columns="fs", values="throughput")
-    # propagate serial results forward
-    df = df.fillna(method="ffill")
-    with open("data/gnfs.data", "w") as f:
+    df = from_tidy(parse_raw(args.bench))
+    with open(join(args.output, "gnfs.data"), "w") as f:
         print(df["gonfs"].to_csv(sep="\t", header=False), end="", file=f)
-    with open("data/linux-nfs.data", "w") as f:
+    with open(join(args.output, "linux-nfs.data"), "w") as f:
         print(df["linux"].to_csv(sep="\t", header=False), end="", file=f)
-    with open("data/serial.data", "w") as f:
+    with open(join(args.output, "serial.data"), "w") as f:
         print(df["serial-gonfs"].to_csv(sep="\t", header=False), end="", file=f)
+
+
+if __name__ == "__main__":
+    main()
