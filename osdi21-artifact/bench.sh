@@ -24,13 +24,13 @@ cd "$GOOSE_NFSD_PATH"
 
 info "GoNFS"
 echo "fs=gonfs"
-./bench/run-goose-nfs.sh go run ./cmd/fs-smallfile -start=10 -threads=10
-./bench/run-goose-nfs.sh go run ./cmd/fs-largefile
-./bench/run-goose-nfs.sh ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+./bench/run-goose-nfs.sh -disk "" go run ./cmd/fs-smallfile -benchtime=20s
+./bench/run-goose-nfs.sh -disk "" go run ./cmd/fs-largefile
+./bench/run-goose-nfs.sh -disk "" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
 echo 1>&2
 info "Linux ext4 over NFS"
 echo "fs=linux"
-./bench/run-linux.sh go run ./cmd/fs-smallfile -start=10 -threads=10
+./bench/run-linux.sh go run ./cmd/fs-smallfile -benchtime=20s
 ./bench/run-linux.sh go run ./cmd/fs-largefile
 ./bench/run-linux.sh ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
