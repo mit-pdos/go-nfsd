@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/signal"
 	"runtime/pprof"
+	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/tchajed/goose/machine/disk"
 	"github.com/zeldovich/go-rpcgen/rfc1057"
@@ -79,9 +81,77 @@ func reportStats(stats []goose_nfs.OpCount) {
 
 }
 
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+type stat struct {
+	count uint32
+	nanos uint64
+}
+
+func (s *stat) done(start time.Time) {
+	dur := time.Now().Sub(start)
+	atomic.AddUint32(&s.count, 1)
+	atomic.AddUint64(&s.nanos, uint64(dur.Nanoseconds()))
+}
+
+// a bit paranoid to read this way but it's fine
+func (s *stat) read() stat {
+	return stat{
+		count: atomic.LoadUint32(&s.count),
+		nanos: atomic.LoadUint64(&s.nanos),
+	}
+}
+
+func (s stat) microsPerOp() float64 {
+	return float64(s.nanos) / float64(s.count) * 1000
+}
+
+type TimingDisk struct {
+	d        disk.Disk
+	reads    stat
+	writes   stat
+	barriers stat
+}
+
+var _ disk.Disk = &TimingDisk{}
+
+func (d *TimingDisk) Read(a uint64) disk.Block {
+	defer d.reads.done(time.Now())
+	return d.d.Read(a)
+}
+
+func (d *TimingDisk) Write(a uint64, b disk.Block) {
+	defer d.writes.done(time.Now())
+	d.d.Write(a, b)
+}
+
+func (d *TimingDisk) Barrier() {
+	defer d.barriers.done(time.Now())
+	d.d.Barrier()
+}
+
+func (d *TimingDisk) Size() uint64 {
+	return d.d.Size()
+}
+
+func (d *TimingDisk) Close() {
+	d.d.Close()
+	d.reportStats()
+}
+
+func (d *TimingDisk) reportStats() {
+	reads := d.reads.read()
+	writes := d.writes.read()
+	barriers := d.barriers.read()
+	fmt.Fprintf(os.Stderr, "%12s %10d  %0.2f us/op",
+		"disk.Read", reads.count, reads.microsPerOp())
+	fmt.Fprintf(os.Stderr, "%12s %10d  %0.2f us/op",
+		"disk.Write", writes.count, writes.microsPerOp())
+	fmt.Fprintf(os.Stderr, "%12s %10d  %0.2f us/op",
+		"disk.Barrier", barriers.count, barriers.microsPerOp())
+}
 
 func main() {
+	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
+
 	var unstable bool
 	flag.BoolVar(&unstable, "unstable", true, "use unstable writes if requested")
 
@@ -136,6 +206,9 @@ func main() {
 		if err != nil {
 			panic(fmt.Errorf("could not create disk: %w", err))
 		}
+	}
+	if dumpStats {
+		d = &TimingDisk{d: d}
 	}
 	nfs := goose_nfs.MakeNfs(d)
 	nfs.Unstable = unstable
