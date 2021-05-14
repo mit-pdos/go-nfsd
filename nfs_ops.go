@@ -385,7 +385,7 @@ func (nfs *Nfs) doDecLink(op *fstxn.FsTxn, ip *inode.Inode) {
 }
 
 func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfstypes.Ftype3,
-	data []byte) (op *fstxn.FsTxn, err nfstypes.Nfsstat3, fattr nfstypes.Fattr3) {
+	data []byte) (op *fstxn.FsTxn, err nfstypes.Nfsstat3, fh3 nfstypes.Nfs_fh3, fattr nfstypes.Fattr3) {
 	beginOp := fstxn.Begin(nfs.fsstate)
 	var dip, ip *inode.Inode
 	op, dip, ip, err = nfs.getAlloc(beginOp, dfh, name, kind)
@@ -421,6 +421,7 @@ func (nfs *Nfs) doCreate(dfh nfstypes.Nfs_fh3, name nfstypes.Filename3, kind nfs
 		return
 	}
 	err = nfstypes.NFS3_OK
+	fh3 = fh.Fh{Ino: ip.Inum, Gen: ip.Gen}.MakeFh3()
 	fattr = ip.MkFattr()
 	return
 }
@@ -434,11 +435,15 @@ func (nfs *Nfs) NFSPROC3_CREATE(args nfstypes.CREATE3args) nfstypes.CREATE3res {
 		reply.Status = nfstypes.NFS3ERR_NOTSUPP
 		return reply
 	}
-	op, err, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3REG, nil)
+	op, err, fh3, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3REG, nil)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Create %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
+	}
+	reply.Resok.Obj = nfstypes.Post_op_fh3{
+		Handle_follows: true,
+		Handle:         fh3,
 	}
 	reply.Resok.Obj_attributes.Attributes_follow = true
 	reply.Resok.Obj_attributes.Attributes = fattr
@@ -451,11 +456,15 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	var reply nfstypes.MKDIR3res
 
 	util.DPrintf(1, "NFS MakeDir %v\n", args)
-	op, err, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR, nil)
+	op, err, fh3, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR, nil)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "Create %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
+	}
+	reply.Resok.Obj = nfstypes.Post_op_fh3{
+		Handle_follows: true,
+		Handle:         fh3,
 	}
 	reply.Resok.Obj_attributes.Attributes_follow = true
 	reply.Resok.Obj_attributes.Attributes = fattr
@@ -468,11 +477,15 @@ func (nfs *Nfs) NFSPROC3_SYMLINK(args nfstypes.SYMLINK3args) nfstypes.SYMLINK3re
 	util.DPrintf(1, "NFS SymLink %v\n", args)
 
 	data := []byte(args.Symlink.Symlink_data)
-	op, err, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3LNK, data)
+	op, err, fh3, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3LNK, data)
 	if err != nfstypes.NFS3_OK {
 		util.DPrintf(1, "doCreate %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
+	}
+	reply.Resok.Obj = nfstypes.Post_op_fh3{
+		Handle_follows: true,
+		Handle:         fh3,
 	}
 	reply.Resok.Obj_attributes.Attributes_follow = true
 	reply.Resok.Obj_attributes.Attributes = fattr
