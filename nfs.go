@@ -1,9 +1,6 @@
 package goose_nfs
 
 import (
-	"fmt"
-	"path/filepath"
-
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/goose-nfsd/buf"
@@ -15,14 +12,9 @@ import (
 	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
-
-	"math/rand"
-	"os"
-	"strconv"
 )
 
 type Nfs struct {
-	Name     string
 	fsstate  *fstxn.FsState
 	shrinkst *shrinker.ShrinkerSt
 	// support unstable writes
@@ -32,42 +24,12 @@ type Nfs struct {
 	opNanos  [NUM_NFS_OPS]uint64
 }
 
-func MkNfsMem(sz uint64) *Nfs {
-	return MakeNfs("", sz)
-}
-
-func MkNfsName(name string, sz uint64) *Nfs {
-	return MakeNfs(name, sz)
-}
-
-func MkNfs(sz uint64) *Nfs {
-	r := rand.Uint64()
-	tmpdir := "/dev/shm"
-	f, err := os.Stat(tmpdir)
-	if !(err == nil && f.IsDir()) {
-		tmpdir = os.TempDir()
-	}
-	n := filepath.Join(tmpdir, "goose"+strconv.FormatUint(r, 16)+".img")
-	return MakeNfs(n, sz)
-}
-
-func MakeNfs(name string, sz uint64) *Nfs {
-	var d disk.Disk
-	if name == "" {
-		d = disk.NewMemDisk(sz)
-	} else {
-		util.DPrintf(1, "MakeNfs: creating file disk at %s", name)
-		var err error
-		d, err = disk.NewFileDisk(name, sz)
-		if err != nil {
-			panic(fmt.Errorf("could not create file disk: %v", err))
-		}
-	}
+func MakeNfs(d disk.Disk) *Nfs {
 	// run first so that disk is initialized before mkLog
 	super := super.MkFsSuper(d)
-	util.DPrintf(1, "Super: sz %d "+
-		"NBlockBitmap %d NInodeBitmap %d Maxaddr %d\n",
-		sz,
+	util.DPrintf(1, "Super: "+
+		"Size %d NBlockBitmap %d NInodeBitmap %d Maxaddr %d\n",
+		d.Size(),
 		super.NBlockBitmap, super.NInodeBitmap, super.Maxaddr)
 
 	txn := txn.MkTxn(d) // runs recovery
@@ -79,7 +41,6 @@ func MakeNfs(name string, sz uint64) *Nfs {
 
 	st := fstxn.MkFsState(super, txn)
 	nfs := &Nfs{
-		Name:     name,
 		fsstate:  st,
 		shrinkst: shrinker.MkShrinkerSt(st),
 		Unstable: true,
@@ -90,28 +51,11 @@ func MakeNfs(name string, sz uint64) *Nfs {
 	return nfs
 }
 
-func (nfs *Nfs) doShutdown(destroy bool) {
-	util.DPrintf(1, "Shutdown %v\n", destroy)
+func (nfs *Nfs) ShutdownNfs() {
+	util.DPrintf(1, "Shutdown\n")
 	nfs.shrinkst.Shutdown()
 	nfs.fsstate.Txn.Shutdown()
-
-	if destroy && nfs.Name != "" {
-		util.DPrintf(1, "Destroy %v\n", nfs.Name)
-		err := os.Remove(nfs.Name)
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	util.DPrintf(1, "Shutdown done\n")
-}
-
-func (nfs *Nfs) ShutdownNfsDestroy() {
-	nfs.doShutdown(true)
-}
-
-func (nfs *Nfs) ShutdownNfs() {
-	nfs.doShutdown(false)
 }
 
 // Terminates shrinker thread immediately

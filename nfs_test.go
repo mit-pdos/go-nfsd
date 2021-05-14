@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
@@ -36,6 +38,7 @@ func checkFlags() {
 
 type TestState struct {
 	t    *testing.T
+	path string
 	clnt *NfsClient
 }
 
@@ -207,20 +210,42 @@ func newMemTest(t *testing.T) *TestState {
 	return newTestDiskOrMem(t, true)
 }
 
+func MkNfs(sz uint64) (string, *Nfs) {
+	r := rand.Uint64()
+	tmpdir := "/dev/shm"
+	f, err := os.Stat(tmpdir)
+	if !(err == nil && f.IsDir()) {
+		tmpdir = os.TempDir()
+	}
+	n := filepath.Join(tmpdir, "goose"+strconv.FormatUint(r, 16)+".img")
+	d, err := disk.NewFileDisk(n, sz)
+	if err != nil {
+		panic(err)
+	}
+	return n, MakeNfs(d)
+}
+
 func newTestDiskOrMem(t *testing.T, mem bool) *TestState {
 	checkFlags()
 	fmt.Printf("%s\n", t.Name())
 	ts := &TestState{t: t}
 	if mem {
-		ts.clnt = &NfsClient{srv: MakeNfs("", DISKSZ)}
+		path, clnt := MkNfs(DISKSZ)
+		ts.path = path
+		ts.clnt = &NfsClient{srv: clnt}
 	} else {
-		ts.clnt = MkNfsClient(DISKSZ)
+		d := disk.NewMemDisk(DISKSZ)
+		ts.clnt = &NfsClient{srv: MakeNfs(d)}
 	}
 	return ts
 }
 
 func (ts *TestState) Close() {
-	ts.clnt.ShutdownDestroy()
+	ts.clnt.Shutdown()
+	ts.clnt.srv.fsstate.Super.Disk.Close()
+	if ts.path != "" {
+		os.Remove(ts.path)
+	}
 }
 
 func TestRoot(t *testing.T) {
@@ -741,6 +766,9 @@ func TestTooLargeFile(t *testing.T) {
 }
 
 func TestInodeExhaust(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
 	ts := newTestDiskOrMem(t, true)
 	defer ts.Close()
 
@@ -770,7 +798,8 @@ func TestRestartPersist(t *testing.T) {
 
 	ts.Create("x")
 	ts.clnt.Shutdown()
-	ts.clnt.srv = MakeNfs(ts.clnt.srv.Name, DISKSZ)
+	d := ts.clnt.srv.fsstate.Super.Disk
+	ts.clnt.srv = MakeNfs(d)
 	ts.Lookup("x", true)
 	ts.Create("y")
 	ts.Lookup("y", true)
@@ -791,7 +820,8 @@ func TestAbortRestart(t *testing.T) {
 	ts.Lookup("d", false)
 	ts.clnt.Shutdown()
 
-	ts.clnt.srv = MakeNfs(ts.clnt.srv.Name, DISKSZ)
+	d := ts.clnt.srv.fsstate.Super.Disk
+	ts.clnt.srv = MakeNfs(d)
 	fhx := fh.MakeFh(fh3)
 	fattr := ts.Getattr(fh3, sz)
 	assert.Equal(ts.t, fattr.Fileid, nfstypes.Fileid3(fhx.Ino))
@@ -809,7 +839,8 @@ func TestRestartReclaim(t *testing.T) {
 	ts.Remove("x")
 	ts.clnt.Crash()
 
-	ts.clnt.srv = MakeNfs(ts.clnt.srv.Name, DISKSZ)
+	d := ts.clnt.srv.fsstate.Super.Disk
+	ts.clnt.srv = MakeNfs(d)
 	ts.Lookup("x", false)
 
 	// Create will try re-allocate inode fhx.Ino, but abort since

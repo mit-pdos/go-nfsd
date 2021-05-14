@@ -1,9 +1,11 @@
 package goose_nfs
 
 import (
+	"strconv"
+
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"strconv"
+	"github.com/tchajed/goose/machine/disk"
 )
 
 type NfsClient struct {
@@ -11,13 +13,10 @@ type NfsClient struct {
 }
 
 func MkNfsClient(sz uint64) *NfsClient {
+	d := disk.NewMemDisk(sz)
 	return &NfsClient{
-		srv: MkNfs(sz),
+		srv: MakeNfs(d),
 	}
-}
-
-func (clnt *NfsClient) ShutdownDestroy() {
-	clnt.srv.ShutdownNfsDestroy()
 }
 
 func (clnt *NfsClient) Shutdown() {
@@ -165,6 +164,6 @@ func Parallel(nthread int, disksz uint64,
 		c := <-count
 		n += c
 	}
-	clnt.ShutdownDestroy()
+	clnt.Shutdown()
 	return n
 }

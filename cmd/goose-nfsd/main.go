@@ -11,6 +11,7 @@ import (
 	"runtime/pprof"
 	"syscall"
 
+	"github.com/tchajed/goose/machine/disk"
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
 
@@ -127,7 +128,16 @@ func main() {
 	}
 	defer pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, false)
 
-	nfs := goose_nfs.MkNfsName(diskfile, diskBlocks)
+	var d disk.Disk
+	if diskfile == "" {
+		d = disk.NewMemDisk(diskBlocks)
+	} else {
+		d, err = disk.NewFileDisk(diskfile, diskBlocks)
+		if err != nil {
+			panic(fmt.Errorf("could not create disk: %w", err))
+		}
+	}
+	nfs := goose_nfs.MakeNfs(d)
 	nfs.Unstable = unstable
 	defer nfs.ShutdownNfs()
 
