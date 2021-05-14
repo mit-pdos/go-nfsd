@@ -13,7 +13,8 @@ const (
 	WSIZE        = 16 * 4096
 )
 
-func makefile(name string, data []byte, size uint64) time.Duration {
+// makefile directly reports throughput in MB/s
+func makefile(name string, data []byte, size uint64) float64 {
 	start := time.Now()
 	f, err := os.Create(name)
 	if err != nil {
@@ -33,7 +34,8 @@ func makefile(name string, data []byte, size uint64) time.Duration {
 	if err != nil {
 		panic(err)
 	}
-	return time.Now().Sub(start)
+	elapsed := time.Now().Sub(start)
+	return float64(size) / float64(MB) / elapsed.Seconds()
 }
 
 func mkdata(sz uint64) []byte {
@@ -60,12 +62,10 @@ func main() {
 
 	data := mkdata(WSIZE)
 
-	elapsed := makefile(warmupFile, data, warmupsize)
-	tput := float64(filesize) / float64(MB) / elapsed.Seconds()
+	tput := makefile(warmupFile, data, warmupsize)
 	fmt.Printf("# warmup %d MB throughput %.2f MB/s\n", warmupsize/MB, tput)
 
-	elapsed = makefile(file, data, filesize)
-	tput = float64(filesize) / float64(MB) / elapsed.Seconds()
+	tput = makefile(file, data, filesize)
 	fmt.Printf("fs-largefile: %v MB throughput %.2f MB/s\n", filesize/MB, tput)
 
 	if *deleteAfter {
