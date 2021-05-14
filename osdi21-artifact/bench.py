@@ -50,14 +50,8 @@ def parse_raw(lines):
     return pd.DataFrame.from_records(data)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("bench", type=argparse.FileType("r"))
-
-    args = parser.parse_args()
-
-    tidy_df = parse_raw(args.bench)
-    df = tidy_df.pivot_table(index="bench", columns="fs", values="val")
+def from_tidy(df):
+    df = df.pivot_table(index="bench", columns="fs", values="val")
     df = df.reindex(index=["smallfile", "largefile", "app"])
     df.rename(
         columns={
@@ -68,10 +62,36 @@ if __name__ == "__main__":
         },
         inplace=True,
     )
-    with open("data/bench.data", "w") as f:
-        print(
-            # list out columns again to get order right
-            df.to_csv(sep="\t", columns=["Linux", "GoNFS", "Linux SSD", "GoNFS SSD"]),
-            end="",
-            file=f,
-        )
+    return df
+
+
+def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="data/bench.data",
+        type=argparse.FileType("w"),
+        help="file to output bench.data to",
+    )
+    parser.add_argument(
+        "bench", type=argparse.FileType("r"), help="raw output from bench.sh"
+    )
+
+    args = parser.parse_args()
+
+    df = from_tidy(parse_raw(args.bench))
+    # list out columns again to get order right
+    columns = ["Linux", "GoNFS"]
+    if "Linux SSD" in df.columns:
+        columns.extend(["Linux SSD", "GoNFS SSD"])
+    print(
+        df.to_csv(sep="\t", columns=columns),
+        end="",
+        file=args.output,
+    )
+
+
+if __name__ == "__main__":
+    main()
