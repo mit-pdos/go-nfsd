@@ -50,9 +50,9 @@ cd "$GOOSE_NFSD_PATH"
 
 info "GoNFS"
 echo "fs=gonfs"
-./bench/run-goose-nfs.sh -disk "" go run ./cmd/fs-smallfile -benchtime=20s
-./bench/run-goose-nfs.sh -disk "" go run ./cmd/fs-largefile
-./bench/run-goose-nfs.sh -disk "" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+./bench/run-goose-nfs.sh -unstable=false -disk "" go run ./cmd/fs-smallfile -benchtime=20s
+./bench/run-goose-nfs.sh -unstable=false -disk "" go run ./cmd/fs-largefile
+./bench/run-goose-nfs.sh -unstable=false -disk "" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
 echo 1>&2
 info "Linux ext4 over NFS"
@@ -65,9 +65,9 @@ if [ -n "$ssd_file" ]; then
     echo 1>&2
     info "GoNFS (SSD)"
     echo "fs=gonfs-ssd"
-    ./bench/run-goose-nfs.sh -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
-    ./bench/run-goose-nfs.sh -disk "$ssd_file" go run ./cmd/fs-largefile
-    ./bench/run-goose-nfs.sh -disk "$ssd_file" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+    ./bench/run-goose-nfs.sh -unstable=false -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
+    ./bench/run-goose-nfs.sh -unstable=false -disk "$ssd_file" go run ./cmd/fs-largefile
+    ./bench/run-goose-nfs.sh -unstable=false -disk "$ssd_file" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
     echo 1>&2
     info "Linux ext4 over NFS (SSD)"
