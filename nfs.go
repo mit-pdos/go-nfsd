@@ -65,7 +65,10 @@ func MakeNfs(name string, sz uint64) *Nfs {
 	}
 	// run first so that disk is initialized before mkLog
 	super := super.MkFsSuper(d)
-	util.DPrintf(1, "Super: sz %d %v\n", sz, super)
+	util.DPrintf(1, "Super: sz %d "+
+		"NBlockBitmap %d NInodeBitmap %d Maxaddr %d\n",
+		sz,
+		super.NBlockBitmap, super.NInodeBitmap, super.Maxaddr)
 
 	txn := txn.MkTxn(d) // runs recovery
 
