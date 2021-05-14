@@ -78,7 +78,7 @@ func main() {
 	var start int
 	flag.DurationVar(&N, "benchtime", 10*time.Second, "time to run each iteration for")
 	flag.IntVar(&start, "start", 1, "number of threads to start at")
-	flag.IntVar(&NTHREAD, "threads", 20, "number of threads to run till")
+	flag.IntVar(&NTHREAD, "threads", 1, "number of threads to run till")
 	flag.Parse()
 	if start < 1 {
 		panic("invalid start")
