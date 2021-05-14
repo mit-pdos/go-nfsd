@@ -59,6 +59,19 @@ if __name__ == "__main__":
     tidy_df = parse_raw(args.bench)
     df = tidy_df.pivot_table(index="bench", columns="fs", values="val")
     df = df.reindex(index=["smallfile", "largefile", "app"])
-    df.rename(columns={"linux": "Linux", "gonfs": "GoNFS"}, inplace=True)
+    df.rename(
+        columns={
+            "linux": "Linux",
+            "gonfs": "GoNFS",
+            "linux-ssd": "Linux SSD",
+            "gonfs-ssd": "GoNFS SSD",
+        },
+        inplace=True,
+    )
     with open("data/bench.data", "w") as f:
-        print(df.to_csv(sep="\t", columns=["Linux", "GoNFS"]), end="", file=f)
+        print(
+            # list out columns again to get order right
+            df.to_csv(sep="\t", columns=["Linux", "GoNFS", "Linux SSD", "GoNFS SSD"]),
+            end="",
+            file=f,
+        )

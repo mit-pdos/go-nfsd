@@ -5,11 +5,37 @@
 set -eu
 
 blue=$(tput setaf 4)
+red=$(tput setaf 1)
 reset=$(tput sgr0)
 
 info() {
   echo -e "${blue}$1${reset}" 1>&2
 }
+error() {
+  echo -e "${red}$1${reset}" 1>&2
+}
+
+usage() {
+  echo "Usage: $0 [-ssd <block device or file path>]" 1>&2
+  echo "SSD benchmarks will be skipped if -ssd is not passed"
+}
+
+ssd_file=""
+
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        -ssd)
+            shift
+            ssd_file="$1"
+            shift
+            ;;
+        *)
+            error "unexpected argument $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
 
 if [ ! -d "$GOOSE_NFSD_PATH" ]; then
     echo "GOOSE_NFSD_PATH is unset" 1>&2
@@ -34,3 +60,19 @@ echo "fs=linux"
 ./bench/run-linux.sh go run ./cmd/fs-smallfile -benchtime=20s
 ./bench/run-linux.sh go run ./cmd/fs-largefile
 ./bench/run-linux.sh ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+
+if [ -n "$ssd_file" ]; then
+    echo 1>&2
+    info "GoNFS (SSD)"
+    echo "fs=gonfs-ssd"
+    ./bench/run-goose-nfs.sh -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
+    ./bench/run-goose-nfs.sh -disk "$ssd_file" go run ./cmd/fs-largefile
+    ./bench/run-goose-nfs.sh -disk "$ssd_file" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+
+    echo 1>&2
+    info "Linux ext4 over NFS (SSD)"
+    echo "fs=linux-ssd"
+    ./bench/run-linux.sh -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
+    ./bench/run-linux.sh -disk "$ssd_file" go run ./cmd/fs-largefile
+    ./bench/run-linux.sh -disk "$ssd_file" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+fi
