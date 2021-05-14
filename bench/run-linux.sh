@@ -15,6 +15,7 @@ cd $DIR/..
 fs="ext4"
 mount_opts="data=journal"
 disk_file=/dev/shm/nfs3.img
+size_mb=400
 
 while true; do
   case "$1" in
@@ -33,19 +34,24 @@ while true; do
       fs="$1"
       shift
       ;;
+    -size)
+      shift
+      size_mb="$1"
+      shift
+      ;;
     *)
       break
       ;;
   esac
 done
 
-./bench/start-linux.sh -disk "$disk_file" -fs "$fs" -mount-opts "$mount_opts" || exit 1
+./bench/start-linux.sh -disk "$disk_file" -fs "$fs" -mount-opts "$mount_opts" -size "$size_mb" || exit 1
 
 function cleanup {
     ./bench/stop-linux.sh "$disk_file"
 }
 trap cleanup EXIT
 
-echo "# Linux -disk $disk_file -fs $fs -mount-opts $mount_opts"
+echo "# Linux -disk $disk_file -fs $fs -mount-opts $mount_opts -size $size_mb"
 echo "run $@" 1>&2
 "$@"

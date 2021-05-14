@@ -29,6 +29,7 @@ set -e
 fs="ext4"
 disk_file=""
 mount_opts=""
+size_mb=400
 
 while true; do
   case "$1" in
@@ -45,6 +46,11 @@ while true; do
     -fs)
       shift
       fs="$1"
+      shift
+      ;;
+    -size)
+      shift
+      size_mb="$1"
       shift
       ;;
     *)
@@ -71,7 +77,8 @@ if [ ! -b "$disk_file" ]; then
   conv_arg+=("conv=notrunc")
 fi
 
-dd status=none if=/dev/zero of="$disk_file" bs=4K "${conv_arg[@]}" count=200000
+# count is in units of 4KB blocks
+dd status=none if=/dev/zero of="$disk_file" bs=4K "${conv_arg[@]}" count=$((size_mb * 1024 / 4))
 mkfs."$fs" -q "$disk_file"
 sync "$disk_file"
 sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench
