@@ -13,14 +13,13 @@ const (
 	WSIZE        = 16 * 4096
 )
 
-var FILESIZE uint64
-
-func makefile(name string, data []byte) {
+func makefile(name string, data []byte, size uint64) time.Duration {
+	start := time.Now()
 	f, err := os.Create(name)
 	if err != nil {
 		panic(err)
 	}
-	for i := uint64(0); i < FILESIZE/WSIZE; i++ {
+	for i := uint64(0); i < size/WSIZE; i++ {
 		_, err = f.Write(data)
 		if err != nil {
 			panic(err)
@@ -34,6 +33,7 @@ func makefile(name string, data []byte) {
 	if err != nil {
 		panic(err)
 	}
+	return time.Now().Sub(start)
 }
 
 func mkdata(sz uint64) []byte {
@@ -52,15 +52,21 @@ func main() {
 
 	warmupFile := path.Join(*mnt, "large.warmup")
 	file := path.Join(*mnt, "large")
-	FILESIZE = *sizeMB * MB
+	filesize := *sizeMB * MB
+	warmupsize := 100 * MB
+	if filesize < warmupsize {
+		warmupsize = filesize
+	}
 
 	data := mkdata(WSIZE)
-	makefile(warmupFile, data)
-	start := time.Now()
-	makefile(file, data)
-	elapsed := time.Now().Sub(start)
-	tput := float64(FILESIZE/MB) / elapsed.Seconds()
-	fmt.Printf("fs-largefile: %v MB throughput %.2f MB/s\n", FILESIZE/MB, tput)
+
+	elapsed := makefile(warmupFile, data, warmupsize)
+	tput := float64(filesize) / float64(MB) / elapsed.Seconds()
+	fmt.Printf("# warmup %d MB throughput %.2f MB/s\n", warmupsize/MB, tput)
+
+	elapsed = makefile(file, data, filesize)
+	tput = float64(filesize) / float64(MB) / elapsed.Seconds()
+	fmt.Printf("fs-largefile: %v MB throughput %.2f MB/s\n", filesize/MB, tput)
 
 	if *deleteAfter {
 		os.Remove(warmupFile)
