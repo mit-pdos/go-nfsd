@@ -101,7 +101,7 @@ func (s *stat) read() stat {
 }
 
 func (s stat) microsPerOp() float64 {
-	return float64(s.nanos) / float64(s.count) * 1000
+	return float64(s.nanos) / float64(s.count) / 1e3
 }
 
 type TimingDisk struct {
@@ -141,12 +141,17 @@ func (d *TimingDisk) reportStats() {
 	reads := d.reads.read()
 	writes := d.writes.read()
 	barriers := d.barriers.read()
-	fmt.Fprintf(os.Stderr, "%12s %10d  %0.2f us/op",
+	totalCount := reads.count + writes.count + barriers.count
+	totalNanos := reads.nanos + writes.nanos + barriers.nanos
+	totalS := float64(totalNanos) / 1e9
+	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2f us/op\n",
 		"disk.Read", reads.count, reads.microsPerOp())
-	fmt.Fprintf(os.Stderr, "%12s %10d  %0.2f us/op",
+	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2f us/op\n",
 		"disk.Write", writes.count, writes.microsPerOp())
-	fmt.Fprintf(os.Stderr, "%12s %10d  %0.2f us/op",
+	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2f us/op\n",
 		"disk.Barrier", barriers.count, barriers.microsPerOp())
+	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2fs\n",
+		"total", totalCount, totalS)
 }
 
 func main() {
@@ -210,6 +215,7 @@ func main() {
 	if dumpStats {
 		d = &TimingDisk{d: d}
 	}
+	defer d.Close()
 	nfs := goose_nfs.MakeNfs(d)
 	nfs.Unstable = unstable
 	defer nfs.ShutdownNfs()
