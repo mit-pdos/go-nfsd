@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -135,9 +136,11 @@ func main() {
 	srv.RegisterMany(nfstypes.NFS_PROGRAM_NFS_V3_regs(nfs))
 
 	interruptSig := make(chan os.Signal, 1)
+	shutdown := false
 	signal.Notify(interruptSig, os.Interrupt)
 	go func() {
 		<-interruptSig
+		shutdown = true
 		listener.Close()
 		if dumpStats {
 			stats := nfs.GetOpStats()
@@ -158,6 +161,10 @@ func main() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) && shutdown {
+				util.DPrintf(1, "Shutting down server")
+				break
+			}
 			fmt.Printf("accept: %v\n", err)
 			break
 		}
