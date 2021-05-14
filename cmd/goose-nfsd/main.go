@@ -134,7 +134,6 @@ func (d *TimingDisk) Size() uint64 {
 
 func (d *TimingDisk) Close() {
 	d.d.Close()
-	d.reportStats()
 }
 
 func (d *TimingDisk) reportStats() {
@@ -151,7 +150,7 @@ func (d *TimingDisk) reportStats() {
 	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2f us/op\n",
 		"disk.Barrier", barriers.count, barriers.microsPerOp())
 	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2fs\n",
-		"total", totalCount, totalS)
+		"disk total", totalCount, totalS)
 }
 
 func main() {
@@ -215,7 +214,6 @@ func main() {
 	if dumpStats {
 		d = &TimingDisk{d: d}
 	}
-	defer d.Close()
 	nfs := goose_nfs.MakeNfs(d)
 	nfs.Unstable = unstable
 	defer nfs.ShutdownNfs()
@@ -234,6 +232,7 @@ func main() {
 		if dumpStats {
 			stats := nfs.GetOpStats()
 			reportStats(stats)
+			d.(*TimingDisk).reportStats()
 		}
 	}()
 
