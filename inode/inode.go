@@ -149,7 +149,7 @@ func (ip *Inode) WriteInode(atxn *alloctxn.AllocTxn) {
 		panic("WriteInode")
 	}
 	d := ip.Encode()
-	atxn.Buftxn.OverWrite(atxn.Super.Inum2Addr(ip.Inum), common.INODESZ*8, d)
+	atxn.OverWrite(atxn.Super.Inum2Addr(ip.Inum), common.INODESZ*8, d)
 	util.DPrintf(1, "WriteInode %v\n", ip)
 }
 
@@ -325,7 +325,7 @@ func (ip *Inode) Write(atxn *alloctxn.AllocTxn, offset uint64,
 		}
 		if byteoff == 0 && nbytes == disk.BlockSize { // block overwrite?
 			addr := atxn.Super.Block2addr(blkno)
-			atxn.Buftxn.OverWrite(addr, common.NBITBLOCK, data[0:nbytes])
+			atxn.OverWrite(addr, common.NBITBLOCK, data[0:nbytes])
 		} else {
 			buffer := atxn.ReadBlock(blkno)
 			for b := uint64(0); b < nbytes; b++ {

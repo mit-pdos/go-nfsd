@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime/pprof"
-	"syscall"
 
 	"github.com/tchajed/goose/machine/disk"
 	"github.com/zeldovich/go-rpcgen/rfc1057"
@@ -133,16 +132,8 @@ func main() {
 		listener.Close()
 		if dumpStats {
 			nfs.WriteOpStats(os.Stderr)
+			nfs.WriteBuftxnTable(os.Stderr)
 			d.(*timed_disk.Disk).WriteStats(os.Stderr)
-		}
-	}()
-
-	statSig := make(chan os.Signal, 1)
-	signal.Notify(statSig, syscall.SIGUSR1)
-	go func() {
-		for {
-			<-statSig
-			nfs.WriteOpStats(os.Stderr)
 		}
 	}()
 

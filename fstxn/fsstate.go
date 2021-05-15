@@ -7,6 +7,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/lockmap"
 	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
+	"github.com/mit-pdos/goose-nfsd/util/stats"
 )
 
 const ICACHESZ uint64 = 100
@@ -18,6 +19,7 @@ type FsState struct {
 	Lockmap *lockmap.LockMap
 	Balloc  *alloc.Alloc
 	Ialloc  *alloc.Alloc
+	Stats   [5]stats.Op
 }
 
 func readBitmap(super *super.FsSuper, start common.Bnum, len uint64) []byte {

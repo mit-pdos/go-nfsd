@@ -1,8 +1,11 @@
 package goose_nfs
 
 import (
+	"io"
+
 	"github.com/tchajed/goose/machine/disk"
 
+	"github.com/mit-pdos/goose-nfsd/alloctxn"
 	"github.com/mit-pdos/goose-nfsd/buf"
 	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dir"
@@ -49,6 +52,10 @@ func MakeNfs(d disk.Disk) *Nfs {
 		nfs.makeRootDir()
 	}
 	return nfs
+}
+
+func (nfs *Nfs) WriteBuftxnTable(w io.Writer) {
+	stats.WriteTable(alloctxn.OpNames, nfs.fsstate.Stats[:], w)
 }
 
 func (nfs *Nfs) ShutdownNfs() {

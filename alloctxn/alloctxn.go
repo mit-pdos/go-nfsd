@@ -1,6 +1,8 @@
 package alloctxn
 
 import (
+	"time"
+
 	"github.com/mit-pdos/goose-nfsd/addr"
 	"github.com/mit-pdos/goose-nfsd/alloc"
 	"github.com/mit-pdos/goose-nfsd/buf"
@@ -9,6 +11,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/mit-pdos/goose-nfsd/util/stats"
 )
 
 //
@@ -25,9 +28,26 @@ type AllocTxn struct {
 	freeInums  []common.Inum
 	allocBnums []common.Bnum
 	freeBnums  []common.Bnum
+	stats      *[5]stats.Op
 }
 
-func Begin(super *super.FsSuper, txn *txn.Txn, balloc *alloc.Alloc, ialloc *alloc.Alloc) *AllocTxn {
+const (
+	readOp int = iota
+	overwriteOp
+	commitTrueOp
+	commitFalseOp
+	flushOp
+)
+
+var OpNames = []string{
+	"ReadBuf",
+	"OverWrite",
+	"Commit",
+	"Commit(wait=false)",
+	"Flush",
+}
+
+func Begin(super *super.FsSuper, txn *txn.Txn, balloc *alloc.Alloc, ialloc *alloc.Alloc, stats *[5]stats.Op) *AllocTxn {
 	atxn := &AllocTxn{
 		Super:      super,
 		Buftxn:     buftxn.Begin(txn),
@@ -37,6 +57,7 @@ func Begin(super *super.FsSuper, txn *txn.Txn, balloc *alloc.Alloc, ialloc *allo
 		freeInums:  make([]common.Inum, 0),
 		allocBnums: make([]common.Bnum, 0),
 		freeBnums:  make([]common.Bnum, 0),
+		stats:      stats,
 	}
 	return atxn
 }
@@ -67,7 +88,7 @@ func (atxn *AllocTxn) WriteBits(nums []uint64, blk uint64, alloc bool) {
 		if !alloc {
 			b = ^b
 		}
-		atxn.Buftxn.OverWrite(a, 1, []byte{b})
+		atxn.OverWrite(a, 1, []byte{b})
 	}
 }
 
@@ -138,11 +159,16 @@ func (atxn *AllocTxn) FreeBlock(blkno common.Bnum) {
 	atxn.freeBnums = append(atxn.freeBnums, blkno)
 }
 
+func (atxn *AllocTxn) ReadBuf(addr addr.Addr, sz uint64) *buf.Buf {
+	defer atxn.stats[readOp].Record(time.Now())
+	return atxn.Buftxn.ReadBuf(addr, sz)
+}
+
 func (atxn *AllocTxn) ReadBlock(blkno common.Bnum) *buf.Buf {
 	util.DPrintf(5, "ReadBlock %d\n", blkno)
 	atxn.AssertValidBlock(blkno)
 	addr := atxn.Super.Block2addr(blkno)
-	return atxn.Buftxn.ReadBuf(addr, common.NBITBLOCK)
+	return atxn.ReadBuf(addr, common.NBITBLOCK)
 }
 
 func (atxn *AllocTxn) ZeroBlock(blkno common.Bnum) {
@@ -152,4 +178,28 @@ func (atxn *AllocTxn) ZeroBlock(blkno common.Bnum) {
 		buf.Data[i] = 0
 	}
 	buf.SetDirty()
+}
+
+// wrapper for timing
+func (atxn *AllocTxn) CommitWait(wait bool) bool {
+	start := time.Now()
+	ok := atxn.Buftxn.CommitWait(wait)
+	if wait {
+		atxn.stats[commitTrueOp].Record(start)
+	} else {
+		atxn.stats[commitFalseOp].Record(start)
+	}
+	return ok
+}
+
+// wrapper for timing
+func (atxn *AllocTxn) Flush() bool {
+	defer atxn.stats[flushOp].Record(time.Now())
+	return atxn.Buftxn.Flush()
+}
+
+// wrapper for timing
+func (atxn *AllocTxn) OverWrite(addr addr.Addr, sz uint64, data []byte) {
+	defer atxn.stats[overwriteOp].Record(time.Now())
+	atxn.Buftxn.OverWrite(addr, sz, data)
 }
