@@ -47,7 +47,7 @@ cd "$GOOSE_NFSD_PATH"
 info "GoNFS"
 ./bench/run-goose-nfs.sh -stats true -unstable=false -disk "" go run ./cmd/fs-smallfile -benchtime=20s
 cat nfs.out > osdi21-artifact/data/gonfs-latencies.txt
-cat osdi21-artifact/gonfs-latencies.txt
+cat osdi21-artifact/data/gonfs-latencies.txt
 
 echo 1>&2
 info "Linux ext4 over NFS"
