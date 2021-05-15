@@ -30,7 +30,7 @@ func WriteTable(names []string, ops []Op, w io.Writer) {
 	if len(names) != len(ops) {
 		panic("mismatched names and ops lists")
 	}
-	tbl := table.New("op", "count", "us")
+	tbl := table.New("op", "count", "")
 	loadedOps := make([]Op, len(ops))
 	var totalOp Op
 	for i := range ops {
