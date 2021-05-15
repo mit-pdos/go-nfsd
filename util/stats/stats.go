@@ -49,8 +49,8 @@ func WriteTable(names []string, ops []Op, w io.Writer) {
 			tbl.AddRow(name, op.count, micros)
 		}
 	}
-	totalMicros := float64(totalOp.nanos) / 1e3
-	tbl.AddRow("total", totalOp.count, fmt.Sprintf("%0.1f us", totalMicros))
+	totalSeconds := float64(totalOp.nanos) / 1e9
+	tbl.AddRow("total", totalOp.count, fmt.Sprintf("%0.1f s", totalSeconds))
 	tbl.WithWriter(w)
 	tbl.Print()
 }
