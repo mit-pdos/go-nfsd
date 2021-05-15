@@ -9,9 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/pprof"
-	"sync/atomic"
 	"syscall"
-	"time"
 
 	"github.com/tchajed/goose/machine/disk"
 	"github.com/zeldovich/go-rpcgen/rfc1057"
@@ -20,6 +18,7 @@ import (
 	goose_nfs "github.com/mit-pdos/goose-nfsd"
 	nfstypes "github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/mit-pdos/goose-nfsd/util/timed_disk"
 )
 
 func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
@@ -81,78 +80,6 @@ func reportStats(stats []goose_nfs.OpCount) {
 
 }
 
-type stat struct {
-	count uint32
-	nanos uint64
-}
-
-func (s *stat) done(start time.Time) {
-	dur := time.Now().Sub(start)
-	atomic.AddUint32(&s.count, 1)
-	atomic.AddUint64(&s.nanos, uint64(dur.Nanoseconds()))
-}
-
-// a bit paranoid to read this way but it's fine
-func (s *stat) read() stat {
-	return stat{
-		count: atomic.LoadUint32(&s.count),
-		nanos: atomic.LoadUint64(&s.nanos),
-	}
-}
-
-func (s stat) microsPerOp() float64 {
-	return float64(s.nanos) / float64(s.count) / 1e3
-}
-
-type TimingDisk struct {
-	d        disk.Disk
-	reads    stat
-	writes   stat
-	barriers stat
-}
-
-var _ disk.Disk = &TimingDisk{}
-
-func (d *TimingDisk) Read(a uint64) disk.Block {
-	defer d.reads.done(time.Now())
-	return d.d.Read(a)
-}
-
-func (d *TimingDisk) Write(a uint64, b disk.Block) {
-	defer d.writes.done(time.Now())
-	d.d.Write(a, b)
-}
-
-func (d *TimingDisk) Barrier() {
-	defer d.barriers.done(time.Now())
-	d.d.Barrier()
-}
-
-func (d *TimingDisk) Size() uint64 {
-	return d.d.Size()
-}
-
-func (d *TimingDisk) Close() {
-	d.d.Close()
-}
-
-func (d *TimingDisk) reportStats() {
-	reads := d.reads.read()
-	writes := d.writes.read()
-	barriers := d.barriers.read()
-	totalCount := reads.count + writes.count + barriers.count
-	totalNanos := reads.nanos + writes.nanos + barriers.nanos
-	totalS := float64(totalNanos) / 1e9
-	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2f us/op\n",
-		"disk.Read", reads.count, reads.microsPerOp())
-	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2f us/op\n",
-		"disk.Write", writes.count, writes.microsPerOp())
-	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2f us/op\n",
-		"disk.Barrier", barriers.count, barriers.microsPerOp())
-	fmt.Fprintf(os.Stderr, "%12s %8d  %0.2fs\n",
-		"disk total", totalCount, totalS)
-}
-
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 
@@ -212,7 +139,7 @@ func main() {
 		}
 	}
 	if dumpStats {
-		d = &TimingDisk{d: d}
+		d = timed_disk.New(d)
 	}
 	nfs := goose_nfs.MakeNfs(d)
 	nfs.Unstable = unstable
@@ -232,7 +159,7 @@ func main() {
 		if dumpStats {
 			stats := nfs.GetOpStats()
 			reportStats(stats)
-			d.(*TimingDisk).reportStats()
+			d.(*timed_disk.Disk).WriteStats(os.Stderr)
 		}
 	}()
 

@@ -1,0 +1,56 @@
+package timed_disk
+
+import (
+	"io"
+	"time"
+
+	"github.com/mit-pdos/goose-nfsd/util/stats"
+	"github.com/tchajed/goose/machine/disk"
+)
+
+type Disk struct {
+	d   disk.Disk
+	ops [3]stats.Op
+}
+
+func New(d disk.Disk) *Disk {
+	return &Disk{d: d}
+}
+
+const (
+	readOp int = iota
+	writeOp
+	barrierOp
+)
+
+var ops = []string{"disk.Read", "disk.Write", "disk.Barrier"}
+
+// assert that Disk implements disk.Disk
+var _ disk.Disk = &Disk{}
+
+func (d *Disk) Read(a uint64) disk.Block {
+	defer d.ops[readOp].Record(time.Now())
+	return d.d.Read(a)
+}
+
+func (d *Disk) Write(a uint64, b disk.Block) {
+	defer d.ops[writeOp].Record(time.Now())
+	d.d.Write(a, b)
+}
+
+func (d *Disk) Barrier() {
+	defer d.ops[barrierOp].Record(time.Now())
+	d.d.Barrier()
+}
+
+func (d *Disk) Size() uint64 {
+	return d.d.Size()
+}
+
+func (d *Disk) Close() {
+	d.d.Close()
+}
+
+func (d *Disk) WriteStats(w io.Writer) {
+	stats.WriteTable(ops, d.ops[:], w)
+}
