@@ -12,6 +12,7 @@ import (
 	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/goose-nfsd/txn"
 	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/mit-pdos/goose-nfsd/util/stats"
 )
 
 type Nfs struct {
@@ -20,8 +21,7 @@ type Nfs struct {
 	// support unstable writes
 	Unstable bool
 	// statistics
-	opCounts [NUM_NFS_OPS]uint32
-	opNanos  [NUM_NFS_OPS]uint64
+	stats [NUM_NFS_OPS]stats.Op
 }
 
 func MakeNfs(d disk.Disk) *Nfs {

@@ -55,31 +55,6 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 	return bool(res)
 }
 
-func reportStats(stats []goose_nfs.OpCount) {
-	totalCount := uint32(0)
-	totalNanos := uint64(0)
-	for _, opCount := range stats {
-		op := opCount.Op
-		count := opCount.Count
-		timeNanos := opCount.TimeNanos
-		totalCount += count
-		totalNanos += timeNanos
-		microsPerOp := float64(timeNanos) / 1e3 / float64(count)
-		if count > 0 {
-			fmt.Fprintf(os.Stderr,
-				"%14s %5d  avg: %0.1f us/op\n",
-				op, count, microsPerOp)
-		}
-	}
-	if totalCount > 0 {
-		microsPerOp := float64(totalNanos) / 1e3 / float64(totalCount)
-		fmt.Fprintf(os.Stderr,
-			"%14s %5d  avg: %0.1f us/op\n",
-			"total", totalCount, microsPerOp)
-	}
-
-}
-
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 
@@ -157,8 +132,7 @@ func main() {
 		shutdown = true
 		listener.Close()
 		if dumpStats {
-			stats := nfs.GetOpStats()
-			reportStats(stats)
+			nfs.WriteOpStats(os.Stderr)
 			d.(*timed_disk.Disk).WriteStats(os.Stderr)
 		}
 	}()
@@ -168,8 +142,7 @@ func main() {
 	go func() {
 		for {
 			<-statSig
-			stats := nfs.GetOpStats()
-			reportStats(stats)
+			nfs.WriteOpStats(os.Stderr)
 		}
 	}()
 
