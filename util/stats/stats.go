@@ -23,7 +23,7 @@ func (op *Op) Record(start time.Time) {
 }
 
 func (op Op) MicrosPerOp() float64 {
-	return float64(op.count) / float64(op.nanos) / 1e3
+	return float64(op.nanos) / float64(op.count) / 1e3
 }
 
 func WriteTable(names []string, ops []Op, w io.Writer) {
@@ -43,12 +43,16 @@ func WriteTable(names []string, ops []Op, w io.Writer) {
 		totalOp.nanos += op.nanos
 	}
 	for i, name := range names {
-		micros := fmt.Sprintf("%0.1f us/op", loadedOps[i].MicrosPerOp())
-		tbl.AddRow(name, loadedOps[i].count, micros)
+		op := loadedOps[i]
+		if op.count > 0 {
+			micros := fmt.Sprintf("%0.1f us/op", op.MicrosPerOp())
+			tbl.AddRow(name, op.count, micros)
+		}
 	}
 	totalMicros := float64(totalOp.nanos) / 1e3
 	tbl.AddRow("total", totalOp.count, fmt.Sprintf("%0.1f us", totalMicros))
 	tbl.WithWriter(w)
+	tbl.Print()
 }
 
 func FormatTable(names []string, ops []Op) string {
