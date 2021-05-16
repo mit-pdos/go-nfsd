@@ -89,7 +89,6 @@ func (nfs *Nfs) getShrink(fh nfstypes.Nfs_fh3) (*fstxn.FsTxn, *inode.Inode, nfst
 func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3res {
 	defer nfs.recordOp(nfstypes.NFSPROC3_SETATTR, time.Now())
 	var reply nfstypes.SETATTR3res
-	var err = nfstypes.NFS3ERR_NOTSUPP
 
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
 	op, ip, err := nfs.getShrink(args.Object)
@@ -511,7 +510,9 @@ func (nfs *Nfs) NFSPROC3_READLINK(args nfstypes.READLINK3args) nfstypes.READLINK
 func (nfs *Nfs) NFSPROC3_MKNOD(args nfstypes.MKNOD3args) nfstypes.MKNOD3res {
 	var reply nfstypes.MKNOD3res
 	util.DPrintf(1, "NFS MakeNod %v\n", args)
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	err := nfstypes.NFS3ERR_NOTSUPP
+	util.DPrintf(2, "errRet %v", err)
+	reply.Status = err
 	return reply
 }
 
@@ -743,7 +744,9 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 func (nfs *Nfs) NFSPROC3_LINK(args nfstypes.LINK3args) nfstypes.LINK3res {
 	var reply nfstypes.LINK3res
 	util.DPrintf(1, "NFS Link %v\n", args)
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	err := nfstypes.NFS3ERR_NOTSUPP
+	util.DPrintf(2, "errRet %v", err)
+	reply.Status = err
 	return reply
 }
 
