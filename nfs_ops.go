@@ -768,7 +768,7 @@ func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.RE
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
-	dirlist := Ls3(ip, op, args.Cookie, args.Dircount)
+	dirlist := Ls3(ip, op, args.Cookie, args.Maxcount)
 	reply.Resok.Reply = dirlist
 	commitReply(op, &reply.Status)
 	return reply
