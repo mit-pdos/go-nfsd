@@ -750,7 +750,19 @@ func (nfs *Nfs) NFSPROC3_LINK(args nfstypes.LINK3args) nfstypes.LINK3res {
 func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3res {
 	var reply nfstypes.READDIR3res
 	util.DPrintf(1, "NFS ReadDir %v\n", args)
-	reply.Status = nfstypes.NFS3ERR_NOTSUPP
+	op := fstxn.Begin(nfs.fsstate)
+	ip := op.GetInodeFh(args.Dir)
+	if ip == nil {
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_STALE)
+		return reply
+	}
+	if ip.Kind != nfstypes.NF3DIR {
+		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
+		return reply
+	}
+	dirlist := Readdir3(ip, op, args.Cookie, args.Count)
+	reply.Resok.Reply = dirlist
+	commitReply(op, &reply.Status)
 	return reply
 }
 

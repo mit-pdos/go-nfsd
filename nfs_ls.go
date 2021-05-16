@@ -43,3 +43,27 @@ func Ls3(dip *inode.Inode, op *fstxn.FsTxn, start nfstypes.Cookie3, count nfstyp
 	dl := nfstypes.Dirlistplus3{Entries: lst, Eof: eof}
 	return dl
 }
+
+func Readdir3(dip *inode.Inode, op *fstxn.FsTxn,
+	start nfstypes.Cookie3, count nfstypes.Count3) nfstypes.Dirlist3 {
+	var lst *nfstypes.Entry3
+	var last *nfstypes.Entry3
+	eof := dir.ApplyEnts(dip, op, uint64(start), uint64(count),
+		func(name string, inum common.Inum, off uint64) {
+			e := &nfstypes.Entry3{
+				Fileid:    nfstypes.Fileid3(inum),
+				Name:      nfstypes.Filename3(name),
+				Cookie:    nfstypes.Cookie3(off),
+				Nextentry: nil,
+			}
+			if last == nil {
+				lst = e
+				last = e
+			} else {
+				last.Nextentry = e
+				last = e
+			}
+		})
+	dl := nfstypes.Dirlist3{Entries: lst, Eof: eof}
+	return dl
+}

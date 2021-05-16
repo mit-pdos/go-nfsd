@@ -159,6 +159,34 @@ func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
 	return eof
 }
 
+func ApplyEnts(dip *inode.Inode, op *fstxn.FsTxn, start uint64, count uint64,
+	f func(string, common.Inum, uint64)) bool {
+	var eof bool = true
+	var begin = uint64(start)
+	if begin != 0 {
+		begin += DIRENTSZ
+	}
+	var n uint64 = uint64(0)
+	for off := begin; off < dip.Size; {
+		data, _ := dip.Read(op.Atxn, off, DIRENTSZ)
+		de := decodeDirEnt(data)
+		util.DPrintf(5, "Apply: # %v %v off %d\n", dip.Inum, de, off)
+		if de.inum == common.NULLINUM {
+			off = off + DIRENTSZ
+			continue
+		}
+		f(de.name, de.inum, off)
+
+		off = off + DIRENTSZ
+		n += uint64(16 + len(de.name)) // XXX first 3 entries of Entryplus3
+		if n >= count {
+			eof = false
+			break
+		}
+	}
+	return eof
+}
+
 // Caller must ensure de.Name fits
 func encodeDirEnt(de *dirEnt) []byte {
 	enc := marshal.NewEnc(DIRENTSZ)
