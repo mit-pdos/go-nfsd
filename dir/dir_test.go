@@ -31,10 +31,8 @@ func TestNameBaggage(t *testing.T) {
 
 func TestEntryPlus3Baggage(t *testing.T) {
 	var e nfstypes.Entryplus3
-	var e2 nfstypes.Entryplus3
 	e.Name_attributes.Attributes_follow = true
 	e.Name_handle.Handle_follows = true
-	e.Nextentry = &e2
 	bs, err := xdr.EncodeBuf(&e)
 	if err != nil {
 		panic(err)

@@ -126,8 +126,7 @@ const entryplus3Baggage uint64 = 8 + // fileid
 	8 + // cookie
 	4 + fattr3XDRsize + // post_op_attr header + fattr3
 	16 + // name_handle
-	8 + // pointer
-	20 // test reveals we're missing some overhead?
+	8 // pointer
 
 // XXX inode locking order violated
 func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64,
