@@ -24,7 +24,7 @@ import (
 
 func errRet(op *fstxn.FsTxn, status *nfstypes.Nfsstat3, err nfstypes.Nfsstat3) {
 	*status = err
-	util.DPrintf(1, "errRet %v", err)
+	util.DPrintf(2, "errRet %v", err)
 	op.Abort()
 }
 
@@ -331,6 +331,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		reply.Resok.File_wcc.After.Attributes_follow = true
 		reply.Resok.File_wcc.After.Attributes = ip.MkFattr()
 	} else {
+		util.DPrintf(1, "Write transaction failed")
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 	}
 	return reply
@@ -457,10 +458,9 @@ func (nfs *Nfs) NFSPROC3_MKDIR(args nfstypes.MKDIR3args) nfstypes.MKDIR3res {
 	defer nfs.recordOp(nfstypes.NFSPROC3_MKDIR, time.Now())
 	var reply nfstypes.MKDIR3res
 
-	util.DPrintf(1, "NFS MakeDir %v\n", args)
+	util.DPrintf(1, "NFS Mkdir %v\n", args)
 	op, err, fh3, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3DIR, nil)
 	if err != nfstypes.NFS3_OK {
-		util.DPrintf(1, "Create %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
 	}
@@ -481,7 +481,6 @@ func (nfs *Nfs) NFSPROC3_SYMLINK(args nfstypes.SYMLINK3args) nfstypes.SYMLINK3re
 	data := []byte(args.Symlink.Symlink_data)
 	op, err, fh3, fattr := nfs.doCreate(args.Where.Dir, args.Where.Name, nfstypes.NF3LNK, data)
 	if err != nfstypes.NFS3_OK {
-		util.DPrintf(1, "doCreate %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
 	}
@@ -501,7 +500,6 @@ func (nfs *Nfs) NFSPROC3_READLINK(args nfstypes.READLINK3args) nfstypes.READLINK
 	util.DPrintf(1, "NFS ReadLink %v\n", args)
 	op, data, _, err := nfs.doRead(args.Symlink, nfstypes.NF3LNK, uint64(0), uint64(0))
 	if err != nfstypes.NFS3_OK {
-		util.DPrintf(1, "NFS ReadLink err %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
 	}
@@ -548,7 +546,6 @@ func (nfs *Nfs) NFSPROC3_REMOVE(args nfstypes.REMOVE3args) nfstypes.REMOVE3res {
 	util.DPrintf(1, "NFS Remove %v\n", args)
 	op, err := nfs.doRemove(args.Object.Dir, args.Object.Name, false)
 	if err != nfstypes.NFS3_OK {
-		util.DPrintf(0, "Remove %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
 	}
@@ -562,7 +559,6 @@ func (nfs *Nfs) NFSPROC3_RMDIR(args nfstypes.RMDIR3args) nfstypes.RMDIR3res {
 	util.DPrintf(1, "NFS Rmdir %v\n", args)
 	op, err := nfs.doRemove(args.Object.Dir, args.Object.Name, true)
 	if err != nfstypes.NFS3_OK {
-		util.DPrintf(1, "Rmdir %v\n", err)
 		errRet(op, &reply.Status, err)
 		return reply
 	}
@@ -646,7 +642,7 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 			dipto = inodes[1]
 		}
 
-		util.DPrintf(1, "from %v to %v\n", dipfrom, dipto)
+		util.DPrintf(3, "from %v to %v\n", dipfrom, dipto)
 
 		frominumLookup, _ := dir.LookupName(dipfrom, op, args.From.Name)
 		frominum = frominumLookup
@@ -655,12 +651,12 @@ func (nfs *Nfs) NFSPROC3_RENAME(args nfstypes.RENAME3args) nfstypes.RENAME3res {
 			done = true
 			break
 		}
-		util.DPrintf(1, "frominum %d toinum %d\n", frominum, toinum)
+		util.DPrintf(3, "frominum %d toinum %d\n", frominum, toinum)
 
 		toInumLookup, _ := dir.LookupName(dipto, op, args.To.Name)
 		toinum = toInumLookup
 
-		util.DPrintf(1, "frominum %d toinum %d\n", frominum, toinum)
+		util.DPrintf(3, "frominum %d toinum %d\n", frominum, toinum)
 
 		// rename to itself?
 		if dipto == dipfrom && toinum == frominum {
