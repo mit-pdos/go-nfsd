@@ -754,6 +754,9 @@ func (nfs *Nfs) NFSPROC3_READDIR(args nfstypes.READDIR3args) nfstypes.READDIR3re
 	return reply
 }
 
+// return at most 8 blocks worth of directory entries
+const MAXENTS nfstypes.Count3 = nfstypes.Count3(8 * (4096 / dir.DIRENTSZ))
+
 func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.READDIRPLUS3res {
 	defer nfs.recordOp(nfstypes.NFSPROC3_READDIRPLUS, time.Now())
 	var reply nfstypes.READDIRPLUS3res
@@ -768,7 +771,16 @@ func (nfs *Nfs) NFSPROC3_READDIRPLUS(args nfstypes.READDIRPLUS3args) nfstypes.RE
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
-	dirlist := Ls3(ip, op, args.Cookie, args.Dircount)
+	// cap the size of the return value
+	//
+	// Note that the correct limit is to respect args.Maxcount, but this is in
+	// XDR bytes and we don't try to estimate that. In practice Linux issues a
+	// maxcount equal to FSINFO's Dtpref, which we set to be fairly large.
+	count := nfstypes.Count3(args.Dircount)
+	if count > MAXENTS {
+		count = nfstypes.Count3(MAXENTS)
+	}
+	dirlist := Ls3(ip, op, args.Cookie, count)
 	reply.Resok.Reply = dirlist
 	commitReply(op, &reply.Status)
 	return reply
