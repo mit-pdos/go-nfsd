@@ -10,7 +10,7 @@ import (
 
 func mkDcache(dip *inode.Inode, op *fstxn.FsTxn) {
 	dip.Dcache = dcache.MkDcache()
-	Apply(dip, op, 0, dip.Size,
+	Apply(dip, op, 0, dip.Size, 100000000,
 		func(ip *inode.Inode, name string, inum common.Inum, off uint64) {
 			dip.Dcache.Add(name, inum, off)
 		})
