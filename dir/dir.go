@@ -117,8 +117,17 @@ const fattr3XDRsize uint64 = 4 + 4 + 4 + // type, mode, nlink
 	4 + 4 + // uid, gid
 	8 + 8 + // size, used
 	8 + // rdev (specdata3)
-	8 + 16 + // fsid, fileid
+	8 + 8 + // fsid, fileid
 	(3 * 8) // atime, mtime, ctime
+
+// best estimate of entryplus3 size, excluding name
+const entryplus3Baggage uint64 = 8 + // fileid
+	4 + // name length
+	8 + // cookie
+	4 + fattr3XDRsize + // post_op_attr header + fattr3
+	16 + // name_handle
+	8 + // pointer
+	20 // test reveals we're missing some overhead?
 
 // XXX inode locking order violated
 func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64,
@@ -163,10 +172,7 @@ func Apply(dip *inode.Inode, op *fstxn.FsTxn, start uint64,
 		// TODO: unclear what dircount is supposed to included so we pad it with
 		// 8 bytes per entry
 		dirbytes += uint64(8 + len(de.name))
-		// TODO: best estimate of entryplus3 size,
-		// fileid + name + cookie + attributes + name_handle + pointer + 8
-		// (the extra 8 is in case there's a mistake somewhere)
-		n += 16 + uint64(len(de.name)) + 8 + fattr3XDRsize + 16 + 8 + 8
+		n += entryplus3Baggage + uint64(len(de.name))
 		if dirbytes >= dircount || n >= maxcount {
 			eof = false
 			break
