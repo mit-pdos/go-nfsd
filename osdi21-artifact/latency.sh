@@ -44,17 +44,36 @@ fi
 
 cd "$GOOSE_NFSD_PATH"
 
-info "GoNFS"
+info "GoNFS (smallfile)"
+echo "#GoNFS (smallfile)" > osdi21-artifact/data/gonfs-latencies.txt
 ./bench/run-goose-nfs.sh -stats true -unstable=false -disk "" go run ./cmd/fs-smallfile -benchtime=20s
-cat nfs.out > osdi21-artifact/data/gonfs-latencies.txt
+cat nfs.out >> osdi21-artifact/data/gonfs-latencies.txt
+
+info "GoNFS (null)"
+echo "#GoNFS (null)" >> osdi21-artifact/data/gonfs-latencies.txt
+./bench/run-goose-nfs.sh -stats true -unstable=false -disk "" go run ./cmd/clnt-null -benchtime=20s >> osdi21-artifact/data/gonfs-latencies.txt
+
+info "\n\nResults: "
 cat osdi21-artifact/data/gonfs-latencies.txt
 
 echo 1>&2
 info "Linux ext4 over NFS"
-sudo bpftrace ./osdi21-artifact/nfsdist.bt > osdi21-artifact/data/linux-latencies.txt &
+echo "#Linuxt ext4 over NFS (smallfile)" > osdi21-artifact/data/linux-latencies.txt
+sudo bpftrace ./osdi21-artifact/nfsdist.bt >> osdi21-artifact/data/linux-latencies.txt &
 ./bench/run-linux.sh go run ./cmd/fs-smallfile -benchtime=20s
 sudo killall bpftrace
 sleep 1
+
+echo 1>&2
+info "Linux ext4 over NFS (null)"
+echo "#Linuxt ext4 over NFS (null)" >> osdi21-artifact/data/linux-latencies.txt
+sudo bpftrace ./osdi21-artifact/nfsdist.bt > osdi21-artifact/data/linux-latencies.bpf.txt &
+./bench/run-linux.sh go run ./cmd/clnt-null -benchtime=20s >> osdi21-artifact/data/linux-latencies.txt
+sudo killall bpftrace
+sleep 1
+cat osdi21-artifact/data/linux-latencies.bpf.txt >> osdi21-artifact/data/linux-latencies.txt
+
+info "\n\nResults: "
 cat osdi21-artifact/data/linux-latencies.txt
 
 if [ -n "$ssd_file" ]; then

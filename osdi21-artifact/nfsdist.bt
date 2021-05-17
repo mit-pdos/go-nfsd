@@ -1,13 +1,13 @@
 BEGIN
 {
-	printf("Tracing Linux NFS Srv Op latency... Hit Ctrl-C to end.\n");
 }
 
 kprobe:nfsd3_proc_getattr,
 kprobe:nfsd3_proc_write,
 kprobe:nfsd3_proc_lookup,
 kprobe:nfsd3_proc_remove,
-kprobe:nfsd3_proc_create
+kprobe:nfsd3_proc_create,
+kprobe:nfsd3_proc_null
 {
 	@start[tid] = nsecs;
 	@name[tid] = func;
@@ -17,10 +17,12 @@ kretprobe:nfsd3_proc_getattr,
 kretprobe:nfsd3_proc_write,
 kretprobe:nfsd3_proc_lookup,
 kretprobe:nfsd3_proc_remove,
-kretprobe:nfsd3_proc_create
+kretprobe:nfsd3_proc_create,
+kretprobe:nfsd3_proc_null
 /@start[tid]/
 {
 	@us[@name[tid]] = avg((nsecs - @start[tid]) / 1000);
+        @counts[@name[tid]] = count();
 	delete(@start[tid]);
 	delete(@name[tid]);
 }
