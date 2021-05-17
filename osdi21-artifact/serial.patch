@@ -37,3 +37,18 @@ index fabc2700..ba11a347 100644
  
  	machine.Linearize()
  
+diff --git a/wal/wal.go b/wal/wal.go
+index dbc69db0..19c15dce 100644
+--- a/wal/wal.go
++++ b/wal/wal.go
+@@ -101,7 +101,9 @@ func (l *Walog) ReadInstalled(blkno common.Bnum) disk.Block {
+ // linearize between the l.memLog.Unlock() and the eventual disk read, due to
+ // potential concurrent cache or disk writes).
+ func (l *Walog) Read(blkno common.Bnum) disk.Block {
+-	blk, ok := l.ReadMem(blkno)
++	l.memLock.Lock()
++	defer l.memLock.Unlock()
++	blk, ok := l.st.readMem(blkno)
+ 	if ok {
+ 		return blk
+ 	}
