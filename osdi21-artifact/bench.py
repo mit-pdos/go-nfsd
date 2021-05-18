@@ -58,7 +58,7 @@ def from_tidy(df):
 
 def largefile_from_tidy(df):
     df = df[df["bench"] == "largefile"]
-    df = df.pivot_table(index="fs", columns="bench", values="val")
+    df = df.pivot_table(index="bench", columns="fs", values="val")
     return df
 
 
