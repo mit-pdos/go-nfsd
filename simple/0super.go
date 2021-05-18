@@ -1,8 +1,8 @@
 package simple
 
 import (
-	"github.com/mit-pdos/goose-nfsd/addr"
-	"github.com/mit-pdos/goose-nfsd/common"
+	"github.com/mit-pdos/go-journal/addr"
+	"github.com/mit-pdos/go-journal/common"
 )
 
 func block2addr(blkno common.Bnum) addr.Addr {

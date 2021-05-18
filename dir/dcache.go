@@ -1,7 +1,7 @@
 package dir
 
 import (
-	"github.com/mit-pdos/goose-nfsd/common"
+	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/goose-nfsd/dcache"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/goose-nfsd/inode"

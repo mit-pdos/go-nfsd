@@ -3,7 +3,7 @@ package simple
 import (
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/goose-nfsd/common"
+	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 

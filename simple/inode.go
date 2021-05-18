@@ -4,11 +4,11 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 	"github.com/tchajed/marshal"
 
-	"github.com/mit-pdos/goose-nfsd/buf"
-	"github.com/mit-pdos/goose-nfsd/buftxn"
-	"github.com/mit-pdos/goose-nfsd/common"
+	"github.com/mit-pdos/go-journal/buf"
+	"github.com/mit-pdos/go-journal/buftxn"
+	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/mit-pdos/go-journal/util"
 )
 
 type Inode struct {

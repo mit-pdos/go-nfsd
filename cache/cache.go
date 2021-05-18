@@ -4,7 +4,7 @@ import (
 	"container/list"
 	"sync"
 
-	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/mit-pdos/go-journal/util"
 )
 
 type Cslot struct {

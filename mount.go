@@ -3,7 +3,7 @@ package goose_nfs
 import (
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/mit-pdos/go-journal/util"
 
 	"log"
 )

@@ -3,7 +3,7 @@ package fh
 import (
 	"github.com/tchajed/marshal"
 
-	"github.com/mit-pdos/goose-nfsd/common"
+	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 

@@ -3,11 +3,11 @@ package kvs
 import (
 	"fmt"
 
-	"github.com/mit-pdos/goose-nfsd/addr"
-	"github.com/mit-pdos/goose-nfsd/buftxn"
-	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/txn"
-	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/mit-pdos/go-journal/addr"
+	"github.com/mit-pdos/go-journal/buftxn"
+	"github.com/mit-pdos/go-journal/common"
+	"github.com/mit-pdos/go-journal/txn"
+	"github.com/mit-pdos/go-journal/util"
 	"github.com/tchajed/goose/machine/disk"
 )
 

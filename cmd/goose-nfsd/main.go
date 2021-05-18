@@ -17,7 +17,7 @@ import (
 
 	goose_nfs "github.com/mit-pdos/goose-nfsd"
 	nfstypes "github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/mit-pdos/goose-nfsd/util"
+	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/goose-nfsd/util/timed_disk"
 )
 

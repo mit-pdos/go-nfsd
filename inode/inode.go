@@ -7,12 +7,12 @@ import (
 	"github.com/tchajed/goose/machine/disk"
 	"github.com/tchajed/marshal"
 
+	"github.com/mit-pdos/go-journal/buf"
+	"github.com/mit-pdos/go-journal/common"
+	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/goose-nfsd/alloctxn"
-	"github.com/mit-pdos/goose-nfsd/buf"
-	"github.com/mit-pdos/goose-nfsd/common"
 	"github.com/mit-pdos/goose-nfsd/dcache"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/mit-pdos/goose-nfsd/util"
 )
 
 const NF3FREE nfstypes.Ftype3 = 0

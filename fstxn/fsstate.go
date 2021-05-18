@@ -1,12 +1,12 @@
 package fstxn
 
 import (
-	"github.com/mit-pdos/goose-nfsd/alloc"
+	"github.com/mit-pdos/go-journal/alloc"
 	"github.com/mit-pdos/goose-nfsd/cache"
-	"github.com/mit-pdos/goose-nfsd/common"
-	"github.com/mit-pdos/goose-nfsd/lockmap"
+	"github.com/mit-pdos/go-journal/common"
+	"github.com/mit-pdos/go-journal/lockmap"
 	"github.com/mit-pdos/goose-nfsd/super"
-	"github.com/mit-pdos/goose-nfsd/txn"
+	"github.com/mit-pdos/go-journal/txn"
 )
 
 const ICACHESZ uint64 = 100

@@ -3,9 +3,9 @@ package simple
 import (
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/goose-nfsd/buftxn"
-	"github.com/mit-pdos/goose-nfsd/lockmap"
-	"github.com/mit-pdos/goose-nfsd/txn"
+	"github.com/mit-pdos/go-journal/buftxn"
+	"github.com/mit-pdos/go-journal/lockmap"
+	"github.com/mit-pdos/go-journal/txn"
 )
 
 type Nfs struct {
