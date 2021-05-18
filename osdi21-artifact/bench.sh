@@ -9,31 +9,31 @@ red=$(tput setaf 1)
 reset=$(tput sgr0)
 
 info() {
-  echo -e "${blue}$1${reset}" 1>&2
+    echo -e "${blue}$1${reset}" 1>&2
 }
 error() {
-  echo -e "${red}$1${reset}" 1>&2
+    echo -e "${red}$1${reset}" 1>&2
 }
 
 usage() {
-  echo "Usage: $0 [-ssd <block device or file path>]" 1>&2
-  echo "SSD benchmarks will be skipped if -ssd is not passed"
+    echo "Usage: $0 [-ssd <block device or file path>]" 1>&2
+    echo "SSD benchmarks will be skipped if -ssd is not passed"
 }
 
 ssd_file=""
 
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
-        -ssd)
-            shift
-            ssd_file="$1"
-            shift
-            ;;
-        *)
-            error "unexpected argument $1"
-            usage
-            exit 1
-            ;;
+    -ssd)
+        shift
+        ssd_file="$1"
+        shift
+        ;;
+    *)
+        error "unexpected argument $1"
+        usage
+        exit 1
+        ;;
     esac
 done
 
@@ -69,10 +69,27 @@ if [ -n "$ssd_file" ]; then
     ./bench/run-goose-nfs.sh -unstable=false -disk "$ssd_file" go run ./cmd/fs-largefile
     ./bench/run-goose-nfs.sh -unstable=false -disk "$ssd_file" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
+    echo "fs=gonfs-ssd-unstable"
+    ./bench/run-goose-nfs.sh -unstable=true -disk "$ssd_file" go run ./cmd/fs-largefile
+    echo "fs=gonfs-ssd-unstable-sync"
+    ./bench/run-goose-nfs.sh -unstable=true -nfs-mount-opts "sync" -disk "$ssd_file" go run ./cmd/fs-largefile
+
     echo 1>&2
     info "Linux ext4 over NFS (SSD)"
     echo "fs=linux-ssd"
     ./bench/run-linux.sh -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
     ./bench/run-linux.sh -disk "$ssd_file" go run ./cmd/fs-largefile
     ./bench/run-linux.sh -disk "$ssd_file" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+
+    echo 1>&2
+    echo "fs=linux-ssd-ordered"
+    ./bench/run-linux.sh -disk "$ssd_file" -mount-opts "data=ordered" \
+        go run ./cmd/fs-largefile
+    echo "fs=linux-ssd-journal-sync"
+    ./bench/run-linux.sh -disk "$ssd_file" -mount-opts "data=journal,sync" \
+        go run ./cmd/fs-largefile
+    echo "fs=linux-ssd-sync"
+    ./bench/run-linux.sh -disk "$ssd_file" -mount-opts "data=journal" \
+        -nfs-mount-opts "sync" \
+        go run ./cmd/fs-largefile
 fi
