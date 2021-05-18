@@ -15,22 +15,22 @@ cd "$DIR"/..
 nfs_mount_opts=""
 extra_args=()
 while [[ "$#" -gt 0 ]]; do
-	case "$1" in
-	-nfs-mount-opts)
-		shift
-		nfs_mount_opts="$1"
-		shift
-		;;
-	-*=*)
-		extra_args+=("$1")
-		shift
-		;;
-	-*)
-		extra_args+=("$1" "$2")
-		shift
-		shift
-		;;
-	esac
+    case "$1" in
+    -nfs-mount-opts)
+        shift
+        nfs_mount_opts="$1"
+        shift
+        ;;
+    -*=*)
+        extra_args+=("$1")
+        shift
+        ;;
+    -*)
+        extra_args+=("$1" "$2")
+        shift
+        shift
+        ;;
+    esac
 done
 
 go build ./cmd/goose-nfsd
