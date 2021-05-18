@@ -4,8 +4,8 @@ import (
 	"sync"
 
 	"github.com/mit-pdos/go-journal/common"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
 	"github.com/mit-pdos/go-journal/util"
+	"github.com/mit-pdos/goose-nfsd/fstxn"
 )
 
 type ShrinkerSt struct {

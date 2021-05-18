@@ -5,8 +5,8 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/goose-nfsd/simple"
 	"github.com/mit-pdos/go-journal/util"
+	"github.com/mit-pdos/goose-nfsd/simple"
 )
 
 func MakeNfs(name string) *simple.Nfs {

@@ -15,9 +15,9 @@ import (
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
 
+	"github.com/mit-pdos/go-journal/util"
 	goose_nfs "github.com/mit-pdos/goose-nfsd"
 	nfstypes "github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/goose-nfsd/util/timed_disk"
 )
 

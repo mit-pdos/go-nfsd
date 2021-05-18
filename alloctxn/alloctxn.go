@@ -6,9 +6,9 @@ import (
 	"github.com/mit-pdos/go-journal/buf"
 	"github.com/mit-pdos/go-journal/buftxn"
 	"github.com/mit-pdos/go-journal/common"
-	"github.com/mit-pdos/goose-nfsd/super"
 	"github.com/mit-pdos/go-journal/txn"
 	"github.com/mit-pdos/go-journal/util"
+	"github.com/mit-pdos/goose-nfsd/super"
 )
 
 //

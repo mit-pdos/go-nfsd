@@ -1,10 +1,10 @@
 package fstxn
 
 import (
+	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/goose-nfsd/alloctxn"
 	"github.com/mit-pdos/goose-nfsd/cache"
-	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/goose-nfsd/fh"
 	"github.com/mit-pdos/goose-nfsd/inode"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"

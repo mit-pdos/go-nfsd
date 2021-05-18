@@ -3,8 +3,8 @@ package simple
 import (
 	"github.com/mit-pdos/go-journal/buftxn"
 	"github.com/mit-pdos/go-journal/common"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/go-journal/util"
+	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 
 func fh2ino(fh3 nfstypes.Nfs_fh3) common.Inum {

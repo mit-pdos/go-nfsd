@@ -1,5 +1,5 @@
 GOPATH		:= $(shell go env GOPATH)
-GOOSE_DIRS	:= buf util common addr wal alloc super buftxn cache fh fstxn txn inode lockmap kvs nfstypes simple buftxn_replication
+GOOSE_DIRS	:= super cache fh fstxn inode kvs nfstypes simple
 
 # Things that don't goose yet:
 #   .
