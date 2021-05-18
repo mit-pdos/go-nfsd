@@ -8,50 +8,39 @@ set -e
 # takes same flags as start-linux.sh but uses /dev/shm/nfs3.img as default disk
 #
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # root of repo
-cd $DIR/..
+cd "$DIR"/..
 
-fs="ext4"
-mount_opts="data=journal"
-disk_file=/dev/shm/nfs3.img
-size_mb=400
-
+disk_file="/dev/shm/disk.img"
+extra_args=()
 while true; do
   case "$1" in
-    -disk)
-      shift
-      disk_file="$1"
-      shift
-      ;;
-    -mount-opts)
-      shift
-      mount_opts="$1"
-      shift
-      ;;
-    -fs)
-      shift
-      fs="$1"
-      shift
-      ;;
-    -size)
-      shift
-      size_mb="$1"
-      shift
-      ;;
-    *)
-      break
-      ;;
+  -disk)
+    shift
+    disk_file="$1"
+    shift
+    ;;
+  -*)
+    extra_args+=("$1" "$2")
+    shift
+    shift
+    ;;
+  # stop gathering start-linux.sh flags as soon as a non-option is reached
+  # remainder of command line is treated as command to run
+  *)
+    break
+    ;;
   esac
 done
 
-./bench/start-linux.sh -disk "$disk_file" -fs "$fs" -mount-opts "$mount_opts" -size "$size_mb" || exit 1
+./bench/start-linux.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
 
 function cleanup {
-    ./bench/stop-linux.sh "$disk_file"
+  ./bench/stop-linux.sh "$disk_file"
 }
 trap cleanup EXIT
 
-echo "# Linux -disk $disk_file -fs $fs -mount-opts $mount_opts -size $size_mb"
-echo "run $@" 1>&2
+echo "# Linux -disk $disk_file ${extra_args[*]}"
+echo "run $*" 1>&2
 "$@"
