@@ -18,8 +18,8 @@ github.com/mattn/go-isatty v0.0.11/go.mod h1:PhnuNfih5lzO57/f3n+odYbM4JtupLOxQOA
 github.com/mattn/go-isatty v0.0.12/go.mod h1:cbi8OIDigv2wuxKPP5vlRcQ1OAZbq2CE4Kysco4FUpU=
 github.com/mattn/go-runewidth v0.0.9 h1:Lm995f3rfxdpd6TSmuVCHVb/QhupuXlYr8sCI/QdE+0=
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
-github.com/mit-pdos/go-journal v0.0.0-20210518170312-a289a2ecaa2b h1:GdvrfRBxiq1j1HmSZ5mCrZl/lYfuapKtE8yNmj3zzkw=
-github.com/mit-pdos/go-journal v0.0.0-20210518170312-a289a2ecaa2b/go.mod h1:mAQHnvU2KTrRecEdv3w8u88OWTW+wsjOEpkkY9Bzxug=
+github.com/mit-pdos/go-journal v0.1.0 h1:FObyAkoDR+2wFupbnAfiGZTC/Ku8QKn0MLIkBAdTC6w=
+github.com/mit-pdos/go-journal v0.1.0/go.mod h1:mAQHnvU2KTrRecEdv3w8u88OWTW+wsjOEpkkY9Bzxug=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
@@ -34,8 +34,9 @@ github.com/stretchr/testify v1.6.1 h1:hDPOHmpOpP40lSULcqw7IrRb/u7w6RpDC9399XyoNd
 github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/tchajed/goose v0.0.0-20191114201541-ebbf1d75c8ca/go.mod h1:2c33VcNcIHG8vQhprFmBlZxpC62+TfmnGjB+jVaKhXo=
 github.com/tchajed/goose v0.0.0-20200128225509-92a5cfe01fc4/go.mod h1:rhep/Jc/mYPoMIYG8dPtnc71UHAPHNYRx1qvpB245Ss=
-github.com/tchajed/goose v0.0.0-20210513163324-e3b4d6003b9a h1:lQ720f2V+waEkpNwDjpw2gecpTsJwCvJvkyLEl3quw8=
 github.com/tchajed/goose v0.0.0-20210513163324-e3b4d6003b9a/go.mod h1:Y2zBxxd3wa0lrYRDyebxZgbgV4LLsPUtsBiLe1wnS9c=
+github.com/tchajed/goose v0.1.0 h1:jwBFV399Oybac1mvwzQIUF90wW6K7c6VMmE8rC6ZXR0=
+github.com/tchajed/goose v0.1.0/go.mod h1:Y2zBxxd3wa0lrYRDyebxZgbgV4LLsPUtsBiLe1wnS9c=
 github.com/tchajed/mailboat v0.0.0-20191026015926-338a5b81ac1d/go.mod h1:dmgNTEH0kreeKMWd+ntzsrp7ie2LWHGMe7VxP6d1Aew=
 github.com/tchajed/mailboat v0.2.0/go.mod h1:aKa/T1YCMVZFM2xbXnMNyp9r4k0pPni4+sJ8GoY51Hw=
 github.com/tchajed/marshal v0.0.0-20200707011626-0d2aa09818a9/go.mod h1:TPo3bTYJkH87/4rXlxe0bpVWLnN+b5kjJnoXHLBfdaA=
