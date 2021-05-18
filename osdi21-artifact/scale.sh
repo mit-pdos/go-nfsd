@@ -7,11 +7,11 @@ red=$(tput setaf 1)
 reset=$(tput sgr0)
 
 info() {
-  echo -e "${blue}$1${reset}" 1>&2
+    echo -e "${blue}$1${reset}" 1>&2
 }
 
 error() {
-  echo -e "${red}$1${reset}" 1>&2
+    echo -e "${red}$1${reset}" 1>&2
 }
 
 if [ ! -d "$GOOSE_NFSD_PATH" ]; then
@@ -20,32 +20,32 @@ if [ ! -d "$GOOSE_NFSD_PATH" ]; then
 fi
 
 help() {
-  echo "Usage: $1 [-disk <disk file>] [threads]"
-  echo "disk defaults to ~/disk.img (assuming the root file system is on an SSD)"
-  echo "threads defaults to 10"
+    echo "Usage: $1 [-disk <disk file>] [threads]"
+    echo "disk defaults to ~/disk.img (assuming the root file system is on an SSD)"
+    echo "threads defaults to 10"
 }
 
 disk_file="$HOME/disk.img"
 while true; do
-  case "$1" in
+    case "$1" in
     -disk)
-      shift
-      disk_file="$1"
-      shift
-      ;;
+        shift
+        disk_file="$1"
+        shift
+        ;;
     -help)
-      help
-      exit 0
-      ;;
+        help
+        exit 0
+        ;;
     -*)
-      error "unexpected flag $1"
-      help
-      exit 1
-      ;;
+        error "unexpected flag $1"
+        help
+        exit 1
+        ;;
     *)
-      break
-      ;;
-  esac
+        break
+        ;;
+    esac
 done
 
 threads=10
@@ -62,7 +62,7 @@ echo "fs=gonfs"
 echo 1>&2
 info "Linux smallfile scalability"
 echo "fs=linux"
-./bench/run-linux.sh     -disk "$disk_file" go run ./cmd/fs-smallfile -threads=$threads
+./bench/run-linux.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads=$threads
 
 echo 1>&2
 info "Serial GoNFS (holding locks)"

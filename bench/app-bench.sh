@@ -9,8 +9,7 @@
 
 set -e
 
-if [ $# -ne 2 ]
- then
+if [ $# -ne 2 ]; then
     echo "$0 xv6-repo top-dir"
     exit 1
 fi
@@ -24,13 +23,13 @@ time_file="/tmp/time"
 
 #echo "=== git clone ==="
 /usr/bin/time -f "clone real %e" -o "$time_file" git clone --quiet "$xv6_repo" xv6
-clone_time="$(cut -d ' ' -f3 < "$time_file")"
+clone_time="$(cut -d ' ' -f3 <"$time_file")"
 cat "$time_file" 1>&2
 
 #echo "=== compile xv6 ==="
 cd xv6
 /usr/bin/time -f "compile real %e user %U" -o "$time_file" make --quiet kernel
-compile_time="$(cut -d ' ' -f3 < "$time_file")"
+compile_time="$(cut -d ' ' -f3 <"$time_file")"
 cat "$time_file" 1>&2
 rm -f "$time_file"
 

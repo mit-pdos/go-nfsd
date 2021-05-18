@@ -4,7 +4,7 @@
 # Usage: ./run-goose-clnt.sh  go run ./cmd/clnt-smallfile/main.go
 #
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # root of repo
 cd $DIR/..
 

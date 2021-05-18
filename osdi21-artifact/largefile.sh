@@ -8,7 +8,7 @@ blue=$(tput setaf 4 || printf "")
 reset=$(tput sgr0 || printf "")
 
 info() {
-  echo -e "${blue}$1${reset}"
+    echo -e "${blue}$1${reset}"
 }
 
 info "goose-nfsd"

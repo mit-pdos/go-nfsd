@@ -28,7 +28,7 @@ git clone https://github.com/tchajed/goose
 git clone --depth=1 https://github.com/linux-test-project/ltp
 cd
 
-cat >> ~/.profile <<EOF
+cat >>~/.profile <<EOF
 export GOOSE_NFSD_PATH=$HOME/goose-nfsd
 export PERENNIAL_PATH=$HOME/perennial
 export MARSHAL_PATH=$HOME/code/marshal
@@ -78,7 +78,7 @@ GO_FILE=go1.16.2.linux-amd64.tar.gz
 wget https://golang.org/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
-echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >> ~/.profile
+echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >>~/.profile
 export PATH=/usr/local/go/bin:$PATH
 
 go install github.com/tchajed/goose/cmd/goose@latest

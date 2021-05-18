@@ -33,59 +33,59 @@ nfs_mount_opts=""
 size_mb=400
 
 while true; do
-  case "$1" in
-  -disk)
-    shift
-    disk_file="$1"
-    shift
-    ;;
-  -mount-opts)
-    shift
-    mount_opts="$1"
-    shift
-    ;;
-  -nfs-mount-opts)
-    shift
-    nfs_mount_opts="$1"
-    shift
-    ;;
-  -fs)
-    shift
-    fs="$1"
-    shift
-    ;;
-  -size)
-    shift
-    size_mb="$1"
-    shift
-    ;;
-  *)
-    break
-    ;;
-  esac
+    case "$1" in
+    -disk)
+        shift
+        disk_file="$1"
+        shift
+        ;;
+    -mount-opts)
+        shift
+        mount_opts="$1"
+        shift
+        ;;
+    -nfs-mount-opts)
+        shift
+        nfs_mount_opts="$1"
+        shift
+        ;;
+    -fs)
+        shift
+        fs="$1"
+        shift
+        ;;
+    -size)
+        shift
+        size_mb="$1"
+        shift
+        ;;
+    *)
+        break
+        ;;
+    esac
 done
 
 set -u
 
 if [[ "$fs" == "ext4" ]] || [[ "$fs" = "ext3" ]]; then
-  if [ -z "$mount_opts" ]; then
-    mount_opts="data=journal"
-  fi
+    if [ -z "$mount_opts" ]; then
+        mount_opts="data=journal"
+    fi
 fi
 
 if [ -z "$disk_file" ]; then
-  echo "-disk not provided" >&2
-  exit 1
+    echo "-disk not provided" >&2
+    exit 1
 fi
 
 conv_arg=()
 if [ ! -b "$disk_file" ]; then
-  conv_arg+=("conv=notrunc")
+    conv_arg+=("conv=notrunc")
 fi
 
 _nfs_mount="vers=3,wsize=65536,rsize=65536"
 if [ -n "$nfs_mount_opts" ]; then
-  _nfs_mount="${_nfs_mount},$nfs_mount_opts"
+    _nfs_mount="${_nfs_mount},$nfs_mount_opts"
 fi
 
 # count is in units of 4KB blocks
