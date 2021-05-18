@@ -53,27 +53,25 @@ def parse_raw(lines):
 def from_tidy(df):
     df = df.pivot_table(index="bench", columns="fs", values="val")
     df = df.reindex(index=["smallfile", "largefile", "app"])
-    df.rename(
-        columns={
-            "linux": "Linux",
-            "gonfs": "GoNFS",
-            "linux-ssd": "Linux SSD",
-            "gonfs-ssd": "GoNFS SSD",
-        },
-        inplace=True,
-    )
+    return df
+
+
+def largefile_from_tidy(df):
+    df = df[df["bench"] == "largefile"]
+    df = df.pivot_table(index="fs", columns="bench", values="val")
     return df
 
 
 def main():
+    from os.path import join
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "-o",
         "--output",
-        default="data/bench.data",
-        type=argparse.FileType("w"),
-        help="file to output bench.data to",
+        default="data",
+        help="directory to output bench.data and largefile.data to",
     )
     parser.add_argument(
         "bench", type=argparse.FileType("r"), help="raw output from bench.sh"
@@ -81,16 +79,16 @@ def main():
 
     args = parser.parse_args()
 
-    df = from_tidy(parse_raw(args.bench))
+    tidy_df = parse_raw(args.bench)
+    df = from_tidy(tidy_df)
     # list out columns again to get order right
-    columns = ["Linux", "GoNFS"]
-    if "Linux SSD" in df.columns:
-        columns.extend(["Linux SSD", "GoNFS SSD"])
-    print(
-        df.to_csv(sep="\t", columns=columns),
-        end="",
-        file=args.output,
-    )
+    columns = ["linux", "gonfs"]
+    if "linux-ssd" in df.columns:
+        columns.extend(["linux-ssd", "gonfs-ssd"])
+    df.to_csv(join(args.output, "bench.data"), sep="\t", columns=columns),
+
+    df = largefile_from_tidy(tidy_df)
+    df.to_csv(join(args.output, "largefile.data"), sep="\t"),
 
 
 if __name__ == "__main__":
