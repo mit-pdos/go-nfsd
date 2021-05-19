@@ -1,4 +1,4 @@
-# Verifying a concurrent, crash-safe journaling system using JrnlCert (Artifact)
+# GoJournal: a verified, concurrent, crash-safe journaling system (Artifact)
 
 [![License: CC BY
 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
@@ -20,13 +20,14 @@ You can get the VM from Zenodo via DOI
 [10.5281/zenodo.4657116](https://zenodo.org/record/4657115). The download is a
 little over 3GB.
 
-The VM was created by installing the Ubuntu 20.04 live server image in
-VirtualBox. **The user account is `ubuntu` with no password** (that is, the
+The VM was created by using vagrant, as specified in the
+[Vagrantfile](Vagrantfile).
+**The user account is `vagrant` with no password** (that is, the
 empty password). The user account has sudo access without a password. After some
 basic setup, like installing ZSH, we ran [vm-setup.sh](vm-setup.sh).
 
 You can launch the VM headless and then SSH to it. There's a port forwarding
-rule set up in VirtualBox so that `ssh -p 10322 ubuntu@localhost` should work,
+rule set up in VirtualBox so that `ssh -p 10322 vagrant@localhost` should work,
 without a password prompt.
 
 The artifact (including this README) is located at
@@ -42,13 +43,13 @@ experiment. Less RAM also might work but could lower performance.
 
 The artifact concerns four claims in the paper:
 
-1. GoJrnl's proof overhead is about 20x (in the tricky concurrent parts), while
-   SimpleNFS is only 7x. Measured by lines of code.
-2. The proofs for JrnlCert, GoJrnl, and SimpleNFS are complete.
-3. GoJrnl is functional when compared against ext3 (using journaled data and
+1. GoJournal's proof overhead is about 20x (in the tricky concurrent parts),
+   while SimpleNFS is only 7x. Measured by lines of code.
+2. The proofs for Perennial, GoJournal, and SimpleNFS are complete.
+3. GoJournal is functional when compared against ext3 (using journaled data and
    over NFS for a fair comparison). We demonstrate this by showing GoNFS gets
    close throughput in the benchmarks in Figure 16, which use a RAM-backed disk.
-4. GoJrnl is scalable. We demonstrate this by showing performance for the
+4. GoJournal is scalable. We demonstrate this by showing performance for the
    smallfile benchmark scales with the number of clients, on an SSD (Figure 17).
 
 # Detailed instructions
@@ -57,13 +58,14 @@ The artifact concerns four claims in the paper:
 
 We've cloned several repositories for you into the VM, most notably:
 
+- https://github.com/mit-pdos/go-journal (located at `~/go-journal`) implements
+  GoJournal on top of a disk. The `jrnl` package as the top-level API.
 - https://github.com/mit-pdos/goose-nfsd (located at `~/goose-nfsd`): includes
-  GoJrnl, SimpleNFS, and GoNFS. The journal is implemented by the `buftxn`
-  package, SimpleNFS is in `simple/`, and the binary for `GoNFS` is
+  SimpleNFS and GoNFS. SimpleNFS is in `simple/`, and the binary for `GoNFS` is
   `cmd/goose-nfsd` (which imports various packages in this repo). The artifact
   is implemented with several scripts in `eval` in this repo.
-- https://github.com/mit-pdos/perennial (located at `~/perennial`): the Perennial framework (renamed
-  JrnlCert for submission) and all program proofs for the journal and SimpleNFS.
+- https://github.com/mit-pdos/perennial (located at `~/perennial`): the
+  Perennial framework and all program proofs for GoJournal and SimpleNFS.
 
 ### Gather data
 
@@ -81,27 +83,24 @@ Instantaneous. The numbers won't match up exactly with the paper (see below
 under "Check output").
 
 ```sh
-./bench.sh | tee data/bench-raw.txt
+./bench.sh -ssd ~/disk.img
 ```
 
-Takes about a minute. You can manually inspect the output file (which is fairly
-readable) if you'd like.
+Takes 2-3 minutes. You can manually inspect the output file at
+`eval/data/bench-raw.txt` (which is fairly readable) if you'd like.
 
 ```sh
-./scale.sh 10 | tee data/scale-raw.txt
+./scale.sh 10
 ```
 
 **Takes a few minutes** (the 10 is the number of clients to run till; you can use a
-smaller number of you want it to finish faster).
+smaller number of you want it to finish faster). Outputs to `eval/data/scale-raw.txt`.
 
 ### Produce graphs
 
 ```sh
 ./plot.sh
 ```
-
-(assumes you've put data in `data/bench-raw.txt` and `data/scale-raw.txt`, as
-above)
 
 If you haven't run `./scale.sh` yet, then you can still generate the benchmark
 figure with `./bench.py data/bench-raw.txt && gnuplot bench.plot`.
@@ -120,7 +119,7 @@ slightly from being run in a VM.
 You can get the figures out of the VM by running (from your host machine):
 
 ```sh
-rsync -a -e 'ssh -p 10322' ubuntu@localhost:./goose-nfsd/eval/fig ./
+rsync -a -e 'ssh -p 10322' vagrant@localhost:./goose-nfsd/eval/fig ./
 ```
 
 Compare `fig/bench.png` to Figure 16 in the paper. The absolute performance
@@ -141,7 +140,7 @@ performance depends highly on your drive's performance.
 
 ## Compile the proofs
 
-The paper claims to have verified the GoJrnl implementation. You should check
+The paper claims to have verified the GoJournal implementation. You should check
 this by compiling the proofs in the `perennial` repo:
 
 ```sh
@@ -152,7 +151,7 @@ make -j4 src/program_proof/simple/print_assumptions.vo
 **This will take 30-40 minutes, and 60-70 CPU minutes.**
 
 This only compiles the SimpleNFS top-level proof and all its dependencies,
-including the GoJrnl proofs (in `src/program_proof/buftxn/sep_buftxn_proof.v`
+including the GoJournal proofs (in `src/program_proof/buftxn/sep_buftxn_proof.v`
 and `sep_buftxn_recovery_proof.v`). The repository has a bunch of other research
 code in it that isn't related to this paper.
 
@@ -163,7 +162,7 @@ for simplicity, but you can re-generate it from the goose-nfsd code:
 ```sh
 cd ~/perennial
 rm -r external/Goose/github_com/mit_pdos/goose_nfsd
-./etc/update-goose.py --goose $GOOSE_PATH --nfsd $GOOSE_NFSD_PATH --skip-goose-examples --verbose
+./etc/update-goose.py --goose $GOOSE_PATH --journal $GO_JOURNAL_PATH --nfsd $GOOSE_NFSD_PATH --skip-goose-examples --verbose
 git status
 ```
 

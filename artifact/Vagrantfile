@@ -52,12 +52,10 @@ Vagrant.configure("2") do |config|
   # Example for VirtualBox:
   #
   config.vm.provider "virtualbox" do |vb|
+    # support ssh -p 10322 vagrant@localhost to tunnel into guest
+    vb.customize ["controlvm", :id, "natpf1", "host-ssh,tcp,,10322,,22"]
     vb.name = "gojournal-vm"
-    # Display the VirtualBox GUI when booting the machine
-    # vb.gui = true
-
-    # Customize the amount of memory on the VM:
-    vb.memory = 4096
+    vb.memory = 8192
     vb.cpus = 4
   end
   #
