@@ -33,7 +33,7 @@ func MkKVS(d disk.Disk, sz uint64) *KVS {
 		panic("kvs larger than disk")
 	}*/
 	// XXX just need to assume that the kvs is less than the disk size?
-	log := obj.MkTxn(d)
+	log := obj.MkLog(d)
 	kvs := &KVS{
 		sz:  sz,
 		log: log,

@@ -14,7 +14,7 @@ type Nfs struct {
 }
 
 func Mkfs(d disk.Disk) *obj.Log {
-	log := obj.MkTxn(d)
+	log := obj.MkLog(d)
 	op := jrnl.Begin(log)
 	inodeInit(op)
 	ok := op.CommitWait(true)
@@ -25,7 +25,7 @@ func Mkfs(d disk.Disk) *obj.Log {
 }
 
 func Recover(d disk.Disk) *Nfs {
-	log := obj.MkTxn(d) // runs recovery
+	log := obj.MkLog(d) // runs recovery
 	lockmap := lockmap.MkLockMap()
 
 	nfs := &Nfs{
@@ -36,7 +36,7 @@ func Recover(d disk.Disk) *Nfs {
 }
 
 func MakeNfs(d disk.Disk) *Nfs {
-	log := obj.MkTxn(d) // runs recovery
+	log := obj.MkLog(d) // runs recovery
 
 	op := jrnl.Begin(log)
 	inodeInit(op)

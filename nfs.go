@@ -32,7 +32,7 @@ func MakeNfs(d disk.Disk) *Nfs {
 		d.Size(),
 		super.NBlockBitmap, super.NInodeBitmap, super.Maxaddr)
 
-	log := obj.MkTxn(d) // runs recovery
+	log := obj.MkLog(d) // runs recovery
 
 	i := readRootInode(super)
 	if i.Kind == 0 { // make a new file system?
