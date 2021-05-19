@@ -35,6 +35,10 @@ while [[ "$#" -gt 0 ]]; do
         output_file="$1"
         shift
         ;;
+    -help | --help)
+        usage
+        exit 0
+        ;;
     *)
         error "unexpected argument $1"
         usage

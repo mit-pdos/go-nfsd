@@ -44,7 +44,7 @@ while true; do
         output_file="$1"
         shift
         ;;
-    -help)
+    -help | --help)
         help
         exit 0
         ;;
