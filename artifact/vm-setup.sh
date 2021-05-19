@@ -26,8 +26,8 @@ git clone https://github.com/mit-pdos/go-journal &
 git clone https://github.com/mit-pdos/xv6-public &
 git clone https://github.com/tchajed/marshal &
 git clone https://github.com/tchajed/goose &
-git clone --depth=1 https://github.com/linux-test-project/ltp &
 wait
+git clone --depth=1 https://github.com/linux-test-project/ltp
 cd
 
 cat >>~/.profile <<EOF
@@ -39,6 +39,8 @@ export XV6_PATH=$HOME/code/xv6-public
 export GOOSE_PATH=$HOME/code/goose
 export LTP_PATH=$HOME/code/ltp
 EOF
+
+echo -e "\nsource ~/.profile" >>~/.zshrc
 
 # Set up NFS client and server
 
@@ -94,6 +96,7 @@ export GO111MODULE=off
 go get github.com/tchajed/goose/...
 go get github.com/mit-pdos/go-journal/...
 go get github.com/mit-pdos/goose-nfsd/...
+export GO111MODULE=on
 
 cd ~/goose-nfsd
 # fetch dependencies
