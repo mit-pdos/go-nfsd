@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/mit-pdos/go-journal/common"
+	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fh"
@@ -283,7 +284,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
-	if uint64(args.Count) >= op.Atxn.Op.LogSzBytes() {
+	if uint64(args.Count) >= jrnl.LogBytes {
 		errRet(op, &reply.Status, nfstypes.NFS3ERR_INVAL)
 		return reply
 	}
@@ -803,7 +804,7 @@ func (nfs *Nfs) NFSPROC3_FSINFO(args nfstypes.FSINFO3args) nfstypes.FSINFO3res {
 	reply.Resok.Rtmax = 16 * 4096
 	reply.Resok.Rtmult = 4096
 	reply.Resok.Rtpref = reply.Resok.Rtmax
-	reply.Resok.Wtmax = nfstypes.Uint32(op.Atxn.Op.LogSzBytes())
+	reply.Resok.Wtmax = nfstypes.Uint32(jrnl.LogBytes)
 	reply.Resok.Wtpref = 16 * 4096
 	reply.Resok.Wtmult = 4096
 	reply.Resok.Dtpref = 16 * 4096

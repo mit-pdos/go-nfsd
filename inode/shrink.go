@@ -1,6 +1,7 @@
 package inode
 
 import (
+	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/tchajed/goose/machine/disk"
 
 	"github.com/mit-pdos/go-journal/common"
@@ -16,7 +17,7 @@ import (
 //
 
 func (ip *Inode) shrinkFits(op *alloctxn.AllocTxn, nblk uint64) bool {
-	return op.Op.NDirty()+nblk < op.Op.LogSz()
+	return op.Op.NDirty()+nblk < jrnl.LogBlocks
 }
 
 func (ip *Inode) IsShrinking() bool {
