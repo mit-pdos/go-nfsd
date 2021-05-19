@@ -30,7 +30,7 @@ help() {
     echo "threads defaults to 10"
 }
 
-output_file="data/scale-raw.txt"
+output_file="eval/data/scale-raw.txt"
 disk_file="$HOME/disk.img"
 while true; do
     case "$1" in

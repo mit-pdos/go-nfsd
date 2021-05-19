@@ -20,8 +20,8 @@ usage() {
     echo "SSD benchmarks will be skipped if -ssd is not passed"
 }
 
+output_file="eval/data/bench-raw.txt"
 ssd_file=""
-output_file="data/bench-raw.txt"
 
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
