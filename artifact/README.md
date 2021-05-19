@@ -30,7 +30,7 @@ rule set up in VirtualBox so that `ssh -p 10322 ubuntu@localhost` should work,
 without a password prompt.
 
 The artifact (including this README) is located at
-`~/goose-nfsd/osdi21-artifact`. The README.md file there might be out-of-date by
+`~/goose-nfsd/artifact`. The README.md file there might be out-of-date by
 the time you read this; please run `git pull` when you start, or follow the
 README on GitHub rather than in the VM.
 
@@ -61,16 +61,16 @@ We've cloned several repositories for you into the VM, most notably:
   GoJrnl, SimpleNFS, and GoNFS. The journal is implemented by the `buftxn`
   package, SimpleNFS is in `simple/`, and the binary for `GoNFS` is
   `cmd/goose-nfsd` (which imports various packages in this repo). The artifact
-  is implemented with several scripts in `osdi21-artifact` in this repo.
+  is implemented with several scripts in `eval` in this repo.
 - https://github.com/mit-pdos/perennial (located at `~/perennial`): the Perennial framework (renamed
   JrnlCert for submission) and all program proofs for the journal and SimpleNFS.
 
 ### Gather data
 
-This should all be done in the artifact directory:
+This should all be done in the eval directory:
 
 ```sh
-cd ~/goose-nfsd/osdi21-artifact
+cd ~/goose-nfsd/eval
 ```
 
 ```sh
@@ -120,7 +120,7 @@ slightly from being run in a VM.
 You can get the figures out of the VM by running (from your host machine):
 
 ```sh
-rsync -a -e 'ssh -p 10322' ubuntu@localhost:./goose-nfsd/osdi21-artifact/fig ./
+rsync -a -e 'ssh -p 10322' ubuntu@localhost:./goose-nfsd/eval/fig ./
 ```
 
 Compare `fig/bench.png` to Figure 16 in the paper. The absolute performance

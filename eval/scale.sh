@@ -20,7 +20,7 @@ if [ ! -d "$GOOSE_NFSD_PATH" ]; then
 fi
 
 help() {
-    echo "Usage: $1 [-disk <disk file>] [threads]"
+    echo "Usage: $0 [-disk <disk file>] [threads]"
     echo "disk defaults to ~/disk.img (assuming the root file system is on an SSD)"
     echo "threads defaults to 10"
 }
@@ -66,7 +66,7 @@ echo "fs=linux"
 
 echo 1>&2
 info "Serial GoNFS (holding locks)"
-git apply osdi21-artifact/serial.patch
+git apply eval/serial.patch
 echo "fs=serial-gonfs"
 ./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads=$threads
 git restore wal/installer.go wal/logger.go wal/wal.go

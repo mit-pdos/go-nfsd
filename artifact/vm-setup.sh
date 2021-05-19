@@ -13,15 +13,16 @@ sudo apt-get install -y git python3-pip wget
 
 ## assumes https://github.com/mit-pdos/goose-nfsd has already been cloned to
 ## ~/goose-nfsd (since this is the easiest way to run this script)
-ln -s ~/goose-nfsd/osdi21-artifact ~/artifact
+ln -s ~/goose-nfsd/artifact ~/artifact
 
 git clone \
-    --branch osdi21-artifact \
+    --branch osdi21 \
     --recurse-submodules \
     https://github.com/mit-pdos/perennial
 
 mkdir ~/code
 cd ~/code
+git clone https://github.com/mit-pdos/go-journal
 git clone https://github.com/mit-pdos/xv6-public
 git clone https://github.com/tchajed/marshal
 git clone https://github.com/tchajed/goose
@@ -30,6 +31,7 @@ cd
 
 cat >>~/.profile <<EOF
 export GOOSE_NFSD_PATH=$HOME/goose-nfsd
+export GO_JOURNAL_PATH=$HOME/go-journal
 export PERENNIAL_PATH=$HOME/perennial
 export MARSHAL_PATH=$HOME/code/marshal
 export XV6_PATH=$HOME/code/xv6-public
@@ -41,9 +43,9 @@ EOF
 
 sudo apt-get install -y rpcbind nfs-common nfs-server
 sudo mkdir -p /srv/nfs/bench
-sudo chown $USER:$USER /srv/nfs/bench
+sudo chown "$USER:$USER" /srv/nfs/bench
 sudo mkdir -p /mnt/nfs
-sudo chown $USER:$USER /mnt/nfs
+sudo chown "$USER:$USER" /mnt/nfs
 echo "/srv/nfs/bench localhost(rw,sync,no_subtree_check,fsid=0)" | sudo tee -a /etc/exports
 
 ## for simplicity we enable these services so they are automatically started,
@@ -78,6 +80,7 @@ GO_FILE=go1.16.2.linux-amd64.tar.gz
 wget https://golang.org/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
+# shellcheck disable=2016
 echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >>~/.profile
 export PATH=/usr/local/go/bin:$PATH
 
@@ -109,6 +112,7 @@ rm install.sh
 
 opam init --auto-setup --bare
 opam switch create 4.11.0+flambda
+# shellcheck disable=2046
 eval $(opam env)
 opam install -y -j4 coq.8.13.1
 
