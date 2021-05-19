@@ -16,9 +16,9 @@ sudo apt-get install -y git python3-pip wget unzip psmisc sudo time
 ln -s ~/goose-nfsd/artifact ~/artifact
 
 git clone \
-    --branch osdi21 \
-    --recurse-submodules \
-    https://github.com/mit-pdos/perennial
+	--branch osdi21 \
+	--recurse-submodules \
+	https://github.com/mit-pdos/perennial
 
 mkdir ~/code
 cd ~/code
@@ -118,10 +118,10 @@ echo "" | sh install.sh --no-backup
 rm install.sh
 
 opam init --auto-setup --bare
-#opam switch create 4.11.0+flambda
+opam switch create 4.11.0+flambda
 ## shellcheck disable=2046
-#eval $(opam env)
-#opam install -y -j4 coq.8.13.1
+eval $(opam env)
+opam install -y -j4 coq.8.13.2
 
 sudo apt clean
 opam clean
