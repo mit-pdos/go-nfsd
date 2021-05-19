@@ -16,7 +16,7 @@ import (
 //
 
 func (ip *Inode) shrinkFits(op *alloctxn.AllocTxn, nblk uint64) bool {
-	return op.Buftxn.NDirty()+nblk < op.Buftxn.LogSz()
+	return op.Op.NDirty()+nblk < op.Op.LogSz()
 }
 
 func (ip *Inode) IsShrinking() bool {

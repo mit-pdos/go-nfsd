@@ -18,7 +18,7 @@ import (
 
 type AllocTxn struct {
 	Super      *super.FsSuper
-	Buftxn     *jrnl.BufTxn
+	Op         *jrnl.Op
 	Balloc     *alloc.Alloc
 	Ialloc     *alloc.Alloc
 	allocInums []common.Inum
@@ -30,7 +30,7 @@ type AllocTxn struct {
 func Begin(super *super.FsSuper, log *obj.Log, balloc *alloc.Alloc, ialloc *alloc.Alloc) *AllocTxn {
 	atxn := &AllocTxn{
 		Super:      super,
-		Buftxn:     jrnl.Begin(log),
+		Op:         jrnl.Begin(log),
 		Ialloc:     ialloc,
 		Balloc:     balloc,
 		allocInums: make([]common.Inum, 0),
@@ -41,9 +41,9 @@ func Begin(super *super.FsSuper, log *obj.Log, balloc *alloc.Alloc, ialloc *allo
 	return atxn
 }
 
-// Id returns a pointer to the BufTxn for debug printing only
-func (atxn *AllocTxn) Id() *jrnl.BufTxn {
-	return atxn.Buftxn
+// Id returns a pointer to the Op for debug printing only
+func (atxn *AllocTxn) Id() *jrnl.Op {
+	return atxn.Op
 }
 
 func (atxn *AllocTxn) AllocINum() common.Inum {
@@ -67,7 +67,7 @@ func (atxn *AllocTxn) WriteBits(nums []uint64, blk uint64, alloc bool) {
 		if !alloc {
 			b = ^b
 		}
-		atxn.Buftxn.OverWrite(a, 1, []byte{b})
+		atxn.Op.OverWrite(a, 1, []byte{b})
 	}
 }
 
@@ -142,7 +142,7 @@ func (atxn *AllocTxn) ReadBlock(blkno common.Bnum) *buf.Buf {
 	util.DPrintf(5, "ReadBlock %d\n", blkno)
 	atxn.AssertValidBlock(blkno)
 	addr := atxn.Super.Block2addr(blkno)
-	return atxn.Buftxn.ReadBuf(addr, common.NBITBLOCK)
+	return atxn.Op.ReadBuf(addr, common.NBITBLOCK)
 }
 
 func (atxn *AllocTxn) ZeroBlock(blkno common.Bnum) {

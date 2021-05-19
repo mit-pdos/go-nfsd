@@ -51,12 +51,12 @@ func validInum(inum common.Inum) bool {
 	return true
 }
 
-func NFSPROC3_GETATTR_wp(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, op *jrnl.BufTxn) {
+func NFSPROC3_GETATTR_wp(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, op *jrnl.Op) {
 	ip := ReadInode(op, inum)
 	reply.Resok.Obj_attributes = ip.MkFattr()
 }
 
-func NFSPROC3_GETATTR_internal(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, op *jrnl.BufTxn) {
+func NFSPROC3_GETATTR_internal(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, op *jrnl.Op) {
 	NFSPROC3_GETATTR_wp(args, reply, inum, op)
 
 	ok := op.CommitWait(true)
@@ -91,7 +91,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	return reply
 }
 
-func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, op *jrnl.BufTxn) bool {
+func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, op *jrnl.Op) bool {
 	ip := ReadInode(op, inum)
 
 	var ok bool
@@ -117,7 +117,7 @@ func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res
 	return ok
 }
 
-func NFSPROC3_SETATTR_internal(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, op *jrnl.BufTxn) {
+func NFSPROC3_SETATTR_internal(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, op *jrnl.Op) {
 	ok1 := NFSPROC3_SETATTR_wp(args, reply, inum, op)
 	if !ok1 {
 		return
@@ -188,7 +188,7 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 	return reply
 }
 
-func NFSPROC3_READ_wp(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, op *jrnl.BufTxn) {
+func NFSPROC3_READ_wp(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, op *jrnl.Op) {
 	ip := ReadInode(op, inum)
 	data, eof := ip.Read(op, uint64(args.Offset), uint64(args.Count))
 
@@ -197,7 +197,7 @@ func NFSPROC3_READ_wp(args nfstypes.READ3args, reply *nfstypes.READ3res, inum co
 	reply.Resok.Eof = eof
 }
 
-func NFSPROC3_READ_internal(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, op *jrnl.BufTxn) {
+func NFSPROC3_READ_internal(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, op *jrnl.Op) {
 	NFSPROC3_READ_wp(args, reply, inum, op)
 
 	ok := op.CommitWait(true)
@@ -226,7 +226,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	return reply
 }
 
-func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, op *jrnl.BufTxn) bool {
+func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, op *jrnl.Op) bool {
 	ip := ReadInode(op, inum)
 
 	count, writeok := ip.Write(op, uint64(args.Offset), uint64(args.Count), args.Data)
@@ -240,7 +240,7 @@ func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum
 	return true
 }
 
-func NFSPROC3_WRITE_internal(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, op *jrnl.BufTxn) {
+func NFSPROC3_WRITE_internal(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, op *jrnl.Op) {
 	ok1 := NFSPROC3_WRITE_wp(args, reply, inum, op)
 	if !ok1 {
 		return

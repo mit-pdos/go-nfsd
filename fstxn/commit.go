@@ -12,7 +12,7 @@ func (op *FsTxn) postCommit() {
 
 func (op *FsTxn) commitWait(wait bool) bool {
 	op.preCommit()
-	ok := op.Atxn.Buftxn.CommitWait(wait)
+	ok := op.Atxn.Op.CommitWait(wait)
 	op.postCommit()
 	return ok
 }
@@ -24,7 +24,7 @@ func (op *FsTxn) Commit() bool {
 // Commit data, but will also commit everything else, since we don't
 // support log-by-pass writes.
 func (op *FsTxn) CommitData() bool {
-	return op.Atxn.Buftxn.CommitWait(true)
+	return op.Atxn.Op.CommitWait(true)
 }
 
 // Commit transaction, but don't write to stable storage
@@ -36,7 +36,7 @@ func (op *FsTxn) CommitUnstable() bool {
 // that is only an option if we do log-by-pass writes.
 func (op *FsTxn) CommitFh() bool {
 	op.preCommit()
-	ok := op.Atxn.Buftxn.Flush()
+	ok := op.Atxn.Op.Flush()
 	op.postCommit()
 	return ok
 }
