@@ -14,6 +14,7 @@ if [ ! -e ~/.oh-my-zsh ]; then
     rm install.sh
 fi
 sudo chsh -s /usr/bin/zsh "$USER"
+sed -i 's/ZSH_THEME=.*/ZSH_THEME="dst"/' ~/.zshrc
 
 if [ ! -e goose-nfsd ]; then
     git clone https://github.com/mit-pdos/goose-nfsd

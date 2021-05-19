@@ -14,6 +14,8 @@ Vagrant.configure("2") do |config|
   # boxes at https://vagrantcloud.com/search.
   config.vm.box = "bento/ubuntu-21.04"
 
+  config.vm.hostname = "gojournal-vm"
+
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
   # `vagrant box outdated`. This is not recommended.
@@ -50,7 +52,7 @@ Vagrant.configure("2") do |config|
   # Example for VirtualBox:
   #
   config.vm.provider "virtualbox" do |vb|
-    vb.name = "goose-nfsd-vm"
+    vb.name = "gojournal-vm"
     # Display the VirtualBox GUI when booting the machine
     # vb.gui = true
 
