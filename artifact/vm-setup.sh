@@ -7,7 +7,7 @@ cd
 # Install really basic dependencies
 
 sudo apt-get update
-sudo apt-get install -y git python3-pip wget
+sudo apt-get install -y git python3-pip wget unzip psmisc sudo time
 
 # Get source code
 
@@ -22,11 +22,12 @@ git clone \
 
 mkdir ~/code
 cd ~/code
-git clone https://github.com/mit-pdos/go-journal
-git clone https://github.com/mit-pdos/xv6-public
-git clone https://github.com/tchajed/marshal
-git clone https://github.com/tchajed/goose
-git clone --depth=1 https://github.com/linux-test-project/ltp
+git clone https://github.com/mit-pdos/go-journal &
+git clone https://github.com/mit-pdos/xv6-public &
+git clone https://github.com/tchajed/marshal &
+git clone https://github.com/tchajed/goose &
+git clone --depth=1 https://github.com/linux-test-project/ltp &
+wait
 cd
 
 cat >>~/.profile <<EOF
@@ -41,7 +42,7 @@ EOF
 
 # Set up NFS client and server
 
-sudo apt-get install -y rpcbind nfs-common nfs-server
+sudo apt-get install -y rpcbind nfs-common nfs-kernel-server
 sudo mkdir -p /srv/nfs/bench
 sudo chown "$USER:$USER" /srv/nfs/bench
 sudo mkdir -p /mnt/nfs
@@ -55,6 +56,8 @@ sudo systemctl enable rpc-statd
 sudo systemctl disable nfs-server
 # can't run goose-nfsd and Linux NFS server at the same time
 sudo systemctl stop nfs-server
+sudo systemctl start rpcbind
+sudo systemctl start rpc-statd
 
 # Set up Linux file-system tests
 
@@ -76,7 +79,7 @@ sudo apt-get install -y gnuplot-nox
 
 # Install Go and Go dependencies
 
-GO_FILE=go1.16.2.linux-amd64.tar.gz
+GO_FILE=go1.16.4.linux-amd64.tar.gz
 wget https://golang.org/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
@@ -89,6 +92,7 @@ go install github.com/tchajed/goose/cmd/goose@latest
 export GOPATH=$HOME/go
 export GO111MODULE=off
 go get github.com/tchajed/goose/...
+go get github.com/mit-pdos/go-journal/...
 go get github.com/mit-pdos/goose-nfsd/...
 
 cd ~/goose-nfsd
@@ -111,10 +115,10 @@ echo "" | sh install.sh --no-backup
 rm install.sh
 
 opam init --auto-setup --bare
-opam switch create 4.11.0+flambda
-# shellcheck disable=2046
-eval $(opam env)
-opam install -y -j4 coq.8.13.1
+#opam switch create 4.11.0+flambda
+## shellcheck disable=2046
+#eval $(opam env)
+#opam install -y -j4 coq.8.13.1
 
 sudo apt clean
 opam clean
