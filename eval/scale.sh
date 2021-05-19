@@ -30,12 +30,18 @@ help() {
     echo "threads defaults to 10"
 }
 
+output_file="data/scale-raw.txt"
 disk_file="$HOME/disk.img"
 while true; do
     case "$1" in
     -disk)
         shift
         disk_file="$1"
+        shift
+        ;;
+    -o | --output)
+        shift
+        output_file="$1"
         shift
         ;;
     -help)
@@ -60,24 +66,32 @@ fi
 
 cd "$GOOSE_NFSD_PATH"
 
-info "GoNFS smallfile scalability"
-echo "fs=gonfs"
-./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
+do_eval() {
+    info "GoNFS smallfile scalability"
+    echo "fs=gonfs"
+    ./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
 
-echo 1>&2
-info "Linux smallfile scalability"
-echo "fs=linux"
-./bench/run-linux.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
+    echo 1>&2
+    info "Linux smallfile scalability"
+    echo "fs=linux"
+    ./bench/run-linux.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
 
-echo 1>&2
-info "Serial GoNFS (holding locks)"
-pushd "$GO_JOURNAL_PATH"
-git apply eval/serial.patch
-popd
+    echo 1>&2
+    info "Serial GoNFS (holding locks)"
+    pushd "$GO_JOURNAL_PATH"
+    git apply eval/serial.patch
+    popd
 
-echo "fs=serial-gonfs"
-./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
+    echo "fs=serial-gonfs"
+    ./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
 
-pushd "$GO_JOURNAL_PATH"
-git restore wal/installer.go wal/logger.go wal/wal.go
-popd
+    pushd "$GO_JOURNAL_PATH"
+    git restore wal/installer.go wal/logger.go wal/wal.go
+    popd
+}
+
+if [ "$output_file" = "-" ]; then
+    do_eval
+else
+    do_eval | tee "$output_file"
+fi
