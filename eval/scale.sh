@@ -15,7 +15,12 @@ error() {
 }
 
 if [ ! -d "$GOOSE_NFSD_PATH" ]; then
-    echo "GOOSE_NFSD_PATH is unset" 1>&2
+    echo "\$GOOSE_NFSD_PATH is unset" 1>&2
+    exit 1
+fi
+
+if [ ! -d "$GO_JOURNAL_PATH" ]; then
+    echo "\$GO_JOURNAL_PATH is unset" 1>&2
     exit 1
 fi
 
@@ -57,16 +62,22 @@ cd "$GOOSE_NFSD_PATH"
 
 info "GoNFS smallfile scalability"
 echo "fs=gonfs"
-./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads=$threads
+./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
 
 echo 1>&2
 info "Linux smallfile scalability"
 echo "fs=linux"
-./bench/run-linux.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads=$threads
+./bench/run-linux.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
 
 echo 1>&2
 info "Serial GoNFS (holding locks)"
+pushd "$GO_JOURNAL_PATH"
 git apply eval/serial.patch
+popd
+
 echo "fs=serial-gonfs"
-./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads=$threads
+./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
+
+pushd "$GO_JOURNAL_PATH"
 git restore wal/installer.go wal/logger.go wal/wal.go
+popd
