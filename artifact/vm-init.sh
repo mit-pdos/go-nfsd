@@ -16,6 +16,10 @@ fi
 sudo chsh -s /usr/bin/zsh "$USER"
 sed -i 's/ZSH_THEME=.*/ZSH_THEME="dst"/' ~/.zshrc
 
+sudo passwd -d "$USER"
+sudo sed -e 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/' -i /etc/ssh/sshd_config
+sudo systemctl restart sshd
+
 if [ ! -e goose-nfsd ]; then
     git clone https://github.com/mit-pdos/goose-nfsd
 fi

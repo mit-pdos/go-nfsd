@@ -2,6 +2,34 @@
 
 set -eu
 
+install_ocaml=true
+install_coq=true
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+    -no-ocaml)
+        install_ocaml=false
+        shift
+        ;;
+    -ocaml)
+        install_ocaml=true
+        shift
+        ;;
+    -no-coq)
+        install_coq=false
+        shift
+        ;;
+    -coq)
+        install_ocaml=true
+        install_coq=true
+        shift
+        ;;
+    *)
+        echo "Unexpected argument $1" 1>&2
+        exit 1
+        ;;
+    esac
+done
+
 cd
 
 # Install really basic dependencies
@@ -16,9 +44,9 @@ sudo apt-get install -y git python3-pip wget unzip psmisc sudo time
 ln -s ~/goose-nfsd/artifact ~/artifact
 
 git clone \
-	--branch osdi21 \
-	--recurse-submodules \
-	https://github.com/mit-pdos/perennial
+    --branch osdi21 \
+    --recurse-submodules \
+    https://github.com/mit-pdos/perennial
 
 mkdir ~/code
 cd ~/code
@@ -118,10 +146,16 @@ echo "" | sh install.sh --no-backup
 rm install.sh
 
 opam init --auto-setup --bare
-opam switch create 4.11.0+flambda
-## shellcheck disable=2046
-eval $(opam env)
-opam install -y -j4 coq.8.13.2
+if [ "$install_ocaml" = true ]; then
+    opam switch create 4.11.0+flambda
+
+    # shellcheck disable=2046
+    eval $(opam env)
+
+    if [ "$install_coq" = "true" ]; then
+        opam install -y -j4 coq.8.13.2
+    fi
+fi
 
 sudo apt clean
 opam clean

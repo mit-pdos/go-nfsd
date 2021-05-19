@@ -27,7 +27,7 @@ empty password). The user account has sudo access without a password. After some
 basic setup, like installing ZSH, we ran [vm-setup.sh](vm-setup.sh).
 
 You can launch the VM headless and then SSH to it. There's a port forwarding
-rule set up in VirtualBox so that `ssh -p 10322 vagrant@localhost` should work,
+rule vagrant sets up so that `ssh -p 10322 vagrant@localhost` should work,
 without a password prompt.
 
 The artifact (including this README) is located at
