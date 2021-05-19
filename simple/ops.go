@@ -1,8 +1,8 @@
 package simple
 
 import (
-	"github.com/mit-pdos/go-journal/buftxn"
 	"github.com/mit-pdos/go-journal/common"
+	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
@@ -51,15 +51,15 @@ func validInum(inum common.Inum) bool {
 	return true
 }
 
-func NFSPROC3_GETATTR_wp(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, txn *buftxn.BufTxn) {
-	ip := ReadInode(txn, inum)
+func NFSPROC3_GETATTR_wp(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, op *jrnl.BufTxn) {
+	ip := ReadInode(op, inum)
 	reply.Resok.Obj_attributes = ip.MkFattr()
 }
 
-func NFSPROC3_GETATTR_internal(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, txn *buftxn.BufTxn) {
-	NFSPROC3_GETATTR_wp(args, reply, inum, txn)
+func NFSPROC3_GETATTR_internal(args nfstypes.GETATTR3args, reply *nfstypes.GETATTR3res, inum common.Inum, op *jrnl.BufTxn) {
+	NFSPROC3_GETATTR_wp(args, reply, inum, op)
 
-	ok := txn.CommitWait(true)
+	ok := op.CommitWait(true)
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
@@ -71,7 +71,7 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	var reply nfstypes.GETATTR3res
 	util.DPrintf(1, "NFS GetAttr %v\n", args)
 
-	txn := buftxn.Begin(nfs.t)
+	txn := jrnl.Begin(nfs.t)
 	inum := fh2ino(args.Object)
 
 	if inum == common.ROOTINUM {
@@ -91,15 +91,15 @@ func (nfs *Nfs) NFSPROC3_GETATTR(args nfstypes.GETATTR3args) nfstypes.GETATTR3re
 	return reply
 }
 
-func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, txn *buftxn.BufTxn) bool {
-	ip := ReadInode(txn, inum)
+func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, op *jrnl.BufTxn) bool {
+	ip := ReadInode(op, inum)
 
 	var ok bool
 	if args.New_attributes.Size.Set_it {
 		newsize := uint64(args.New_attributes.Size.Size)
 		if ip.Size < newsize {
 			data := make([]byte, newsize-ip.Size)
-			ip.Write(txn, ip.Size, newsize-ip.Size, data)
+			ip.Write(op, ip.Size, newsize-ip.Size, data)
 			if ip.Size != newsize {
 				reply.Status = nfstypes.NFS3ERR_NOSPC
 			} else {
@@ -107,7 +107,7 @@ func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res
 			}
 		} else {
 			ip.Size = newsize
-			ip.WriteInode(txn)
+			ip.WriteInode(op)
 			ok = true
 		}
 	} else {
@@ -117,13 +117,13 @@ func NFSPROC3_SETATTR_wp(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res
 	return ok
 }
 
-func NFSPROC3_SETATTR_internal(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, txn *buftxn.BufTxn) {
-	ok1 := NFSPROC3_SETATTR_wp(args, reply, inum, txn)
+func NFSPROC3_SETATTR_internal(args nfstypes.SETATTR3args, reply *nfstypes.SETATTR3res, inum common.Inum, op *jrnl.BufTxn) {
+	ok1 := NFSPROC3_SETATTR_wp(args, reply, inum, op)
 	if !ok1 {
 		return
 	}
 
-	ok2 := txn.CommitWait(true)
+	ok2 := op.CommitWait(true)
 	if ok2 {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
@@ -135,7 +135,7 @@ func (nfs *Nfs) NFSPROC3_SETATTR(args nfstypes.SETATTR3args) nfstypes.SETATTR3re
 	var reply nfstypes.SETATTR3res
 	util.DPrintf(1, "NFS SetAttr %v\n", args)
 
-	txn := buftxn.Begin(nfs.t)
+	txn := jrnl.Begin(nfs.t)
 	inum := fh2ino(args.Object)
 
 	util.DPrintf(1, "inum %d %d\n", inum, nInode())
@@ -188,19 +188,19 @@ func (nfs *Nfs) NFSPROC3_ACCESS(args nfstypes.ACCESS3args) nfstypes.ACCESS3res {
 	return reply
 }
 
-func NFSPROC3_READ_wp(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, txn *buftxn.BufTxn) {
-	ip := ReadInode(txn, inum)
-	data, eof := ip.Read(txn, uint64(args.Offset), uint64(args.Count))
+func NFSPROC3_READ_wp(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, op *jrnl.BufTxn) {
+	ip := ReadInode(op, inum)
+	data, eof := ip.Read(op, uint64(args.Offset), uint64(args.Count))
 
 	reply.Resok.Count = nfstypes.Count3(uint32(len(data)))
 	reply.Resok.Data = data
 	reply.Resok.Eof = eof
 }
 
-func NFSPROC3_READ_internal(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, txn *buftxn.BufTxn) {
-	NFSPROC3_READ_wp(args, reply, inum, txn)
+func NFSPROC3_READ_internal(args nfstypes.READ3args, reply *nfstypes.READ3res, inum common.Inum, op *jrnl.BufTxn) {
+	NFSPROC3_READ_wp(args, reply, inum, op)
 
-	ok := txn.CommitWait(true)
+	ok := op.CommitWait(true)
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
@@ -212,7 +212,7 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	var reply nfstypes.READ3res
 	util.DPrintf(1, "NFS Read %v %d %d\n", args.File, args.Offset, args.Count)
 
-	txn := buftxn.Begin(nfs.t)
+	txn := jrnl.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
 	if !validInum(inum) {
@@ -226,10 +226,10 @@ func (nfs *Nfs) NFSPROC3_READ(args nfstypes.READ3args) nfstypes.READ3res {
 	return reply
 }
 
-func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, txn *buftxn.BufTxn) bool {
-	ip := ReadInode(txn, inum)
+func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, op *jrnl.BufTxn) bool {
+	ip := ReadInode(op, inum)
 
-	count, writeok := ip.Write(txn, uint64(args.Offset), uint64(args.Count), args.Data)
+	count, writeok := ip.Write(op, uint64(args.Offset), uint64(args.Count), args.Data)
 	if !writeok {
 		reply.Status = nfstypes.NFS3ERR_SERVERFAULT
 		return false
@@ -240,13 +240,13 @@ func NFSPROC3_WRITE_wp(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum
 	return true
 }
 
-func NFSPROC3_WRITE_internal(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, txn *buftxn.BufTxn) {
-	ok1 := NFSPROC3_WRITE_wp(args, reply, inum, txn)
+func NFSPROC3_WRITE_internal(args nfstypes.WRITE3args, reply *nfstypes.WRITE3res, inum common.Inum, op *jrnl.BufTxn) {
+	ok1 := NFSPROC3_WRITE_wp(args, reply, inum, op)
 	if !ok1 {
 		return
 	}
 
-	ok2 := txn.CommitWait(true)
+	ok2 := op.CommitWait(true)
 	if ok2 {
 		reply.Status = nfstypes.NFS3_OK
 	} else {
@@ -259,7 +259,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 	util.DPrintf(1, "NFS Write %v off %d cnt %d how %d\n", args.File, args.Offset,
 		args.Count, args.Stable)
 
-	txn := buftxn.Begin(nfs.t)
+	txn := jrnl.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
 	util.DPrintf(1, "inum %d %d\n", inum, nInode())
@@ -393,7 +393,7 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	util.DPrintf(1, "NFS Commit %v\n", args)
 	var reply nfstypes.COMMIT3res
 
-	txn := buftxn.Begin(nfs.t)
+	op := jrnl.Begin(nfs.t)
 	inum := fh2ino(args.File)
 
 	if !validInum(inum) {
@@ -402,7 +402,7 @@ func (nfs *Nfs) NFSPROC3_COMMIT(args nfstypes.COMMIT3args) nfstypes.COMMIT3res {
 	}
 
 	nfs.l.Acquire(inum)
-	ok := txn.CommitWait(true)
+	ok := op.CommitWait(true)
 	if ok {
 		reply.Status = nfstypes.NFS3_OK
 	} else {

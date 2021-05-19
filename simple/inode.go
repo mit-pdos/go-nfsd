@@ -5,8 +5,8 @@ import (
 	"github.com/tchajed/marshal"
 
 	"github.com/mit-pdos/go-journal/buf"
-	"github.com/mit-pdos/go-journal/buftxn"
 	"github.com/mit-pdos/go-journal/common"
+	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
@@ -34,7 +34,8 @@ func Decode(buf *buf.Buf, inum common.Inum) *Inode {
 }
 
 // Returns number of bytes read and eof
-func (ip *Inode) Read(btxn *buftxn.BufTxn, offset uint64, bytesToRead uint64) ([]byte, bool) {
+func (ip *Inode) Read(op *jrnl.BufTxn, offset uint64,
+	bytesToRead uint64) ([]byte, bool) {
 	if offset >= ip.Size {
 		return nil, true
 	}
@@ -45,7 +46,7 @@ func (ip *Inode) Read(btxn *buftxn.BufTxn, offset uint64, bytesToRead uint64) ([
 	util.DPrintf(5, "Read: off %d cnt %d\n", offset, count)
 	var data = make([]byte, 0)
 
-	buf := btxn.ReadBuf(block2addr(ip.Data), common.NBITBLOCK)
+	buf := op.ReadBuf(block2addr(ip.Data), common.NBITBLOCK)
 	countCopy := count
 	for b := uint64(0); b < countCopy; b++ {
 		data = append(data, buf.Data[offset+b])
@@ -57,14 +58,15 @@ func (ip *Inode) Read(btxn *buftxn.BufTxn, offset uint64, bytesToRead uint64) ([
 	return data, eof
 }
 
-func (ip *Inode) WriteInode(btxn *buftxn.BufTxn) {
+func (ip *Inode) WriteInode(op *jrnl.BufTxn) {
 	d := ip.Encode()
-	btxn.OverWrite(inum2Addr(ip.Inum), common.INODESZ*8, d)
+	op.OverWrite(inum2Addr(ip.Inum), common.INODESZ*8, d)
 	util.DPrintf(1, "WriteInode %v\n", ip)
 }
 
 // Returns number of bytes written and error
-func (ip *Inode) Write(btxn *buftxn.BufTxn, offset uint64, count uint64, dataBuf []byte) (uint64, bool) {
+func (ip *Inode) Write(op *jrnl.BufTxn, offset uint64, count uint64,
+	dataBuf []byte) (uint64, bool) {
 	util.DPrintf(5, "Write: off %d cnt %d\n", offset, count)
 	if count != uint64(len(dataBuf)) {
 		return 0, false
@@ -82,7 +84,7 @@ func (ip *Inode) Write(btxn *buftxn.BufTxn, offset uint64, count uint64, dataBuf
 		return 0, false
 	}
 
-	buffer := btxn.ReadBuf(block2addr(ip.Data), common.NBITBLOCK)
+	buffer := op.ReadBuf(block2addr(ip.Data), common.NBITBLOCK)
 	for b := uint64(0); b < count; b++ {
 		buffer.Data[offset+b] = dataBuf[b]
 	}
@@ -91,13 +93,13 @@ func (ip *Inode) Write(btxn *buftxn.BufTxn, offset uint64, count uint64, dataBuf
 	util.DPrintf(1, "Write: off %d cnt %d size %d\n", offset, count, ip.Size)
 	if offset+count > ip.Size {
 		ip.Size = offset + count
-		ip.WriteInode(btxn)
+		ip.WriteInode(op)
 	}
 	return count, true
 }
 
-func ReadInode(btxn *buftxn.BufTxn, inum common.Inum) *Inode {
-	buffer := btxn.ReadBuf(inum2Addr(inum), common.INODESZ*8)
+func ReadInode(op *jrnl.BufTxn, inum common.Inum) *Inode {
+	buffer := op.ReadBuf(inum2Addr(inum), common.INODESZ*8)
 	ip := Decode(buffer, inum)
 	return ip
 }
@@ -124,10 +126,10 @@ func (ip *Inode) MkFattr() nfstypes.Fattr3 {
 	}
 }
 
-func inodeInit(btxn *buftxn.BufTxn) {
+func inodeInit(op *jrnl.BufTxn) {
 	for i := common.Inum(0); i < nInode(); i++ {
-		ip := ReadInode(btxn, i)
+		ip := ReadInode(op, i)
 		ip.Data = common.LOGSIZE + 1 + i
-		ip.WriteInode(btxn)
+		ip.WriteInode(op)
 	}
 }

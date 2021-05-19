@@ -4,9 +4,9 @@ import (
 	"github.com/mit-pdos/go-journal/addr"
 	"github.com/mit-pdos/go-journal/alloc"
 	"github.com/mit-pdos/go-journal/buf"
-	"github.com/mit-pdos/go-journal/buftxn"
 	"github.com/mit-pdos/go-journal/common"
-	"github.com/mit-pdos/go-journal/txn"
+	"github.com/mit-pdos/go-journal/jrnl"
+	"github.com/mit-pdos/go-journal/obj"
 	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/goose-nfsd/super"
 )
@@ -18,7 +18,7 @@ import (
 
 type AllocTxn struct {
 	Super      *super.FsSuper
-	Buftxn     *buftxn.BufTxn
+	Buftxn     *jrnl.BufTxn
 	Balloc     *alloc.Alloc
 	Ialloc     *alloc.Alloc
 	allocInums []common.Inum
@@ -27,10 +27,10 @@ type AllocTxn struct {
 	freeBnums  []common.Bnum
 }
 
-func Begin(super *super.FsSuper, txn *txn.Txn, balloc *alloc.Alloc, ialloc *alloc.Alloc) *AllocTxn {
+func Begin(super *super.FsSuper, log *obj.Log, balloc *alloc.Alloc, ialloc *alloc.Alloc) *AllocTxn {
 	atxn := &AllocTxn{
 		Super:      super,
-		Buftxn:     buftxn.Begin(txn),
+		Buftxn:     jrnl.Begin(log),
 		Ialloc:     ialloc,
 		Balloc:     balloc,
 		allocInums: make([]common.Inum, 0),
@@ -42,7 +42,7 @@ func Begin(super *super.FsSuper, txn *txn.Txn, balloc *alloc.Alloc, ialloc *allo
 }
 
 // Id returns a pointer to the BufTxn for debug printing only
-func (atxn *AllocTxn) Id() *buftxn.BufTxn {
+func (atxn *AllocTxn) Id() *jrnl.BufTxn {
 	return atxn.Buftxn
 }
 

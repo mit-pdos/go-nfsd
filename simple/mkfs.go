@@ -1,46 +1,46 @@
 package simple
 
 import (
+	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/go-journal/buftxn"
 	"github.com/mit-pdos/go-journal/lockmap"
-	"github.com/mit-pdos/go-journal/txn"
+	"github.com/mit-pdos/go-journal/obj"
 )
 
 type Nfs struct {
-	t *txn.Txn
+	t *obj.Log
 	l *lockmap.LockMap
 }
 
-func Mkfs(d disk.Disk) *txn.Txn {
-	txn := txn.MkTxn(d)
-	btxn := buftxn.Begin(txn)
-	inodeInit(btxn)
-	ok := btxn.CommitWait(true)
+func Mkfs(d disk.Disk) *obj.Log {
+	log := obj.MkTxn(d)
+	op := jrnl.Begin(log)
+	inodeInit(op)
+	ok := op.CommitWait(true)
 	if !ok {
 		return nil
 	}
-	return txn
+	return log
 }
 
 func Recover(d disk.Disk) *Nfs {
-	txn := txn.MkTxn(d) // runs recovery
+	log := obj.MkTxn(d) // runs recovery
 	lockmap := lockmap.MkLockMap()
 
 	nfs := &Nfs{
-		t: txn,
+		t: log,
 		l: lockmap,
 	}
 	return nfs
 }
 
 func MakeNfs(d disk.Disk) *Nfs {
-	txn := txn.MkTxn(d) // runs recovery
+	log := obj.MkTxn(d) // runs recovery
 
-	btxn := buftxn.Begin(txn)
-	inodeInit(btxn)
-	ok := btxn.CommitWait(true)
+	op := jrnl.Begin(log)
+	inodeInit(op)
+	ok := op.CommitWait(true)
 	if !ok {
 		return nil
 	}
@@ -48,7 +48,7 @@ func MakeNfs(d disk.Disk) *Nfs {
 	lockmap := lockmap.MkLockMap()
 
 	nfs := &Nfs{
-		t: txn,
+		t: log,
 		l: lockmap,
 	}
 

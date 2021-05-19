@@ -5,7 +5,7 @@ import (
 
 	"github.com/mit-pdos/go-journal/buf"
 	"github.com/mit-pdos/go-journal/common"
-	"github.com/mit-pdos/go-journal/txn"
+	"github.com/mit-pdos/go-journal/obj"
 	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/goose-nfsd/dir"
 	"github.com/mit-pdos/goose-nfsd/fstxn"
@@ -32,14 +32,14 @@ func MakeNfs(d disk.Disk) *Nfs {
 		d.Size(),
 		super.NBlockBitmap, super.NInodeBitmap, super.Maxaddr)
 
-	txn := txn.MkTxn(d) // runs recovery
+	log := obj.MkTxn(d) // runs recovery
 
 	i := readRootInode(super)
 	if i.Kind == 0 { // make a new file system?
 		makeFs(super)
 	}
 
-	st := fstxn.MkFsState(super, txn)
+	st := fstxn.MkFsState(super, log)
 	nfs := &Nfs{
 		fsstate:  st,
 		shrinkst: shrinker.MkShrinkerSt(st),
