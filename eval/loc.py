@@ -197,7 +197,7 @@ def get_multirow(df, index, col, f):
 
 def impl_to_latex(df):
     # set GoNFS lines of code to this text
-    df.iloc[len(df) - 2, 2] = "Not verified"
+    df.iloc[len(df) - 2, 2] = "\\emph{Not verified}"
     rows = []
     for index, row in df.iterrows():
         layer = row[0]
