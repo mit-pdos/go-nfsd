@@ -79,7 +79,7 @@ do_eval() {
 	echo 1>&2
 	info "Serial GoNFS (holding locks)"
 	pushd "$GO_JOURNAL_PATH"
-	git apply eval/serial.patch
+	git apply "$GOOSE_NFSD_PATH/eval/serial.patch"
 	popd
 
 	echo "fs=serial-gonfs"
