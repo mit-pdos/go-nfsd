@@ -10,9 +10,9 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
-	goose_nfs "github.com/mit-pdos/goose-nfsd"
 	"github.com/mit-pdos/goose-nfsd/fh"
-	nfstypes "github.com/mit-pdos/goose-nfsd/nfstypes"
+	goose_nfs "github.com/mit-pdos/goose-nfsd/nfs"
+	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 
 const (
@@ -70,7 +70,7 @@ func largeFile() {
 	t := time.Now()
 	elapsed := t.Sub(start)
 	tput := float64(FILESIZE/MB) / elapsed.Seconds()
-	fmt.Printf("largefile: %v MB througput %.2f MB/s\n", FILESIZE/MB, tput)
+	fmt.Printf("largefile: %v MB throughput %.2f MB/s\n", FILESIZE/MB, tput)
 
 	clnt.RemoveOp(dir, name)
 }

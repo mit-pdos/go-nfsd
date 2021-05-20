@@ -1,4 +1,4 @@
-package goose_nfs
+package nfs
 
 import (
 	"github.com/mit-pdos/go-journal/common"

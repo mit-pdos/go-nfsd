@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	goose_nfs "github.com/mit-pdos/goose-nfsd"
-	nfstypes "github.com/mit-pdos/goose-nfsd/nfstypes"
+	goose_nfs "github.com/mit-pdos/goose-nfsd/nfs"
+	"github.com/mit-pdos/goose-nfsd/nfstypes"
 )
 
 const BENCHDISKSZ uint64 = 100 * 1000

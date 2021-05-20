@@ -16,8 +16,8 @@ import (
 	"github.com/zeldovich/go-rpcgen/xdr"
 
 	"github.com/mit-pdos/go-journal/util"
-	goose_nfs "github.com/mit-pdos/goose-nfsd"
-	nfstypes "github.com/mit-pdos/goose-nfsd/nfstypes"
+	goose_nfs "github.com/mit-pdos/goose-nfsd/nfs"
+	"github.com/mit-pdos/goose-nfsd/nfstypes"
 	"github.com/mit-pdos/goose-nfsd/util/timed_disk"
 )
 
@@ -116,13 +116,13 @@ func main() {
 	if dumpStats {
 		d = timed_disk.New(d)
 	}
-	nfs := goose_nfs.MakeNfs(d)
-	nfs.Unstable = unstable
-	defer nfs.ShutdownNfs()
+	server := goose_nfs.MakeNfs(d)
+	server.Unstable = unstable
+	defer server.ShutdownNfs()
 
 	srv := rfc1057.MakeServer()
-	srv.RegisterMany(nfstypes.MOUNT_PROGRAM_MOUNT_V3_regs(nfs))
-	srv.RegisterMany(nfstypes.NFS_PROGRAM_NFS_V3_regs(nfs))
+	srv.RegisterMany(nfstypes.MOUNT_PROGRAM_MOUNT_V3_regs(server))
+	srv.RegisterMany(nfstypes.NFS_PROGRAM_NFS_V3_regs(server))
 
 	interruptSig := make(chan os.Signal, 1)
 	shutdown := false
@@ -132,7 +132,7 @@ func main() {
 		shutdown = true
 		listener.Close()
 		if dumpStats {
-			nfs.WriteOpStats(os.Stderr)
+			server.WriteOpStats(os.Stderr)
 			d.(*timed_disk.Disk).WriteStats(os.Stderr)
 		}
 	}()
@@ -142,7 +142,7 @@ func main() {
 	go func() {
 		for {
 			<-statSig
-			nfs.WriteOpStats(os.Stderr)
+			server.WriteOpStats(os.Stderr)
 		}
 	}()
 
