@@ -176,7 +176,9 @@ def array_to_latex_table(rows):
 
 
 def loc(x):
-    return "\\loc{" + str(x) + "}"
+    if isinstance(x, int):
+        return "\\loc{" + str(x) + "}"
+    return x
 
 
 def perennial_to_latex(df):
@@ -203,8 +205,8 @@ def impl_to_latex(df):
         layer = row[0]
         if layer.islower():
             layer = "\\textsc{" + layer + "}"
-        lines_c = row[1]
-        lines_p = row[2]
+        lines_c = loc(row[1])
+        lines_p = loc(row[2])
         # total hack to fix last two lines
         if index < len(df) - 3:
             ratio = get_multirow(df, index, 3, lambda x: x)
