@@ -7,91 +7,91 @@ red=$(tput setaf 1)
 reset=$(tput sgr0)
 
 info() {
-    echo -e "${blue}$1${reset}" 1>&2
+	echo -e "${blue}$1${reset}" 1>&2
 }
 
 error() {
-    echo -e "${red}$1${reset}" 1>&2
+	echo -e "${red}$1${reset}" 1>&2
 }
 
 if [ ! -d "$GOOSE_NFSD_PATH" ]; then
-    echo "\$GOOSE_NFSD_PATH is unset" 1>&2
-    exit 1
+	echo "\$GOOSE_NFSD_PATH is unset" 1>&2
+	exit 1
 fi
 
 if [ ! -d "$GO_JOURNAL_PATH" ]; then
-    echo "\$GO_JOURNAL_PATH is unset" 1>&2
-    exit 1
+	echo "\$GO_JOURNAL_PATH is unset" 1>&2
+	exit 1
 fi
 
 help() {
-    echo "Usage: $0 [-disk <disk file>] [threads]"
-    echo "disk defaults to ~/disk.img (assuming the root file system is on an SSD)"
-    echo "threads defaults to 10"
+	echo "Usage: $0 [-disk <disk file>] [threads]"
+	echo "disk defaults to ~/disk.img (assuming the root file system is on an SSD)"
+	echo "threads defaults to 10"
 }
 
 output_file="eval/data/scale-raw.txt"
 disk_file="$HOME/disk.img"
 while true; do
-    case "$1" in
-    -disk)
-        shift
-        disk_file="$1"
-        shift
-        ;;
-    -o | --output)
-        shift
-        output_file="$1"
-        shift
-        ;;
-    -help | --help)
-        help
-        exit 0
-        ;;
-    -*)
-        error "unexpected flag $1"
-        help
-        exit 1
-        ;;
-    *)
-        break
-        ;;
-    esac
+	case "$1" in
+	-disk)
+		shift
+		disk_file="$1"
+		shift
+		;;
+	-o | --output)
+		shift
+		output_file="$1"
+		shift
+		;;
+	-help | --help)
+		help
+		exit 0
+		;;
+	-*)
+		error "unexpected flag $1"
+		help
+		exit 1
+		;;
+	*)
+		break
+		;;
+	esac
 done
 
 threads=10
 if [[ $# -gt 0 ]]; then
-    threads="$1"
+	threads="$1"
 fi
 
 cd "$GOOSE_NFSD_PATH"
 
 do_eval() {
-    info "GoNFS smallfile scalability"
-    echo "fs=gonfs"
-    ./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
+	info "GoNFS smallfile scalability"
+	echo "fs=gonfs"
+	./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
 
-    echo 1>&2
-    info "Linux smallfile scalability"
-    echo "fs=linux"
-    ./bench/run-linux.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
+	echo 1>&2
+	info "Linux smallfile scalability"
+	echo "fs=linux"
+	./bench/run-linux.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
 
-    echo 1>&2
-    info "Serial GoNFS (holding locks)"
-    pushd "$GO_JOURNAL_PATH"
-    git apply eval/serial.patch
-    popd
+	echo 1>&2
+	info "Serial GoNFS (holding locks)"
+	pushd "$GO_JOURNAL_PATH"
+	git apply eval/serial.patch
+	popd
 
-    echo "fs=serial-gonfs"
-    ./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
+	echo "fs=serial-gonfs"
+	./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
 
-    pushd "$GO_JOURNAL_PATH"
-    git restore wal/installer.go wal/logger.go wal/wal.go
-    popd
+	pushd "$GO_JOURNAL_PATH"
+	git restore wal/installer.go wal/logger.go wal/wal.go
+	popd
 }
 
 if [ "$output_file" = "-" ]; then
-    do_eval
+	do_eval
 else
-    do_eval | tee "$output_file"
+	do_eval | tee "$output_file"
 fi
