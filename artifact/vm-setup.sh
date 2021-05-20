@@ -60,8 +60,9 @@ cd
 
 cat >>~/.profile <<EOF
 export GOOSE_NFSD_PATH=$HOME/goose-nfsd
-export GO_JOURNAL_PATH=$HOME/go-journal
 export PERENNIAL_PATH=$HOME/perennial
+
+export GO_JOURNAL_PATH=$HOME/code/go-journal
 export MARSHAL_PATH=$HOME/code/marshal
 export XV6_PATH=$HOME/code/xv6-public
 export GOOSE_PATH=$HOME/code/goose
