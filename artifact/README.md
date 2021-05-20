@@ -44,7 +44,7 @@ experiment. Less RAM also might work but could lower performance.
 The artifact concerns four claims in the paper:
 
 1. GoJournal's proof overhead is about 20x (in the tricky concurrent parts),
-   while SimpleNFS is only 7x. Measured by lines of code.
+   while SimpleNFS is only 8x. Measured by lines of code.
 2. The proofs for Perennial, GoJournal, and SimpleNFS are complete.
 3. GoJournal is functional when compared against ext3 (using journaled data and
    over NFS for a fair comparison). We demonstrate this by showing GoNFS gets
@@ -107,11 +107,7 @@ figure with `./bench.py data/bench-raw.txt && gnuplot bench.plot`.
 
 ### Check output
 
-Compare `data/lines-of-code.txt` to Figures 14 and 15 in the paper. The exact
-lines won't be the same because the code has changed slightly (and this artifact
-is automated differently from how the original data was gathered), but the
-numbers should generally line up and the overall conclusion about proof overhead
-still holds.
+Compare `data/lines-of-code.txt` to Figures 13 and 14 in the paper.
 
 The exact performance results will vary depending on your machine, and suffer
 slightly from being run in a VM.
@@ -161,7 +157,8 @@ for simplicity, but you can re-generate it from the go-nfsd code:
 
 ```sh
 cd ~/perennial
-rm -r external/Goose/github_com/mit_pdos/goose_nfsd
+rm -r external/Goose/github_com/mit_pdos/go_journal
+rm -r external/Goose/github_com/mit_pdos/go_nfsd
 ./etc/update-goose.py --goose $GOOSE_PATH --journal $GO_JOURNAL_PATH --nfsd $GO_NFSD_PATH --skip-goose-examples --verbose
 git status
 ```
