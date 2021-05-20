@@ -58,7 +58,10 @@ wait
 git clone --depth=1 https://github.com/linux-test-project/ltp
 cd
 
-cat >>~/.profile <<EOF
+# These are set in ~/.zshenv so that they are available even over ssh without a
+# login shell. This makes it so passing ssh the eval scripts to run
+# non-interactively works.
+cat >>~/.zshenv <<EOF
 export GO_NFSD_PATH=$HOME/go-nfsd
 export PERENNIAL_PATH=$HOME/perennial
 
@@ -68,8 +71,6 @@ export XV6_PATH=$HOME/code/xv6-public
 export GOOSE_PATH=$HOME/code/goose
 export LTP_PATH=$HOME/code/ltp
 EOF
-
-echo -e "\nsource ~/.profile" >>~/.zshrc
 
 # Set up NFS client and server
 
@@ -115,7 +116,7 @@ wget https://golang.org/dl/$GO_FILE
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf $GO_FILE
 rm $GO_FILE
 # shellcheck disable=2016
-echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >>~/.profile
+echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >>~/.zshenv
 export PATH=/usr/local/go/bin:$PATH
 
 go install github.com/tchajed/goose/cmd/goose@latest
@@ -156,6 +157,8 @@ if [ "$install_ocaml" = true ]; then
     if [ "$install_coq" = "true" ]; then
         opam install -y -j4 coq.8.13.2
     fi
+    # opam sets up .profile, so make sure it's sourced
+    echo -e "\nsource ~/.profile" >>~/.zshrc
 fi
 
 sudo apt clean

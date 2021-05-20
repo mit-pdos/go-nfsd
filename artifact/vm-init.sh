@@ -15,6 +15,7 @@ if [ ! -e ~/.oh-my-zsh ]; then
 fi
 sudo chsh -s /usr/bin/zsh "$USER"
 sed -i 's/ZSH_THEME=.*/ZSH_THEME="dst"/' ~/.zshrc
+rm ~/.bashrc
 
 sudo passwd -d "$USER"
 sudo sed -e 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/' -i /etc/ssh/sshd_config
