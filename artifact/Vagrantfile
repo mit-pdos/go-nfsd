@@ -22,20 +22,24 @@ Vagrant.configure("2") do |config|
   # support ssh -p 10322 vagrant@localhost to tunnel into guest
   config.vm.network "forwarded_port", guest: 22, host: 10322, host_ip: "127.0.0.1"
 
-  # Create a private network, which allows host-only access to the machine
-  # using a specific IP.
-  # config.vm.network "private_network", ip: "192.168.33.10"
-
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
   # Example for VirtualBox:
   #
   config.vm.provider "virtualbox" do |vb|
     vb.name = "gojournal-vm"
+
     vb.memory = 8192
     vb.cpus = 4
+
+    # Use Host I/O cache (speeds up disk performance)
     vb.customize ["storagectl", :id, "--name", "SATA Controller",
                   "--hostiocache", "on"]
+    # Mark disk as an SSD (enables TRIM support)
+    vb.customize ["storageattach", :id, "--storagectl", "SATA Controller",
+                  "--port", "0",
+                  "--discard", "on",
+                  "--nonrotational", "on"]
   end
   #
   # View the documentation for the provider you are using for more

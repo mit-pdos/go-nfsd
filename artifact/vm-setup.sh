@@ -160,3 +160,13 @@ fi
 
 sudo apt clean
 opam clean
+
+# zeroing the free space reduces the size of the exported disk
+#
+# it doesn't particularly help for the original vagrant image
+dd if=/dev/zero of=zeros bs=1M || true
+sync zeros
+rm zeros
+sync
+# wait in case ext4 needs to free in the background
+sleep 10
