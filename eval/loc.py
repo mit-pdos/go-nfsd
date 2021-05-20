@@ -172,7 +172,7 @@ def program_proof_table():
 
 def array_to_latex_table(rows):
     latex_rows = [" & ".join(str(x) for x in row) for row in rows]
-    return " \\\\ \n".join(latex_rows)
+    return " \\\\\n".join(latex_rows)
 
 
 def loc(x):
