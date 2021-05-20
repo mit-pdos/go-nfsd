@@ -89,7 +89,7 @@ do_eval() {
 	echo "fs=serial-gonfs"
 	./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
 
-	go mod edit -dropreplace github.com/mit-pdose/go-journal
+	go mod edit -dropreplace github.com/mit-pdos/go-journal
 	pushd "$GO_JOURNAL_PATH"
 	git restore wal/installer.go wal/logger.go wal/wal.go
 	popd
