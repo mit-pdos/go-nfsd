@@ -12,7 +12,7 @@ import pandas as pd
 
 
 def goto_path(var_prefix):
-    assert var_prefix in ["perennial", "goose_nfsd", "go_journal", "marshal"]
+    assert var_prefix in ["perennial", "go_nfsd", "go_journal", "marshal"]
     os.chdir(os.environ[var_prefix.upper() + "_PATH"])
 
 
@@ -75,9 +75,9 @@ def program_proof_table():
     misc_c = wc_l("addr/addr.go", "buf/buf.go", "buf/bufmap.go")
     goto_path("marshal")
     misc_c += wc_l("marshal.go")
-    goto_path("goose_nfsd")
+    goto_path("go_nfsd")
     go_nfs_c = wc_l(
-        *"""lorder.go mount.go nfs.go nfs_ls.go nfs_ops.go alloc/alloc.go
+        *"""nfs/*.go alloc/alloc.go
         alloctxn/alloctxn.go cache/cache.go cmd/go-nfsd/main.go
         common/common.go dcache/dcache.go dir/dir.go dir/dcache.go fh/nfs_fh.go
         fstxn/*.go inode/* shrinker/shrinker.go super/super.go
@@ -112,13 +112,19 @@ def program_proof_table():
     )
     simple_p = wc_l("simple/*.v")
 
+    # note that the table uses -1 as a sentinel for missing data; these are
+    # converted to proper pandas missing records at the end, then printed as "-"
+
     def ratio(n, m):
         if m == 0:
-            return 0
+            return -1
         return int(float(n) / m)
 
     def entry(name, code, proof):
         return (name, code, proof, ratio(proof, code))
+
+    def entry_nocode(name, proof):
+        return (name, -1, proof, -1)
 
     schema = [
         ("layer", "U25"),
@@ -130,21 +136,16 @@ def program_proof_table():
     data = np.array(
         [
             entry("circular", circ_c, circ_p),
-            ("wal-sts", wal_c, wal_p, 0),
-            ("wal", 0, wal_heapspec_p, ratio(wal_p + wal_heapspec_p, wal_c)),
+            ("wal-sts", wal_c, wal_p, ratio(wal_p + wal_heapspec_p, wal_c)),
+            entry_nocode("wal", wal_heapspec_p),
             entry("txn", txn_c, txn_p),
             (
                 "jrnl-sts",
                 jrnl_c,
                 jrnl_p,
-                0,
-            ),
-            (
-                "jrnl",
-                0,
-                sep_jrnl_p,
                 ratio(jrnl_p + sep_jrnl_p, jrnl_c),
             ),
+            entry_nocode("jrnl", sep_jrnl_p),
             entry("lockmap", lockmap_c, lockmap_p),
             entry("Misc.", misc_c, misc_p),
         ],
@@ -158,14 +159,14 @@ def program_proof_table():
             np.array(
                 [
                     entry("GoJournal total", total_c, total_p),
-                    entry("GoNFS", go_nfs_c, 0),
+                    ("GoNFS", go_nfs_c, -1, -1),
                     entry("SimpleNFS", simple_c, simple_p),
                 ],
                 dtype=schema,
             )
         ),
         ignore_index=True,
-    )
+    ).replace(-1, pd.NA)
     return df
 
 
@@ -174,4 +175,4 @@ print(jrnl_cert_table().to_string(index=False))
 print()
 
 print("~ Fig 15 (lines of code for GoJournal and SimpleNFS)")
-print(program_proof_table().to_string(index=False))
+print(program_proof_table().fillna("-").to_string(index=False))
