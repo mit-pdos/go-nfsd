@@ -11,11 +11,11 @@ info() {
     echo -e "${blue}$1${reset}"
 }
 
-info "goose-nfsd"
-./bench/run-goose-nfs.sh -disk "/dev/shm/disk.img" -unstable=true ./fs-largefile
-./bench/run-goose-nfs.sh -disk "/dev/shm/disk.img" -unstable=false ./fs-largefile
-./bench/run-goose-nfs.sh -disk "" -unstable=true ./fs-largefile
-./bench/run-goose-nfs.sh -disk "" -unstable=false ./fs-largefile
+info "go-nfsd"
+./bench/run-go-nfsd.sh -disk "/dev/shm/disk.img" -unstable=true ./fs-largefile
+./bench/run-go-nfsd.sh -disk "/dev/shm/disk.img" -unstable=false ./fs-largefile
+./bench/run-go-nfsd.sh -disk "" -unstable=true ./fs-largefile
+./bench/run-go-nfsd.sh -disk "" -unstable=false ./fs-largefile
 
 echo
 info "Linux (ext4)"

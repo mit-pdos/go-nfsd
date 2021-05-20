@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/mit-pdos/goose-nfsd/util/stats"
+	"github.com/mit-pdos/go-nfsd/util/stats"
 )
 
 const NUM_NFS_OPS = 22

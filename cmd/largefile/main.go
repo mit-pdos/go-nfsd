@@ -10,9 +10,9 @@ import (
 
 	"github.com/tchajed/goose/machine/disk"
 
-	"github.com/mit-pdos/goose-nfsd/fh"
-	goose_nfs "github.com/mit-pdos/goose-nfsd/nfs"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/fh"
+	go_nfs "github.com/mit-pdos/go-nfsd/nfs"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 const (
@@ -47,7 +47,7 @@ func mkdata(sz uint64) []byte {
 
 func largeFile() {
 	data := mkdata(WSIZE)
-	clnt := goose_nfs.MkNfsClient(BENCHDISKSZ)
+	clnt := go_nfs.MkNfsClient(BENCHDISKSZ)
 	defer clnt.Shutdown()
 	dir := fh.MkRootFh3()
 

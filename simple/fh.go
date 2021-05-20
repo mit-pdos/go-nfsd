@@ -4,7 +4,7 @@ import (
 	"github.com/tchajed/marshal"
 
 	"github.com/mit-pdos/go-journal/common"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 type Fh struct {

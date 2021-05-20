@@ -20,8 +20,8 @@ sudo passwd -d "$USER"
 sudo sed -e 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/' -i /etc/ssh/sshd_config
 sudo systemctl restart sshd
 
-if [ ! -e goose-nfsd ]; then
-    git clone https://github.com/mit-pdos/goose-nfsd
+if [ ! -e go-nfsd ]; then
+    git clone https://github.com/mit-pdos/go-nfsd
 fi
 
 git config --global pull.ff only

@@ -16,9 +16,9 @@ import (
 	"github.com/zeldovich/go-rpcgen/xdr"
 
 	"github.com/mit-pdos/go-journal/util"
-	goose_nfs "github.com/mit-pdos/goose-nfsd/nfs"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
-	"github.com/mit-pdos/goose-nfsd/util/timed_disk"
+	go_nfs "github.com/mit-pdos/go-nfsd/nfs"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/util/timed_disk"
 )
 
 func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
@@ -116,7 +116,7 @@ func main() {
 	if dumpStats {
 		d = timed_disk.New(d)
 	}
-	server := goose_nfs.MakeNfs(d)
+	server := go_nfs.MakeNfs(d)
 	server.Unstable = unstable
 	defer server.ShutdownNfs()
 

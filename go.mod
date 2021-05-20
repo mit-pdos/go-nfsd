@@ -1,4 +1,4 @@
-module github.com/mit-pdos/goose-nfsd
+module github.com/mit-pdos/go-nfsd
 
 go 1.14
 

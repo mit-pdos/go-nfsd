@@ -3,7 +3,7 @@
 set -eu
 
 #
-# Usage:  ./start-goose-nfs.sh <arguments>
+# Usage:  ./start-go-nfsd.sh <arguments>
 #
 # default disk is /dev/shm/goose.img but can be overriden by passing -disk again
 #
@@ -33,8 +33,8 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-go build ./cmd/goose-nfsd
-./goose-nfsd -disk /dev/shm/goose.img "${extra_args[@]}" >nfs.out 2>&1 &
+go build ./cmd/go-nfsd
+./go-nfsd -disk /dev/shm/goose.img "${extra_args[@]}" >nfs.out 2>&1 &
 sleep 2
-killall -0 goose-nfsd # make sure server is running
+killall -0 go-nfsd # make sure server is running
 sudo mount -t nfs -o "$nfs_mount_opts" localhost:/ /mnt/nfs

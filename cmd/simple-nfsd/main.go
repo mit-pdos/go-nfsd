@@ -12,7 +12,7 @@ import (
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
 
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 func pmap_set_unset(prog, vers, port uint32, setit bool) bool {

@@ -3,7 +3,7 @@ package dir
 import (
 	"testing"
 
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 	"github.com/zeldovich/go-rpcgen/xdr"
 )
 

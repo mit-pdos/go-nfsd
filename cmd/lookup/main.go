@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	goose_nfs "github.com/mit-pdos/goose-nfsd/nfs"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	go_nfs "github.com/mit-pdos/go-nfsd/nfs"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 const BENCHDISKSZ uint64 = 100 * 1000
@@ -30,7 +30,7 @@ func main() {
 	PLookup()
 }
 
-func Lookup(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3, name string) {
+func Lookup(clnt *go_nfs.NfsClient, dirfh nfstypes.Nfs_fh3, name string) {
 	reply := clnt.LookupOp(dirfh, name)
 	if reply.Status != nfstypes.NFS3_OK {
 		panic("Lookup")
@@ -46,8 +46,8 @@ func PLookup() {
 	const N = 1 * time.Second
 	const NTHREAD = 4
 	for i := 1; i <= NTHREAD; i++ {
-		res := goose_nfs.Parallel(i, BENCHDISKSZ,
-			func(clnt *goose_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) int {
+		res := go_nfs.Parallel(i, BENCHDISKSZ,
+			func(clnt *go_nfs.NfsClient, dirfh nfstypes.Nfs_fh3) int {
 				s := strconv.Itoa(i)
 				name := "x" + s
 				clnt.CreateOp(dirfh, name)

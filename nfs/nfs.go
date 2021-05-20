@@ -7,12 +7,12 @@ import (
 	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/obj"
 	"github.com/mit-pdos/go-journal/util"
-	"github.com/mit-pdos/goose-nfsd/dir"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
-	"github.com/mit-pdos/goose-nfsd/inode"
-	"github.com/mit-pdos/goose-nfsd/shrinker"
-	"github.com/mit-pdos/goose-nfsd/super"
-	"github.com/mit-pdos/goose-nfsd/util/stats"
+	"github.com/mit-pdos/go-nfsd/dir"
+	"github.com/mit-pdos/go-nfsd/fstxn"
+	"github.com/mit-pdos/go-nfsd/inode"
+	"github.com/mit-pdos/go-nfsd/shrinker"
+	"github.com/mit-pdos/go-nfsd/super"
+	"github.com/mit-pdos/go-nfsd/util/stats"
 )
 
 type Nfs struct {

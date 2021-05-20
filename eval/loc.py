@@ -2,7 +2,7 @@
 
 # Produce data for figures 14 and 15 (lines of code).
 #
-# To run this script, set PERENNIAL_PATH, GOOSE_NFSD_PATH, and MARSHAL_PATH to
+# To run this script, set PERENNIAL_PATH, GO_NFSD_PATH, and MARSHAL_PATH to
 # checkouts of those three projects.
 
 import glob
@@ -78,7 +78,7 @@ def program_proof_table():
     goto_path("goose_nfsd")
     go_nfs_c = wc_l(
         *"""lorder.go mount.go nfs.go nfs_ls.go nfs_ops.go alloc/alloc.go
-        alloctxn/alloctxn.go cache/cache.go cmd/goose-nfsd/main.go
+        alloctxn/alloctxn.go cache/cache.go cmd/go-nfsd/main.go
         common/common.go dcache/dcache.go dir/dir.go dir/dcache.go fh/nfs_fh.go
         fstxn/*.go inode/* shrinker/shrinker.go super/super.go
         txn/txn.go util/util.go""".split()

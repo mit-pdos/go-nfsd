@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #
-# Usage:  ./run-goose-nfs.sh  go run ./cmd/fs-smallfile/main.go
+# Usage:  ./run-go-nfsd.sh  go run ./cmd/fs-smallfile/main.go
 #
 
-# taskset 0xc go run ./cmd/goose-nfsd/ -disk /dev/shm/goose.img &
+# taskset 0xc go run ./cmd/go-nfsd/ -disk /dev/shm/goose.img &
 
-# go run ./cmd/goose-nfsd/ -disk /dev/shm/goose.img -cpuprofile=nfsd.prof &
+# go run ./cmd/go-nfsd/ -disk /dev/shm/goose.img -cpuprofile=nfsd.prof &
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 # root of repo
@@ -51,13 +51,13 @@ if [ -e "$disk_file" ]; then
 fi
 
 if [ -z "$cpu_list" ]; then
-    ./bench/start-goose-nfs.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
+    ./bench/start-go-nfsd.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
 else
-    taskset --cpu-list "$cpu_list" ./bench/start-goose-nfs.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
+    taskset --cpu-list "$cpu_list" ./bench/start-go-nfsd.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
 fi
 
 function cleanup {
-    ./bench/stop-goose-nfs.sh
+    ./bench/stop-go-nfsd.sh
     if [ -f "$disk_file" ]; then
         rm -f "$disk_file"
     fi
@@ -65,6 +65,6 @@ function cleanup {
 trap cleanup EXIT
 
 # taskset 0x3 $1 /mnt/nfs
-echo "# goose-nfsd -disk $disk_file ${extra_args[*]}"
+echo "# go-nfsd -disk $disk_file ${extra_args[*]}"
 echo "run $*" 1>&2
 "$@"

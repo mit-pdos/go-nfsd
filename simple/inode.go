@@ -8,7 +8,7 @@ import (
 	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/mit-pdos/go-journal/util"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 type Inode struct {

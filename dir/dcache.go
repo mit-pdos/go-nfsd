@@ -2,10 +2,10 @@ package dir
 
 import (
 	"github.com/mit-pdos/go-journal/common"
-	"github.com/mit-pdos/goose-nfsd/dcache"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
-	"github.com/mit-pdos/goose-nfsd/inode"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/dcache"
+	"github.com/mit-pdos/go-nfsd/fstxn"
+	"github.com/mit-pdos/go-nfsd/inode"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 func mkDcache(dip *inode.Inode, op *fstxn.FsTxn) {

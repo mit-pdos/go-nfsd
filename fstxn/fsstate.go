@@ -5,8 +5,8 @@ import (
 	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/lockmap"
 	"github.com/mit-pdos/go-journal/obj"
-	"github.com/mit-pdos/goose-nfsd/cache"
-	"github.com/mit-pdos/goose-nfsd/super"
+	"github.com/mit-pdos/go-nfsd/cache"
+	"github.com/mit-pdos/go-nfsd/super"
 )
 
 const ICACHESZ uint64 = 100

@@ -17,10 +17,10 @@ import (
 	"testing"
 
 	"github.com/mit-pdos/go-journal/common"
-	"github.com/mit-pdos/goose-nfsd/dir"
-	"github.com/mit-pdos/goose-nfsd/fh"
-	"github.com/mit-pdos/goose-nfsd/inode"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/dir"
+	"github.com/mit-pdos/go-nfsd/fh"
+	"github.com/mit-pdos/go-nfsd/inode"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 
 	"github.com/stretchr/testify/assert"
 )

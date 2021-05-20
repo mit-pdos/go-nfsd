@@ -6,7 +6,7 @@ import (
 
 	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/util"
-	"github.com/mit-pdos/goose-nfsd/alloctxn"
+	"github.com/mit-pdos/go-nfsd/alloctxn"
 )
 
 //

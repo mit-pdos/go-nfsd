@@ -47,8 +47,8 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-if [ ! -d "$GOOSE_NFSD_PATH" ]; then
-    echo "GOOSE_NFSD_PATH is unset" 1>&2
+if [ ! -d "$GO_NFSD_PATH" ]; then
+    echo "GO_NFSD_PATH is unset" 1>&2
     exit 1
 fi
 if [ ! -d "$XV6_PATH" ]; then
@@ -56,14 +56,14 @@ if [ ! -d "$XV6_PATH" ]; then
     exit 1
 fi
 
-cd "$GOOSE_NFSD_PATH"
+cd "$GO_NFSD_PATH"
 
 do_eval() {
     info "GoNFS"
     echo "fs=gonfs"
-    ./bench/run-goose-nfs.sh -unstable=false -disk "" go run ./cmd/fs-smallfile -benchtime=20s
-    ./bench/run-goose-nfs.sh -unstable=false -disk "" go run ./cmd/fs-largefile
-    ./bench/run-goose-nfs.sh -unstable=false -disk "" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+    ./bench/run-go-nfsd.sh -unstable=false -disk "" go run ./cmd/fs-smallfile -benchtime=20s
+    ./bench/run-go-nfsd.sh -unstable=false -disk "" go run ./cmd/fs-largefile
+    ./bench/run-go-nfsd.sh -unstable=false -disk "" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
     echo 1>&2
     info "Linux ext4 over NFS"
@@ -76,14 +76,14 @@ do_eval() {
         echo 1>&2
         info "GoNFS (SSD)"
         echo "fs=gonfs-ssd"
-        ./bench/run-goose-nfs.sh -unstable=false -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
-        ./bench/run-goose-nfs.sh -unstable=false -disk "$ssd_file" go run ./cmd/fs-largefile
-        ./bench/run-goose-nfs.sh -unstable=false -disk "$ssd_file" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+        ./bench/run-go-nfsd.sh -unstable=false -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
+        ./bench/run-go-nfsd.sh -unstable=false -disk "$ssd_file" go run ./cmd/fs-largefile
+        ./bench/run-go-nfsd.sh -unstable=false -disk "$ssd_file" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
         echo "fs=gonfs-ssd-unstable"
-        ./bench/run-goose-nfs.sh -unstable=true -disk "$ssd_file" go run ./cmd/fs-largefile
+        ./bench/run-go-nfsd.sh -unstable=true -disk "$ssd_file" go run ./cmd/fs-largefile
         echo "fs=gonfs-ssd-unstable-sync"
-        ./bench/run-goose-nfs.sh -unstable=true -nfs-mount-opts "sync" -disk "$ssd_file" go run ./cmd/fs-largefile
+        ./bench/run-go-nfsd.sh -unstable=true -nfs-mount-opts "sync" -disk "$ssd_file" go run ./cmd/fs-largefile
 
         echo 1>&2
         info "Linux ext4 over NFS (SSD)"

@@ -1,7 +1,7 @@
 package simple
 
 import (
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 
 	"log"
 )

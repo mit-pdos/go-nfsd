@@ -37,21 +37,21 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-if [ ! -d "$GOOSE_NFSD_PATH" ]; then
-    echo "GOOSE_NFSD_PATH is unset" 1>&2
+if [ ! -d "$GO_NFSD_PATH" ]; then
+    echo "GO_NFSD_PATH is unset" 1>&2
     exit 1
 fi
 
-cd "$GOOSE_NFSD_PATH"
+cd "$GO_NFSD_PATH"
 
 info "GoNFS (smallfile)"
 echo "#GoNFS (smallfile)" >eval/data/gonfs-latencies.txt
-./bench/run-goose-nfs.sh -stats true -unstable=false -disk "" go run ./cmd/fs-smallfile -benchtime=20s
+./bench/run-go-nfsd.sh -stats true -unstable=false -disk "" go run ./cmd/fs-smallfile -benchtime=20s
 cat nfs.out >>eval/data/gonfs-latencies.txt
 
 info "GoNFS (null)"
 echo "#GoNFS (null)" >>eval/data/gonfs-latencies.txt
-./bench/run-goose-nfs.sh -stats true -unstable=false -disk "" go run ./cmd/clnt-null -benchtime=20s >>eval/data/gonfs-latencies.txt
+./bench/run-go-nfsd.sh -stats true -unstable=false -disk "" go run ./cmd/clnt-null -benchtime=20s >>eval/data/gonfs-latencies.txt
 
 info "\n\nResults: "
 cat eval/data/gonfs-latencies.txt
@@ -80,7 +80,7 @@ if [ -n "$ssd_file" ]; then
     echo 1>&2
     info "GoNFS (SSD)"
     echo "fs=gonfs-ssd"
-    ./bench/run-goose-nfs.sh -stats true -unstable=false -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
+    ./bench/run-go-nfsd.sh -stats true -unstable=false -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
     cat nfs.out >eval/data/gonfs-disk-latencies.txt
     cat eval/data/gonfs-disk-latencies.txt
 

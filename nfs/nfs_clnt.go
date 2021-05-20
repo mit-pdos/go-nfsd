@@ -3,8 +3,8 @@ package nfs
 import (
 	"strconv"
 
-	"github.com/mit-pdos/goose-nfsd/fh"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/fh"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 	"github.com/tchajed/goose/machine/disk"
 )
 

@@ -3,7 +3,7 @@ package nfs
 import (
 	"testing"
 
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 	"github.com/stretchr/testify/assert"
 )
 

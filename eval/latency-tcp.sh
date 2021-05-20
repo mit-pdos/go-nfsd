@@ -37,21 +37,21 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-if [ ! -d "$GOOSE_NFSD_PATH" ]; then
-    echo "GOOSE_NFSD_PATH is unset" 1>&2
+if [ ! -d "$GO_NFSD_PATH" ]; then
+    echo "GO_NFSD_PATH is unset" 1>&2
     exit 1
 fi
 
-cd "$GOOSE_NFSD_PATH"
+cd "$GO_NFSD_PATH"
 
-DATA_PATH=$GOOSE_NFSD_PATH/eval/data
+DATA_PATH=$GO_NFSD_PATH/eval/data
 #chmod 777 $DATA_PATH
 TMP=/tmp
 
 info "GoNFS (smallfile)"
 echo "#GoNFS (smallfile)" >$DATA_PATH/gonfs-latencies-tcp.txt
 sudo tshark -i lo -f tcp -w $TMP/gonfs-smallfile.pcap &
-./bench/run-goose-nfs.sh -stats true -unstable=false -disk "" go run ./cmd/fs-smallfile -benchtime=20s
+./bench/run-go-nfsd.sh -stats true -unstable=false -disk "" go run ./cmd/fs-smallfile -benchtime=20s
 sleep 1
 sudo killall tshark
 sleep 1
@@ -60,7 +60,7 @@ sudo tshark -Tfields -e 'nfs.procedure_v3' -e 'rpc.time' -r $TMP/gonfs-smallfile
 info "GoNFS (null)"
 echo "#GoNFS (null)" >>$DATA_PATH/gonfs-latencies-tcp.txt
 sudo tshark -i lo -f tcp -w $TMP/gonfs-null.pcap &
-./bench/run-goose-nfs.sh -stats true -unstable=false -disk "" go run ./cmd/clnt-null -benchtime=20s
+./bench/run-go-nfsd.sh -stats true -unstable=false -disk "" go run ./cmd/clnt-null -benchtime=20s
 sleep 1
 sudo killall tshark
 sleep 1

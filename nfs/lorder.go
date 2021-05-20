@@ -5,11 +5,11 @@ import (
 
 	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/util"
-	"github.com/mit-pdos/goose-nfsd/dir"
-	"github.com/mit-pdos/goose-nfsd/fh"
-	"github.com/mit-pdos/goose-nfsd/fstxn"
-	"github.com/mit-pdos/goose-nfsd/inode"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/dir"
+	"github.com/mit-pdos/go-nfsd/fh"
+	"github.com/mit-pdos/go-nfsd/fstxn"
+	"github.com/mit-pdos/go-nfsd/inode"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 // Lock inodes in sorted order, but return the pointers in the same order as in inums

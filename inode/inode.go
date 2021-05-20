@@ -10,9 +10,9 @@ import (
 	"github.com/mit-pdos/go-journal/buf"
 	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/util"
-	"github.com/mit-pdos/goose-nfsd/alloctxn"
-	"github.com/mit-pdos/goose-nfsd/dcache"
-	"github.com/mit-pdos/goose-nfsd/nfstypes"
+	"github.com/mit-pdos/go-nfsd/alloctxn"
+	"github.com/mit-pdos/go-nfsd/dcache"
+	"github.com/mit-pdos/go-nfsd/nfstypes"
 )
 
 const NF3FREE nfstypes.Ftype3 = 0

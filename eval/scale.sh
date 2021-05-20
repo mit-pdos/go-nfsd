@@ -14,8 +14,8 @@ error() {
 	echo -e "${red}$1${reset}" 1>&2
 }
 
-if [ ! -d "$GOOSE_NFSD_PATH" ]; then
-	echo "\$GOOSE_NFSD_PATH is unset" 1>&2
+if [ ! -d "$GO_NFSD_PATH" ]; then
+	echo "\$GO_NFSD_PATH is unset" 1>&2
 	exit 1
 fi
 
@@ -64,12 +64,12 @@ if [[ $# -gt 0 ]]; then
 	threads="$1"
 fi
 
-cd "$GOOSE_NFSD_PATH"
+cd "$GO_NFSD_PATH"
 
 do_eval() {
 	info "GoNFS smallfile scalability"
 	echo "fs=gonfs"
-	./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
+	./bench/run-go-nfsd.sh -disk "$disk_file" go run ./cmd/fs-smallfile -threads="$threads"
 
 	echo 1>&2
 	info "Linux smallfile scalability"
@@ -81,13 +81,13 @@ do_eval() {
 
 	# we change the local checkout of go-journal
 	pushd "$GO_JOURNAL_PATH"
-	git apply "$GOOSE_NFSD_PATH/eval/serial.patch"
+	git apply "$GO_NFSD_PATH/eval/serial.patch"
 	popd
-	# ... and then also point goose-nfsd to the local version
+	# ... and then also point go-nfsd to the local version
 	go mod edit -replace github.com/mit-pdos/go-journal="$GO_JOURNAL_PATH"
 
 	echo "fs=serial-gonfs"
-	./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
+	./bench/run-go-nfsd.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
 
 	go mod edit -dropreplace github.com/mit-pdos/go-journal
 	pushd "$GO_JOURNAL_PATH"

@@ -39,9 +39,9 @@ sudo apt-get install -y git python3-pip wget unzip psmisc sudo time
 
 # Get source code
 
-## assumes https://github.com/mit-pdos/goose-nfsd has already been cloned to
-## ~/goose-nfsd (since this is the easiest way to run this script)
-ln -s ~/goose-nfsd/artifact ~/artifact
+## assumes https://github.com/mit-pdos/go-nfsd has already been cloned to
+## ~/go-nfsd (since this is the easiest way to run this script)
+ln -s ~/go-nfsd/artifact ~/artifact
 
 git clone \
     --branch osdi21 \
@@ -59,7 +59,7 @@ git clone --depth=1 https://github.com/linux-test-project/ltp
 cd
 
 cat >>~/.profile <<EOF
-export GOOSE_NFSD_PATH=$HOME/goose-nfsd
+export GO_NFSD_PATH=$HOME/go-nfsd
 export PERENNIAL_PATH=$HOME/perennial
 
 export GO_JOURNAL_PATH=$HOME/code/go-journal
@@ -85,7 +85,7 @@ echo "/srv/nfs/bench localhost(rw,sync,no_subtree_check,fsid=0)" | sudo tee -a /
 sudo systemctl enable rpcbind
 sudo systemctl enable rpc-statd
 sudo systemctl disable nfs-server
-# can't run goose-nfsd and Linux NFS server at the same time
+# can't run go-nfsd and Linux NFS server at the same time
 sudo systemctl stop nfs-server
 sudo systemctl start rpcbind
 sudo systemctl start rpc-statd
@@ -119,17 +119,17 @@ echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >>~/.profile
 export PATH=/usr/local/go/bin:$PATH
 
 go install github.com/tchajed/goose/cmd/goose@latest
-# these are required in $GOPATH for goose to compile goose-nfsd
+# these are required in $GOPATH for goose to compile go-nfsd
 export GOPATH=$HOME/go
 export GO111MODULE=off
 go get github.com/tchajed/goose/...
 go get github.com/mit-pdos/go-journal/...
-go get github.com/mit-pdos/goose-nfsd/...
+go get github.com/mit-pdos/go-nfsd/...
 export GO111MODULE=on
 
-cd ~/goose-nfsd
+cd ~/go-nfsd
 # fetch dependencies
-go build ./cmd/goose-nfsd && rm goose-nfsd
+go build ./cmd/go-nfsd && rm go-nfsd
 cd
 
 # Install Coq
