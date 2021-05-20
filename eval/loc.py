@@ -172,12 +172,29 @@ def program_proof_table():
 
 def array_to_latex_table(rows):
     latex_rows = [" & ".join(str(x) for x in row) for row in rows]
-    return " \\\\\n".join(latex_rows)
+    latex = ""
+    for index, row in enumerate(latex_rows):
+        latex += row
+        if index == len(latex_rows) - 1:
+            # at end, don't do anything
+            pass
+        elif row == "\midrule":
+            # hack to make \midrule work
+            latex += "\n"
+        else:
+            latex += " \\\\\n"
+    return latex
 
 
 def loc(x):
     if isinstance(x, int):
         return "\\loc{" + str(x) + "}"
+    return x
+
+
+def latex_ratio(x):
+    if isinstance(x, int):
+        return f"${x}\\times$"
     return x
 
 
@@ -208,10 +225,12 @@ def impl_to_latex(df):
         lines_c = loc(row[1])
         lines_p = loc(row[2])
         # total hack to fix last two lines
+        if index == len(df) - 2:
+            rows.append(["\\midrule"])
         if index < len(df) - 3:
-            ratio = get_multirow(df, index, 3, lambda x: x)
+            ratio = get_multirow(df, index, 3, latex_ratio)
         else:
-            ratio = row[3]
+            ratio = latex_ratio(row[3])
         rows.append([layer, lines_c, lines_p, ratio])
     return array_to_latex_table(rows)
 
