@@ -78,13 +78,18 @@ do_eval() {
 
 	echo 1>&2
 	info "Serial GoNFS (holding locks)"
+
+	# we change the local checkout of go-journal
 	pushd "$GO_JOURNAL_PATH"
 	git apply "$GOOSE_NFSD_PATH/eval/serial.patch"
 	popd
+	# ... and then also point goose-nfsd to the local version
+	go mod edit -replace github.com/mit-pdos/go-journal="$GO_JOURNAL_PATH"
 
 	echo "fs=serial-gonfs"
 	./bench/run-goose-nfs.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
 
+	go mod edit -dropreplace github.com/mit-pdose/go-journal
 	pushd "$GO_JOURNAL_PATH"
 	git restore wal/installer.go wal/logger.go wal/wal.go
 	popd
