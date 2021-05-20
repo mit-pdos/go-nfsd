@@ -12,7 +12,7 @@ import pandas as pd
 
 
 def goto_path(var_prefix):
-    assert var_prefix in ["perennial", "goose_nfsd", "marshal"]
+    assert var_prefix in ["perennial", "goose_nfsd", "go_journal", "marshal"]
     os.chdir(os.environ[var_prefix.upper() + "_PATH"])
 
 
@@ -63,15 +63,14 @@ def jrnl_cert_table():
 
 
 def program_proof_table():
-    """Generate figure 15 (lines of code for GoJrnl and SimpleNFS)"""
+    """Generate figure 15 (lines of code for GoJournal and SimpleNFS)"""
 
-    # get all lines of code from goose-nfsd
-    goto_path("goose_nfsd")
+    # get all lines of code from go-journal
+    goto_path("go_journal")
     circ_c = wc_l("wal/0circular.go")
     wal_c = wc_l("wal/*.go") - circ_c - wc_l("wal/*_test.go")
-    txn_c = wc_l("txn/txn.go")
-    buftxn_c = wc_l("buftxn/buftxn.go")
-    sep_buftxn_c = 0
+    txn_c = wc_l("obj/obj.go")
+    jrnl_c = wc_l("jrnl/jrnl.go")
     lockmap_c = wc_l("lockmap/lock.go")
     misc_c = wc_l("addr/addr.go", "buf/buf.go", "buf/bufmap.go")
     goto_path("marshal")
@@ -90,15 +89,18 @@ def program_proof_table():
     goto_path("perennial")
     os.chdir("src/program_proof")
     circ_p = wc_l("wal/circ_proof*.v")
+    wal_heapspec_p = wc_l("wal/heapspec.v") + wc_l("wal/heapspec_lib.v")
     wal_p = (
         wc_l("wal/*.v")
-        - wc_l("wal/circ_proof*.v")
+        # don't double-count
+        - circ_p
+        - wal_heapspec_p
         # just an experiment, not used
         - wc_l("wal/heapspec_list.v")
     )
     txn_p = wc_l("txn/*.v")
-    buftxn_p = wc_l("buftxn/buftxn_proof.v")
-    sep_buftxn_p = wc_l("buftxn/sep_buftxn_*.v")
+    jrnl_p = wc_l("buftxn/buftxn_proof.v")
+    sep_jrnl_p = wc_l("buftxn/sep_buftxn_*.v")
     lockmap_p = wc_l("*lockmap_proof.v")
     misc_p = wc_l(
         "addr/*.v",
@@ -128,19 +130,20 @@ def program_proof_table():
     data = np.array(
         [
             entry("circular", circ_c, circ_p),
-            entry("wal", wal_c, wal_p),
+            ("wal-sts", wal_c, wal_p, 0),
+            ("wal", 0, wal_heapspec_p, ratio(wal_p + wal_heapspec_p, wal_c)),
             entry("txn", txn_c, txn_p),
             (
-                "buftxn",
-                buftxn_c,
-                buftxn_p,
+                "jrnl-sts",
+                jrnl_c,
+                jrnl_p,
                 0,
             ),
             (
-                "sepbuftxn",
-                sep_buftxn_c,
-                sep_buftxn_p,
-                ratio(buftxn_p + sep_buftxn_p, buftxn_c),
+                "jrnl",
+                0,
+                sep_jrnl_p,
+                ratio(jrnl_p + sep_jrnl_p, jrnl_c),
             ),
             entry("lockmap", lockmap_c, lockmap_p),
             entry("Misc.", misc_c, misc_p),
@@ -154,7 +157,7 @@ def program_proof_table():
         pd.DataFrame.from_records(
             np.array(
                 [
-                    entry("GoJrnl total", total_c, total_p),
+                    entry("GoJournal total", total_c, total_p),
                     entry("GoNFS", go_nfs_c, 0),
                     entry("SimpleNFS", simple_c, simple_p),
                 ],
@@ -166,9 +169,9 @@ def program_proof_table():
     return df
 
 
-print("~ Fig 14 (lines of code in JrnlCert)")
+print("~ Fig 14 (lines of code in Perennial)")
 print(jrnl_cert_table().to_string(index=False))
 print()
 
-print("~ Fig 15 (lines of code for GoJrnl and SimpleNFS)")
+print("~ Fig 15 (lines of code for GoJournal and SimpleNFS)")
 print(program_proof_table().to_string(index=False))
