@@ -7,6 +7,7 @@
 
 import glob
 import os
+
 import numpy as np
 import pandas as pd
 
@@ -30,7 +31,7 @@ def wc_l(*patterns):
     return sum(count_lines_pattern(pat) for pat in patterns)
 
 
-def jrnl_cert_table():
+def perennial_table():
     """Generate figure 14 (lines of code for JrnlCert)"""
     goto_path("perennial")
     helpers = wc_l(
@@ -80,8 +81,7 @@ def program_proof_table():
         *"""nfs/*.go alloc/alloc.go
         alloctxn/alloctxn.go cache/cache.go cmd/go-nfsd/main.go
         common/common.go dcache/dcache.go dir/dir.go dir/dcache.go fh/nfs_fh.go
-        fstxn/*.go inode/* shrinker/shrinker.go super/super.go
-        txn/txn.go util/util.go""".split()
+        fstxn/*.go inode/*.go shrinker/shrinker.go super/super.go""".split()
     )
     simple_c = wc_l("simple/0super.go", "simple/fh.go", "simple/ops.go")
 
@@ -113,12 +113,12 @@ def program_proof_table():
     simple_p = wc_l("simple/*.v")
 
     # note that the table uses -1 as a sentinel for missing data; these are
-    # converted to proper pandas missing records at the end, then printed as "-"
+    # converted to proper pandas missing records at the end, then printed as "---"
 
     def ratio(n, m):
         if m == 0:
             return -1
-        return int(float(n) / m)
+        return int(round(float(n) / m))
 
     def entry(name, code, proof):
         return (name, code, proof, ratio(proof, code))
@@ -138,7 +138,7 @@ def program_proof_table():
             entry("circular", circ_c, circ_p),
             ("wal-sts", wal_c, wal_p, ratio(wal_p + wal_heapspec_p, wal_c)),
             entry_nocode("wal", wal_heapspec_p),
-            entry("txn", txn_c, txn_p),
+            entry("obj", txn_c, txn_p),
             (
                 "jrnl-sts",
                 jrnl_c,
@@ -170,9 +170,79 @@ def program_proof_table():
     return df
 
 
-print("~ Fig 14 (lines of code in Perennial)")
-print(jrnl_cert_table().to_string(index=False))
-print()
+def array_to_latex_table(rows):
+    latex_rows = [" & ".join(str(x) for x in row) for row in rows]
+    return " \\\\ \n".join(latex_rows)
 
-print("~ Fig 15 (lines of code for GoJournal and SimpleNFS)")
-print(program_proof_table().fillna("-").to_string(index=False))
+
+def loc(x):
+    return "\\loc{" + str(x) + "}"
+
+
+def perennial_to_latex(df):
+    rows = []
+    for _, row in df.iterrows():
+        rows.append([row[0], loc(row[1])])
+    return array_to_latex_table(rows)
+
+
+def get_multirow(df, index, col, f):
+    x = df.iloc[index, col]
+    if index + 1 < len(df) and df.iloc[index + 1, col] == "---":
+        return "\\multirow{2}{*}{" + str(f(x)) + "}"
+    if x == "---":
+        return ""
+    return f(x)
+
+
+def impl_to_latex(df):
+    # set GoNFS lines of code to this text
+    df.iloc[len(df) - 2, 2] = "Not verified"
+    rows = []
+    for index, row in df.iterrows():
+        layer = row[0]
+        if layer.islower():
+            layer = "\\textsc{" + layer + "}"
+        lines_c = row[1]
+        lines_p = row[2]
+        # total hack to fix last two lines
+        if index < len(df) - 3:
+            ratio = get_multirow(df, index, 3, lambda x: x)
+        else:
+            ratio = row[3]
+        rows.append([layer, lines_c, lines_p, ratio])
+    return array_to_latex_table(rows)
+
+
+if __name__ == "__main__":
+    import argparse
+    from os.path import join
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--latex",
+        help="output LaTeX table to this directory",
+        default=None,
+    )
+
+    args = parser.parse_args()
+
+    original_pwd = os.getcwd()
+
+    perennial_df = perennial_table()
+    impl_df = program_proof_table().fillna("---")
+
+    os.chdir(original_pwd)
+
+    if args.latex is None:
+        print("Lines of code in Perennial")
+        print(perennial_df.to_string(index=False))
+        print()
+
+        print("Lines of code for GoJournal and SimpleNFS")
+        print(impl_df.to_string(index=False))
+    else:
+        with open(join(args.latex, "perennial-loc.tex"), "w") as f:
+            print(perennial_to_latex(perennial_df), file=f)
+        with open(join(args.latex, "impl-loc.tex"), "w") as f:
+            print(impl_to_latex(impl_df), file=f)
