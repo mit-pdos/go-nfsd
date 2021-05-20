@@ -42,6 +42,7 @@ sudo apt-get install -y git python3-pip wget unzip psmisc sudo time
 ## assumes https://github.com/mit-pdos/go-nfsd has already been cloned to
 ## ~/go-nfsd (since this is the easiest way to run this script)
 ln -s ~/go-nfsd/artifact ~/artifact
+ln -s ~/go-nfsd/eval ~/eval
 
 git clone \
     --branch osdi21 \

@@ -18,24 +18,24 @@ the proofs in Perennial will take a bit more time.
 
 You can get the VM from Zenodo via DOI
 [10.5281/zenodo.4657116](https://zenodo.org/record/4657115). The download is a
-little over 3GB.
+little over 2GB.
 
 The VM was created by using vagrant, as specified in the
 [Vagrantfile](Vagrantfile).
 **The user account is `vagrant` with no password** (that is, the
-empty password). The user account has sudo access without a password. After some
-basic setup, like installing ZSH, we ran [vm-setup.sh](vm-setup.sh).
+empty password). The user account has sudo access without a password. The setup
+consists of running [vm-init.sh](vm-init.sh) and [vm-setup.sh](vm-setup.sh).
 
 You can launch the VM headless and then SSH to it. There's a port forwarding
 rule vagrant sets up so that `ssh -p 10322 vagrant@localhost` should work,
 without a password prompt.
 
-The artifact (including this README) is located at
-`~/go-nfsd/artifact`. The README.md file there might be out-of-date by
-the time you read this; please run `git pull` when you start, or follow the
-README on GitHub rather than in the VM.
+The artifact's README and setup code are located at `~/go-nfsd/artifact`. The
+README.md file there might be out-of-date by the time you read this; please run
+`git pull` when you start, or follow the README on GitHub rather than in the VM.
+Most of the work happens in `~/go-nfsd/eval`.
 
-We've configured the VM with 8GB of RAM and 6 cores. You'll definitely want to
+We've configured the VM with 8GB of RAM and 4 cores. You'll definitely want to
 set it to the maximum number of cores you can afford for the scalability
 experiment. Less RAM also might work but could lower performance.
 
@@ -46,7 +46,7 @@ The artifact concerns four claims in the paper:
 1. GoJournal's proof overhead is about 20x (in the tricky concurrent parts),
    while SimpleNFS is only 8x. Measured by lines of code.
 2. The proofs for Perennial, GoJournal, and SimpleNFS are complete.
-3. GoJournal is functional when compared against ext3 (using journaled data and
+3. GoJournal is functional when compared against ext4 (using journaled data and
    over NFS for a fair comparison). We demonstrate this by showing GoNFS gets
    close throughput in the benchmarks in Figure 16, which use a RAM-backed disk.
 4. GoJournal is scalable. We demonstrate this by showing performance for the
@@ -58,12 +58,13 @@ The artifact concerns four claims in the paper:
 
 We've cloned several repositories for you into the VM, most notably:
 
-- https://github.com/mit-pdos/go-journal (located at `~/go-journal`) implements
-  GoJournal on top of a disk. The `jrnl` package as the top-level API.
+- https://github.com/mit-pdos/go-journal (located at `~/code/go-journal`)
+  implements GoJournal on top of a disk. The `jrnl` package as the top-level
+  API.
 - https://github.com/mit-pdos/go-nfsd (located at `~/go-nfsd`): includes
   SimpleNFS and GoNFS. SimpleNFS is in `simple/`, and the binary for `GoNFS` is
-  `cmd/go-nfsd` (which imports various packages in this repo). The artifact
-  is implemented with several scripts in `eval` in this repo.
+  `cmd/go-nfsd`. The artifact is implemented with several scripts in `eval` in
+  this repo.
 - https://github.com/mit-pdos/perennial (located at `~/perennial`): the
   Perennial framework and all program proofs for GoJournal and SimpleNFS.
 
@@ -120,14 +121,7 @@ rsync -a -e 'ssh -p 10322' vagrant@localhost:./go-nfsd/eval/fig ./
 
 Compare `fig/bench.png` to Figure 16 in the paper. The absolute performance
 numbers were included manually in the graph; you can easily find the numbers by
-looking at `data/bench.data` and looking at the "linux" column. We made a
-mistake and misconfigured this benchmark; with the fixed configuration, both
-file systems perform better and GoNFS gets better performance than Linux. This
-seems to be because it is able to take advantage of a much larger batch write
-size than the Linux NFS server. For the camera-ready version of the paper we
-already plan to expand the evaluation to better explain the performance on this
-microbenchmark (we may still be running Linux in a way that gets lower
-performance).
+looking at `data/bench.data` and looking at the "linux" column.
 
 Compare `fig/scale.png` to Figure 17 in the paper. The scaling should be roughly
 the same, although if you don't have enough cores (or don't allocate them to the
