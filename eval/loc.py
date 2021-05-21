@@ -70,7 +70,7 @@ def program_proof_table():
     goto_path("go_journal")
     circ_c = wc_l("wal/0circular.go")
     wal_c = wc_l("wal/*.go") - circ_c - wc_l("wal/*_test.go")
-    txn_c = wc_l("obj/obj.go")
+    obj_c = wc_l("obj/obj.go")
     jrnl_c = wc_l("jrnl/jrnl.go")
     lockmap_c = wc_l("lockmap/lock.go")
     misc_c = wc_l("addr/addr.go", "buf/buf.go", "buf/bufmap.go")
@@ -98,9 +98,9 @@ def program_proof_table():
         # just an experiment, not used
         - wc_l("wal/heapspec_list.v")
     )
-    txn_p = wc_l("txn/*.v")
-    jrnl_p = wc_l("buftxn/buftxn_proof.v")
-    sep_jrnl_p = wc_l("buftxn/sep_buftxn_*.v")
+    obj_p = wc_l("obj/*.v")
+    jrnl_p = wc_l("jrnl/jrnl_proof.v")
+    sep_jrnl_p = wc_l("jrnl/sep_jrnl_*.v")
     lockmap_p = wc_l("*lockmap_proof.v")
     misc_p = wc_l(
         "addr/*.v",
@@ -138,7 +138,7 @@ def program_proof_table():
             entry("circular", circ_c, circ_p),
             ("wal-sts", wal_c, wal_p, ratio(wal_p + wal_heapspec_p, wal_c)),
             entry_nocode("wal", wal_heapspec_p),
-            entry("obj", txn_c, txn_p),
+            entry("obj", obj_c, obj_p),
             (
                 "jrnl-sts",
                 jrnl_c,
