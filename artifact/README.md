@@ -162,7 +162,7 @@ git status
 The final `git status` command should report that the working tree has been
 restored to its previous state.
 
-## Undocumented features
+## Under-documented features
 
 These are features that we didn't have reviewers run but which we thought were
 useful code to have.
@@ -171,3 +171,10 @@ useful code to have.
 
 `./tests.sh` runs the fsstress and fsx-linux test suites from the Linux test
 project (all the setup for these is included in `vm-setup.sh`).
+
+The VM hosted on Zenodo was not compiled with the setup to run DFSCQ to save
+space in the image, but you should be able to do this yourself. Run the commands
+in [vm-setup.sh](vm-setup.sh) for DFSCQ (this takes about 5 minutes). Then run
+`bench.sh` as above, and it will include results for FSCQ. None of the plots
+include this data but after running `bench.py` you can easily look at the raw
+data including FSCQ results with `column -t eval/data/bench.data`.
