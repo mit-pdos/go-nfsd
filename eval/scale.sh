@@ -80,9 +80,9 @@ do_eval() {
     info "Serial GoNFS (holding locks)"
 
     # we change the local checkout of go-journal
-    pushd "$GO_JOURNAL_PATH" >dev/null
+    pushd "$GO_JOURNAL_PATH" >/dev/null
     git apply "$GO_NFSD_PATH/eval/serial.patch"
-    popd >dev/null
+    popd >/dev/null
     # ... and then also point go-nfsd to the local version
     go mod edit -replace github.com/mit-pdos/go-journal="$GO_JOURNAL_PATH"
 
