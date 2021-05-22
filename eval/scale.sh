@@ -90,9 +90,9 @@ do_eval() {
     ./bench/run-go-nfsd.sh -disk "$disk_file" go run ./cmd/fs-smallfile -start=1 -threads="$threads"
 
     go mod edit -dropreplace github.com/mit-pdos/go-journal
-    pushd "$GO_JOURNAL_PATH"
+    pushd "$GO_JOURNAL_PATH" >/dev/null
     git restore wal/installer.go wal/logger.go wal/wal.go
-    popd
+    popd >/dev/null
 }
 
 if [ "$output_file" = "-" ]; then
