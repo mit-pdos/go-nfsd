@@ -55,6 +55,7 @@ git clone https://github.com/mit-pdos/go-journal &
 git clone https://github.com/mit-pdos/xv6-public &
 git clone https://github.com/tchajed/marshal &
 git clone https://github.com/tchajed/goose &
+git clone https://github.com/mit-pdos/fscq &
 wait
 git clone --depth=1 https://github.com/linux-test-project/ltp
 cd
@@ -70,6 +71,7 @@ export GO_JOURNAL_PATH=$HOME/code/go-journal
 export MARSHAL_PATH=$HOME/code/marshal
 export XV6_PATH=$HOME/code/xv6-public
 export GOOSE_PATH=$HOME/code/goose
+export FSCQ_PATH=$HOME/code/fscq
 export LTP_PATH=$HOME/code/ltp
 EOF
 
@@ -150,16 +152,31 @@ rm install.sh
 
 opam init --auto-setup --bare
 if [ "$install_ocaml" = true ]; then
+    # takes ~5 minutes (compiles OCaml)
     opam switch create 4.11.0+flambda
 
     # shellcheck disable=2046
     eval $(opam env)
 
     if [ "$install_coq" = "true" ]; then
+        # takes ~5 minutes
         opam install -y -j4 coq.8.13.2
     fi
     # opam sets up .profile, so make sure it's sourced
     echo -e "\nsource ~/.profile" >>~/.zshrc
+fi
+
+# Dependencies for DFSCQ
+
+sudo apt-get install -y ghc cabal-install libfuse-dev
+cabal update
+cabal install --lib rdtsc digest
+
+if [ "$install_coq" = "true" ]; then
+    cd ~/code/fscq/src
+    # takes ~3 minutes
+    make J=4 mkfs fscq
+    cd
 fi
 
 sudo apt clean
