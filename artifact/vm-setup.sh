@@ -67,10 +67,10 @@ git clone \
 
 mkdir ~/code
 cd ~/code
-git clone https://github.com/mit-pdos/go-journal &
+git clone --branch v0.4.0 https://github.com/mit-pdos/go-journal &
 git clone https://github.com/mit-pdos/xv6-public &
-git clone https://github.com/tchajed/marshal &
-git clone https://github.com/tchajed/goose &
+git clone --branch v0.1.0 https://github.com/tchajed/marshal &
+git clone --branch v0.1.0 https://github.com/tchajed/goose &
 git clone https://github.com/mit-pdos/fscq &
 wait
 git clone --depth=1 https://github.com/linux-test-project/ltp
