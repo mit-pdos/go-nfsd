@@ -108,10 +108,10 @@ figure with `./bench.py data/bench-raw.txt && gnuplot bench.plot`.
 
 ### Check output
 
-Compare `data/lines-of-code.txt` to Figures 13 and 14 in the paper.
+Read `data/lines-of-code.txt` for the lines of code.
 
-The exact performance results will vary depending on your machine, and suffer
-slightly from being run in a VM.
+The exact performance results will vary depending on your machine, and differ
+from the paper results because they are run in a VM.
 
 You can get the figures out of the VM by running (from your host machine):
 
@@ -119,14 +119,16 @@ You can get the figures out of the VM by running (from your host machine):
 rsync -a -e 'ssh -p 10322' vagrant@localhost:./go-nfsd/eval/fig ./
 ```
 
-Compare `fig/bench.png` to Figure 16 in the paper. The absolute performance
-numbers were included manually in the graph; you can easily find the numbers by
-looking at `data/bench.data` and looking at the "linux" column.
+The graphs there are:
 
-Compare `fig/scale.png` to Figure 17 in the paper. The scaling should be roughly
-the same, although if you don't have enough cores (or don't allocate them to the
-VM) then performance will flatten at a smaller number of clients. Absolute
-performance depends highly on your drive's performance.
+- `bench.pdf` benchmarks run on a RAMdisk, where `app` clones and compiles the
+  xv6 operating system
+- `bench-ssd.pdf` same benchmarks but on an SSD (whatever the host disk is,
+  actually).
+- `largefile.pdf` just the largefile benchmark run on a variety of
+  configurations (not shown in the paper).
+- `scale.pdf` scalability of the smallfile benchmark with a varying number of
+  clients, on an SSD.
 
 ## Compile the proofs
 
@@ -162,10 +164,10 @@ restored to its previous state.
 
 ## Undocumented features
 
-These are features that we didn't think were important for evaluation but might
-be useful for our own reference.
+These are features that we didn't have reviewers run but which we thought were
+useful code to have.
 
-[`./eval.sh`](eval.sh) runs the whole evaluation, including plotting
+[`./eval.sh`](eval.sh) just has all the commands in one file.
 
 `./tests.sh` runs the fsstress and fsx-linux test suites from the Linux test
 project (all the setup for these is included in `vm-setup.sh`).
