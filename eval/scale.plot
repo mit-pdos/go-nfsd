@@ -1,5 +1,5 @@
-set terminal png noenhanced size 1050,600
-set output "fig/scale.png"
+set terminal pdf dashed noenhanced size 3.5in,2.0in
+set output "fig/scale.pdf"
 
 set auto x
 set yrange [0:*]

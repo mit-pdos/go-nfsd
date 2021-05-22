@@ -1,5 +1,5 @@
-set terminal png noenhanced font Arial 18 size 600,600
-set output "fig/largefile.png"
+set terminal pdf dashed noenhanced size 3in,2.5in
+set output "fig/largefile.pdf"
 
 set style data histogram
 set style histogram cluster gap 1
@@ -8,7 +8,7 @@ set rmargin at screen .95
 set xrange [-1:4]
 set yrange [0:*]
 set grid y
-set ylabel "Througput (MB/s)"
+set ylabel "Throughput (MB/s)"
 set ytics scale 0.5,0 nomirror
 set xtics scale 0,0
 set key top right

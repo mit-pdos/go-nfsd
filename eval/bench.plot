@@ -2,52 +2,62 @@
 
 set -eu
 
-output=fig/bench.png
+output=fig/bench.pdf
 input=data/bench.data
 ssd=false
 
+usage() {
+    echo "Usage: $0 [--input INPUT] [--output OUTPUT] [-ssd]" 1>&2
+    echo "defaults to plotting RAM benchmarks from data/bench.data" 1>&2
+}
+
 while [[ "$#" -gt 0 ]]; do
-	case "$1" in
-	-i | --input)
-		shift
-		input="$1"
-		shift
-		;;
-	-o | --output)
-		shift
-		output="$1"
-		shift
-		;;
-	-ssd)
-		ssd=true
-		shift
-		;;
-	default)
-		echo "unknown option $1" 1>&2
-		exit 1
-		;;
-	esac
+    case "$1" in
+    -i | --input)
+        shift
+        input="$1"
+        shift
+        ;;
+    -o | --output)
+        shift
+        output="$1"
+        shift
+        ;;
+    -ssd)
+        ssd=true
+        shift
+        ;;
+    -h | -help | --help)
+        usage
+        exit 0
+        ;;
+    *)
+        echo "unknown option $1" 1>&2
+        usage
+        exit 1
+        ;;
+    esac
 done
 
 # shellcheck disable=SC2016
 if [ "$ssd" = "true" ]; then
-	line1='column("linux-ssd")/column("linux-ssd")'
-	line2='column("gonfs-ssd")/column("linux-ssd")'
-	label=" (SSD)"
-	label1=$(awk 'NR==2 {printf "%.0f", $4}' "$input")
-	label2=$(awk 'NR==3 {printf "%.0f", $4}' "$input")
-	label3=$(awk 'NR==4 {printf "%.3f", $4}' "$input")
+    line1='column("linux-ssd")/column("linux-ssd")'
+    line2='column("gonfs-ssd")/column("linux-ssd")'
+    label=" (SSD)"
+    label1=$(awk 'NR==2 {printf "%.0f", $4}' "$input")
+    label2=$(awk 'NR==3 {printf "%.0f", $4}' "$input")
+    label3=$(awk 'NR==4 {printf "%.3f", $4}' "$input")
 else
-	label=""
-	line1='column("linux")/column("linux")'
-	line2='column("gonfs")/column("linux")'
-	label1=$(awk 'NR==2 {printf "%.0f", $2}' "$input")
-	label2=$(awk 'NR==3 {printf "%.0f", $2}' "$input")
-	label3=$(awk 'NR==4 {printf "%0.3f", $2}' "$input")
+    label=""
+    line1='column("linux")/column("linux")'
+    line2='column("gonfs")/column("linux")'
+    label1=$(awk 'NR==2 {printf "%.0f", $2}' "$input")
+    label2=$(awk 'NR==3 {printf "%.0f", $2}' "$input")
+    label3=$(awk 'NR==4 {printf "%0.3f", $2}' "$input")
 fi
 
 gnuplot <<-EOF
-  set terminal png noenhanced size 1050,450
+	set terminal pdf dashed noenhanced size 3.5in,1.5in
 	set output "${output}"
 
 	set style data histogram
