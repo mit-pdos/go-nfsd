@@ -56,6 +56,11 @@ if [ ! -d "$XV6_PATH" ]; then
     exit 1
 fi
 
+run_fscq=false
+if [[ -v FSCQ_PATH && -e "$FSCQ_PATH/src/fscq" ]]; then
+    run_fscq=true
+fi
+
 cd "$GO_NFSD_PATH"
 
 do_eval() {
@@ -72,6 +77,15 @@ do_eval() {
     ./bench/run-linux.sh go run ./cmd/fs-largefile
     ./bench/run-linux.sh ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
 
+    if [ "$run_fscq" = true ]; then
+        echo 1>&2
+        info "FSCQ"
+        echo "fs=fscq"
+        ./bench/run-fscq.sh -disk /dev/shm/disk.img go run ./cmd/fs-smallfile -benchtime=20s
+        ./bench/run-fscq.sh -disk /dev/shm/disk.img go run ./cmd/fs-largefile
+        ./bench/run-fscq.sh -disk /dev/shm/disk.img ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+    fi
+
     if [ -n "$ssd_file" ]; then
         echo 1>&2
         info "GoNFS (SSD)"
@@ -84,6 +98,15 @@ do_eval() {
         ./bench/run-go-nfsd.sh -unstable=true -disk "$ssd_file" go run ./cmd/fs-largefile
         echo "fs=gonfs-ssd-unstable-sync"
         ./bench/run-go-nfsd.sh -unstable=true -nfs-mount-opts "sync" -disk "$ssd_file" go run ./cmd/fs-largefile
+
+        if [ "$run_fscq" = true ]; then
+            echo 1>&2
+            info "FSCQ (SSD)"
+            echo "fs=fscq-ssd"
+            ./bench/run-fscq.sh -disk "$ssd_file" go run ./cmd/fs-smallfile -benchtime=20s
+            ./bench/run-fscq.sh -disk "$ssd_file" go run ./cmd/fs-largefile
+            ./bench/run-fscq.sh -disk "$ssd_file" ./bench/app-bench.sh "$XV6_PATH" /mnt/nfs
+        fi
 
         echo 1>&2
         info "Linux ext4 over NFS (SSD)"

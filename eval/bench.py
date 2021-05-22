@@ -83,8 +83,12 @@ def main():
     df = from_tidy(tidy_df)
     # list out columns again to get order right
     columns = ["linux", "gonfs"]
+    if "fscq" in df.columns:
+        columns.append("fscq")
     if "linux-ssd" in df.columns:
         columns.extend(["linux-ssd", "gonfs-ssd"])
+        if "fscq-ssd" in df.columns:
+            columns.append("fscq-ssd")
     df.to_csv(join(args.output, "bench.data"), sep="\t", columns=columns),
 
     df = largefile_from_tidy(tidy_df)
