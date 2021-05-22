@@ -2,5 +2,6 @@
 
 ./bench.py data/bench-raw.txt
 ./scale.py data/scale-raw.txt
-gnuplot bench.plot
+./bench.plot
 gnuplot scale.plot
+gnuplot largefile.plot
