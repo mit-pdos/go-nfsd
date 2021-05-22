@@ -4,6 +4,7 @@ set -eu
 
 install_ocaml=true
 install_coq=true
+install_fscq=true
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
     -no-ocaml)
@@ -20,7 +21,14 @@ while [[ "$#" -gt 0 ]]; do
         ;;
     -coq)
         install_ocaml=true
-        install_coq=true
+        shift
+        ;;
+    -no-fscq)
+        install_fscq=false
+        shift
+        ;;
+    -fscq)
+        install_fscq=true
         shift
         ;;
     *)
@@ -29,6 +37,14 @@ while [[ "$#" -gt 0 ]]; do
         ;;
     esac
 done
+
+if [ "$install_fscq" = true ]; then
+    install_coq=true
+fi
+
+if [ "$install_coq" = true ]; then
+    install_ocaml=true
+fi
 
 cd
 
@@ -166,13 +182,12 @@ if [ "$install_ocaml" = true ]; then
     echo -e "\nsource ~/.profile" >>~/.zshrc
 fi
 
-# Dependencies for DFSCQ
-
-sudo apt-get install -y ghc cabal-install libfuse-dev
-cabal update
-cabal install --lib rdtsc digest
-
-if [ "$install_coq" = "true" ]; then
+# these take a lot of space in the VM
+if [ "$install_fscq" = "true" ]; then
+    # Dependencies for DFSCQ
+    sudo apt-get install -y ghc cabal-install libfuse-dev
+    cabal update
+    cabal install --lib rdtsc digest
     cd ~/code/fscq/src
     # takes ~3 minutes
     make J=4 mkfs fscq

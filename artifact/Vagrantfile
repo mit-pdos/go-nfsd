@@ -37,8 +37,8 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell" do |s|
     s.path = "vm-setup.sh"
     s.privileged = false
-    # pass -no-ocaml to skip this setup, which saves about 5min of provisioning
-    # time
-    s.args = ["-ocaml"]
+    # you can also use -no-ocaml or -no-coq to skip those steps
+    # (those are the slowest; FSCQ's dependencies take a lot of space)
+    s.args = ["-no-fscq"]
   end
 end
