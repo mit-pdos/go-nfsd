@@ -99,6 +99,8 @@ sudo chown "$USER:$USER" /srv/nfs/bench
 sudo mkdir -p /mnt/nfs
 sudo chown "$USER:$USER" /mnt/nfs
 echo "/srv/nfs/bench localhost(rw,sync,no_subtree_check,fsid=0)" | sudo tee -a /etc/exports
+# configure NFS server to use more threads
+sudo sed -i 's/RPCNFSDCOUNT=.*/RPCNFSDCOUNT=12/' /etc/init.d/nfs-kernel-server
 
 ## for simplicity we enable these services so they are automatically started,
 ## but they can instead be started manually on each boot

@@ -59,7 +59,7 @@ while true; do
     esac
 done
 
-threads=10
+threads=12
 if [[ $# -gt 0 ]]; then
     threads="$1"
 fi

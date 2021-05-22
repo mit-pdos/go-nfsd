@@ -5,7 +5,7 @@ set auto x
 set yrange [0:*]
 set xtics 1
 set ylabel "files / sec"
-set format y '%.0s%c'
+set format y '%.0f'
 set xlabel "\# clients"
 set key top left
 

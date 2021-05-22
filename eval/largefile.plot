@@ -1,4 +1,4 @@
-set terminal pdf dashed noenhanced size 3in,2.5in
+set terminal pdf dashed noenhanced size 2.5in,1.5in
 set output "fig/largefile.pdf"
 
 set style data histogram

@@ -17,7 +17,7 @@ the proofs in Perennial will take a bit more time.
 ### About the VM
 
 You can get the VM from Zenodo via DOI
-[10.5281/zenodo.4657116](https://zenodo.org/record/4657115). The download is a
+[10.5281/zenodo.4657115](https://zenodo.org/record/4657115). The download is a
 little over 2GB.
 
 The VM was created by using vagrant, as specified in the
@@ -27,17 +27,17 @@ empty password). The user account has sudo access without a password. The setup
 consists of running [vm-init.sh](vm-init.sh) and [vm-setup.sh](vm-setup.sh).
 
 You can launch the VM headless and then SSH to it. There's a port forwarding
-rule vagrant sets up so that `ssh -p 10322 vagrant@localhost` should work,
-without a password prompt.
+rule so that `ssh -p 10322 vagrant@localhost` should work, without a password
+prompt.
 
 The artifact's README and setup code are located at `~/go-nfsd/artifact`. The
 README.md file there might be out-of-date by the time you read this; please run
 `git pull` when you start, or follow the README on GitHub rather than in the VM.
 Most of the work happens in `~/go-nfsd/eval`.
 
-We've configured the VM with 8GB of RAM and 4 cores. You'll definitely want to
-set it to the maximum number of cores you can afford for the scalability
-experiment. Less RAM also might work but could lower performance.
+We've configured the VM with 8GB of RAM and 4 cores. You'll want more cores for
+the scalability experiment, although we found the benchmark to be I/O
+bottlenecked. Less RAM also might work but could lower performance.
 
 ## Claims
 
@@ -91,10 +91,10 @@ Takes 2-3 minutes. You can manually inspect the output file at
 `eval/data/bench-raw.txt` (which is fairly readable) if you'd like.
 
 ```sh
-./scale.sh 10
+./scale.sh 12
 ```
 
-**Takes a few minutes** (the 10 is the number of clients to run till; you can use a
+**Takes a few minutes** (the 12 is the number of clients to run till; you can use a
 smaller number of you want it to finish faster). Outputs to `eval/data/scale-raw.txt`.
 
 ### Produce graphs
