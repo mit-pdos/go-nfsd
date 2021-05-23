@@ -19,10 +19,7 @@ check:
 goose-output: $(patsubst %,${COQ_PKGDIR}/%.v,$(GOOSE_DIRS))
 
 ${COQ_PKGDIR}/%.v: % %/*
-	$(GOPATH)/bin/goose -package github.com/mit-pdos/go-nfsd/$< -out Goose ./$<
-
-${COQ_PKGDIR}/nfstypes.v: nfstypes/nfs_types.go
-	$(GOPATH)/bin/goose -package github.com/mit-pdos/go-nfsd/$< -out Goose ./nfstypes/goose-workaround/nfstypes
+	$(GOPATH)/bin/goose -out Goose ./$<
 
 clean:
 	rm -rf Goose

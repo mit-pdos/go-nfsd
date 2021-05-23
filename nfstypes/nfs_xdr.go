@@ -1,3 +1,5 @@
+// +build !goose
+
 package nfstypes
 
 import "github.com/zeldovich/go-rpcgen/xdr"
