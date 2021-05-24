@@ -70,7 +70,7 @@ cd ~/code
 git clone --branch v0.4.0 https://github.com/mit-pdos/go-journal &
 git clone https://github.com/mit-pdos/xv6-public &
 git clone --branch v0.1.0 https://github.com/tchajed/marshal &
-git clone --branch v0.1.0 https://github.com/tchajed/goose &
+git clone --branch v0.3.1 https://github.com/tchajed/goose &
 git clone https://github.com/mit-pdos/fscq &
 wait
 git clone --depth=1 https://github.com/linux-test-project/ltp
@@ -140,14 +140,7 @@ rm $GO_FILE
 echo 'export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH' >>~/.zshenv
 export PATH=/usr/local/go/bin:$PATH
 
-go install github.com/tchajed/goose/cmd/goose@latest
-# these are required in $GOPATH for goose to compile go-nfsd
-export GOPATH=$HOME/go
-export GO111MODULE=off
-go get github.com/tchajed/goose/...
-go get github.com/mit-pdos/go-journal/...
-go get github.com/mit-pdos/go-nfsd/...
-export GO111MODULE=on
+go install github.com/tchajed/goose/cmd/goose@v0.3.1
 
 cd ~/go-nfsd
 # fetch dependencies
