@@ -36,7 +36,7 @@ func (op *FsTxn) CommitUnstable() bool {
 // that is only an option if we do log-by-pass writes.
 func (op *FsTxn) CommitFh() bool {
 	op.preCommit()
-	ok := op.Atxn.Op.Flush()
+	ok := op.Fs.Txn.Flush()
 	op.postCommit()
 	return ok
 }
