@@ -103,8 +103,7 @@ smaller number of you want it to finish faster). Outputs to `eval/data/scale-raw
 ./plot.sh
 ```
 
-If you haven't run `./scale.sh` yet, then you can still generate the benchmark
-figure with `./bench.py data/bench-raw.txt && gnuplot bench.plot`.
+Read the script to see exactly how each plot is generated.
 
 ### Check output
 
