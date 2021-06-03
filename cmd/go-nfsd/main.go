@@ -21,13 +21,13 @@ import (
 	"github.com/mit-pdos/go-nfsd/util/timed_disk"
 )
 
-func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
+func pmap_set_unset(prog, vers, port uint32, setit bool) error {
 	var cred rfc1057.Opaque_auth
 	cred.Flavor = rfc1057.AUTH_NONE
 
 	pmapc, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", rfc1057.PMAP_PORT))
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer pmapc.Close()
 	pmap := rfc1057.MakeClient(pmapc, rfc1057.PMAP_PROG, rfc1057.PMAP_VERS)
@@ -49,10 +49,16 @@ func pmap_set_unset(prog, vers, port uint32, setit bool) bool {
 
 	err = pmap.Call(proc, cred, cred, &arg, &res)
 	if err != nil {
-		panic(err)
+		return err
 	}
-
-	return bool(res)
+	if bool(res) {
+		return nil
+	}
+	if setit {
+		return errors.New("failed to set; is program already registered?")
+	} else {
+		return errors.New("failed to unset")
+	}
 }
 
 func main() {
@@ -90,17 +96,22 @@ func main() {
 	}
 	port := uint32(listener.Addr().(*net.TCPAddr).Port)
 
-	pmap_set_unset(nfstypes.MOUNT_PROGRAM, nfstypes.MOUNT_V3, 0, false)
-	ok := pmap_set_unset(nfstypes.MOUNT_PROGRAM, nfstypes.MOUNT_V3, port, true)
-	if !ok {
-		panic("Could not set pmap mapping for mount")
+	err = pmap_set_unset(nfstypes.MOUNT_PROGRAM, nfstypes.MOUNT_V3, 0, false)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not unset mount - is rpcbind service running?\n")
+		fmt.Fprintf(os.Stderr, "%v\n", err.Error())
+		os.Exit(1)
+	}
+	err = pmap_set_unset(nfstypes.MOUNT_PROGRAM, nfstypes.MOUNT_V3, port, true)
+	if err != nil {
+		panic(err)
 	}
 	defer pmap_set_unset(nfstypes.MOUNT_PROGRAM, nfstypes.MOUNT_V3, port, false)
 
 	pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, 0, false)
-	ok = pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, true)
-	if !ok {
-		panic("Could not set pmap mapping for NFS")
+	err = pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, true)
+	if err != nil {
+		panic(err)
 	}
 	defer pmap_set_unset(nfstypes.NFS_PROGRAM, nfstypes.NFS_V3, port, false)
 
