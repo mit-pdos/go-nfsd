@@ -43,4 +43,4 @@ throughput=$(awk "BEGIN{ print 1.0 / $total_time }")
 echo "total real $total_time s" 1>&2
 echo "app-bench $throughput app/s"
 
-rm -r "$xv6_tmp"
+rm -rf "$xv6_tmp"
