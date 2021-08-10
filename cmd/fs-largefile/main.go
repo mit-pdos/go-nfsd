@@ -48,7 +48,7 @@ func mkdata(sz uint64) []byte {
 
 func main() {
 	mnt := flag.String("mnt", "/mnt/nfs", "directory to write files to")
-	sizeMB := flag.Uint64("size", 100, "file size (in MB)")
+	sizeMB := flag.Uint64("file-size", 100, "file size (in MB)")
 	deleteAfter := flag.Bool("delete", false, "delete files after running benchmark")
 	flag.Parse()
 
