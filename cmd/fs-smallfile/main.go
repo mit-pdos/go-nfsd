@@ -8,9 +8,6 @@ import (
 	"time"
 )
 
-var N time.Duration
-var NTHREAD int
-
 func smallfile(name string, data []byte) {
 	f, err := os.Create(name)
 	if err != nil {
@@ -36,7 +33,7 @@ func mkdata(sz uint64) []byte {
 	return data
 }
 
-func client(p string) int {
+func client(duration time.Duration, p string) int {
 	data := mkdata(uint64(100))
 	start := time.Now()
 	i := 0
@@ -46,14 +43,14 @@ func client(p string) int {
 		i++
 		t := time.Now()
 		elapsed := t.Sub(start)
-		if elapsed >= N {
+		if elapsed >= duration {
 			break
 		}
 	}
 	return i
 }
 
-func run(nt int) {
+func run(duration time.Duration, nt int) int {
 	path := "/mnt/nfs/"
 	count := make(chan int)
 	for i := 0; i < nt; i++ {
@@ -63,28 +60,33 @@ func run(nt int) {
 			if err != nil {
 				panic(err)
 			}
-			count <- client(path + d)
+			count <- client(duration, path+d)
 		}(d)
-
 	}
 	n := 0
 	for i := 0; i < nt; i++ {
 		n += <-count
 	}
-	fmt.Printf("fs-smallfile: %v %v file/sec\n", nt, float64(n)/N.Seconds())
+	return n
 }
 
 func main() {
+	var duration time.Duration
 	var start int
-	flag.DurationVar(&N, "benchtime", 10*time.Second, "time to run each iteration for")
+	var nthread int
+	flag.DurationVar(&duration, "benchtime", 10*time.Second, "time to run each iteration for")
 	flag.IntVar(&start, "start", 1, "number of threads to start at")
-	flag.IntVar(&NTHREAD, "threads", 1, "number of threads to run till")
+	flag.IntVar(&nthread, "threads", 1, "number of threads to run till")
 	flag.Parse()
 	if start < 1 {
 		panic("invalid start")
 	}
 
-	for i := start; i <= NTHREAD; i++ {
-		run(i)
+	// warmup
+	run(500*time.Millisecond, nthread)
+
+	for nt := start; nt <= nthread; nt++ {
+		count := run(duration, nt)
+		fmt.Printf("fs-smallfile: %v %v file/sec\n", nt, float64(count)/duration.Seconds())
 	}
 }
