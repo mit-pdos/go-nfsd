@@ -82,8 +82,11 @@ func main() {
 		panic("invalid start")
 	}
 
-	// warmup
-	run(500*time.Millisecond, nthread)
+	// warmup (skip if running for very little time, for example when using a
+	// duration of 0s to run just one iteration)
+	if duration > 500*time.Millisecond {
+		run(500*time.Millisecond, nthread)
+	}
 
 	for nt := start; nt <= nthread; nt++ {
 		count := run(duration, nt)
