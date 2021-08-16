@@ -295,7 +295,7 @@ func (nfs *Nfs) NFSPROC3_WRITE(args nfstypes.WRITE3args) nfstypes.WRITE3res {
 		return reply
 	}
 	// if not supporting unstable writes, upgrade stability
-	if args.Stable == nfstypes.UNSTABLE && !nfs.Unstable {
+	if !nfs.Unstable {
 		args.Stable = nfstypes.FILE_SYNC
 	}
 	if args.Stable == nfstypes.FILE_SYNC {
