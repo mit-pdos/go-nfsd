@@ -41,3 +41,9 @@ var nfsopNames = []string{
 func (nfs *Nfs) WriteOpStats(w io.Writer) {
 	stats.WriteTable(nfsopNames, nfs.stats[:], w)
 }
+
+func (nfs *Nfs) ResetOpStats() {
+	for i := range nfs.stats {
+		nfs.stats[i].Reset()
+	}
+}

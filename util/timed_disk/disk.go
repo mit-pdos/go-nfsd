@@ -60,3 +60,9 @@ func (d *Disk) Close() {
 func (d *Disk) WriteStats(w io.Writer) {
 	stats.WriteTable(ops, d.ops[:], w)
 }
+
+func (d *Disk) ResetStats() {
+	for i := range d.ops {
+		d.ops[i].Reset()
+	}
+}

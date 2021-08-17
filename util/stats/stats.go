@@ -22,6 +22,11 @@ func (op *Op) Record(start time.Time) {
 	atomic.AddUint64(&op.nanos, uint64(dur.Nanoseconds()))
 }
 
+func (op *Op) Reset() {
+	atomic.StoreUint32(&op.count, 0)
+	atomic.StoreUint64(&op.nanos, 0)
+}
+
 func (op Op) MicrosPerOp() float64 {
 	return float64(op.nanos) / float64(op.count) / 1e3
 }

@@ -154,6 +154,7 @@ func main() {
 		for {
 			<-statSig
 			server.WriteOpStats(os.Stderr)
+			server.ResetOpStats()
 		}
 	}()
 
