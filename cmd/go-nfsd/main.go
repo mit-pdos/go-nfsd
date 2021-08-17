@@ -148,20 +148,20 @@ func main() {
 		}
 	}()
 
-	statSig := make(chan os.Signal, 1)
-	signal.Notify(statSig, syscall.SIGUSR1)
-	go func() {
-		for {
-			<-statSig
-			server.WriteOpStats(os.Stderr)
-			server.ResetOpStats()
-			if dumpStats {
+	if dumpStats {
+		statSig := make(chan os.Signal, 1)
+		signal.Notify(statSig, syscall.SIGUSR1)
+		go func() {
+			for {
+				<-statSig
+				server.WriteOpStats(os.Stderr)
+				server.ResetOpStats()
 				d := d.(*timed_disk.Disk)
 				d.WriteStats(os.Stderr)
 				d.ResetStats()
 			}
-		}
-	}()
+		}()
+	}
 
 	for {
 		conn, err := listener.Accept()
