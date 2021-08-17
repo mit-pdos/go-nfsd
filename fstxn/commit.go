@@ -24,7 +24,7 @@ func (op *FsTxn) Commit() bool {
 // Commit data, but will also commit everything else, since we don't
 // support log-by-pass writes.
 func (op *FsTxn) CommitData() bool {
-	return op.Atxn.Op.CommitWait(true)
+	return op.Commit()
 }
 
 // Commit transaction, but don't write to stable storage
