@@ -155,6 +155,11 @@ func main() {
 			<-statSig
 			server.WriteOpStats(os.Stderr)
 			server.ResetOpStats()
+			if dumpStats {
+				d := d.(*timed_disk.Disk)
+				d.WriteStats(os.Stderr)
+				d.ResetStats()
+			}
 		}
 	}()
 
