@@ -88,9 +88,16 @@ if [ -n "$nfs_mount_opts" ]; then
     _nfs_mount="${_nfs_mount},$nfs_mount_opts"
 fi
 
+mkfs_args=()
+if [ "$fs" == "ext4" ]; then
+    # explicitly set a block size of 4k (ext4 will use a 1k block size if the
+    # disk is small)
+    mkfs_args+=("-b" "4096")
+fi
+
 # count is in units of 4KB blocks
 dd status=none if=/dev/zero of="$disk_file" bs=4K "${conv_arg[@]}" count=$((size_mb * 1024 / 4))
-mkfs."$fs" -q "$disk_file"
+mkfs."$fs" -q "${mkfs_args[@]}" "$disk_file"
 sync "$disk_file"
 sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench
 sudo systemctl start nfs-server.service
