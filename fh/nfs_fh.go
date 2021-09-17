@@ -1,6 +1,7 @@
 package fh
 
 import (
+	"github.com/goose-lang/std"
 	"github.com/tchajed/marshal"
 
 	"github.com/mit-pdos/go-journal/common"
@@ -35,15 +36,5 @@ func MkRootFh3() nfstypes.Nfs_fh3 {
 }
 
 func Equal(h1 nfstypes.Nfs_fh3, h2 nfstypes.Nfs_fh3) bool {
-	if len(h1.Data) != len(h2.Data) {
-		return false
-	}
-	var equal = true
-	for i, x := range h1.Data {
-		if x != h2.Data[i] {
-			equal = false
-			break
-		}
-	}
-	return equal
+	return std.BytesEqual(h1.Data, h2.Data)
 }
