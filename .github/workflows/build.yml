@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-    - master
+      - master
   pull_request:
   workflow_dispatch:
 
@@ -14,23 +14,23 @@ jobs:
         go-version: ["1.16.x"]
     runs-on: "ubuntu-20.04"
     steps:
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: ${{ matrix.go-version }}
-    - name: Install Goose
-      run: |
-        go install github.com/tchajed/goose/cmd/goose@latest
-    - uses: actions/checkout@v2
-    - name: Install dependencies
-      run: |
-        go get -t ./...
-    - name: Check style
-      run: |
-        gofmt -w .
-        git diff --exit-code
-        go vet ./...
-    - name: Test
-      run: |
-        go test -v ./...
-        make goose-output
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Install Goose
+        run: |
+          go install github.com/tchajed/goose/cmd/goose@latest
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          go get -t ./...
+      - name: Check style
+        run: |
+          gofmt -w .
+          git diff --exit-code
+          go vet ./...
+      - name: Test
+        run: |
+          go test -v ./...
+          make goose-output
