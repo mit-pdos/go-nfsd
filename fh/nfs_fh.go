@@ -42,7 +42,7 @@ func Equal(h1 nfstypes.Nfs_fh3, h2 nfstypes.Nfs_fh3) bool {
 	for i, x := range h1.Data {
 		if x != h2.Data[i] {
 			equal = false
-			break
+			// break FIXME not supported by Goose
 		}
 	}
 	return equal
