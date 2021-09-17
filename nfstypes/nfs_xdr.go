@@ -1,3 +1,4 @@
+//go:build !goose
 // +build !goose
 
 package nfstypes

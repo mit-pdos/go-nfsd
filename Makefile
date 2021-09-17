@@ -13,7 +13,7 @@ COQ_PKGDIR := Goose/github_com/mit_pdos/go_nfsd
 all: check goose-output
 
 check:
-	test -z $$(gofmt -d .)
+	test -z "$$(gofmt -d .)"
 	go vet ./...
 
 goose-output: $(patsubst %,${COQ_PKGDIR}/%.v,$(GOOSE_DIRS))
