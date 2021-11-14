@@ -6,5 +6,6 @@ fs-smallfile
 clnt-smallfile
 fs-largefile
 go-nfsd
+txn-bench
 # profiling output
 cpu.prof
