@@ -13,7 +13,7 @@ import (
 
 func testSequence(tsys *txn.Log, data []byte, tid uint64) {
 	txnbuf := txn.Begin(tsys)
-	txnbuf.OverWrite(addr.MkAddr(0 + 513, 8 * tid), 8, data)
+	txnbuf.OverWrite(addr.MkAddr(0+513, 8*tid), 8, data)
 	txnbuf.Commit()
 }
 
