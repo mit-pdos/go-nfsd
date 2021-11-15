@@ -44,9 +44,9 @@ func client(tsys *txn.Log, duration time.Duration, tid uint64) int {
 func run(tsys *txn.Log, duration time.Duration, nt int) int {
 	count := make(chan int)
 	for i := 0; i < nt; i++ {
-		go func() {
-			count <- client(tsys, duration, uint64(i))
-		}()
+		go func(tid int) {
+			count <- client(tsys, duration, uint64(tid))
+		}(i)
 	}
 	n := 0
 	for i := 0; i < nt; i++ {
