@@ -55,6 +55,15 @@ func run(tsys *txn.Log, duration time.Duration, nt int) int {
 	return n
 }
 
+func zeroDisk(d disk.Disk) {
+	zeroblock := make([]byte, 4096)
+	sz := d.Size()
+	for i := uint64(0); i < sz; i++ {
+		d.Write(i, zeroblock)
+	}
+	d.Barrier()
+}
+
 func main() {
 	var err error
 	var duration time.Duration
@@ -80,6 +89,7 @@ func main() {
 			panic(fmt.Errorf("could not create disk: %w", err))
 		}
 	}
+	zeroDisk(d)
 
 	tsys := txn.Init(d)
 
