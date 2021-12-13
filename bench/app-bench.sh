@@ -20,9 +20,16 @@ echo "=== app-bench $xv6_repo $fs_dir ===" 1>&2
 cd "$fs_dir"
 
 # run benchmark out of /tmp to avoid overhead of reading source repo
-xv6_tmp="/tmp/xv6"
+tmp_dir="/tmp"
+if [ -d "/dev/shm" ]; then
+    tmp_dir="/dev/shm"
+fi
+xv6_tmp="$tmp_dir/xv6"
 rm -rf "$xv6_tmp"
 cp -r "$xv6_repo" "$xv6_tmp"
+# just in case, do one clone for warmup
+git clone --quiet "$xv6_tmp" "$tmp_dir/xv6-copy"
+rm -rf "$tmp_dir/xv6-copy"
 
 time_file="/tmp/time"
 
