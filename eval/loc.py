@@ -55,6 +55,7 @@ def perennial_table():
                tactics.v recovery_adequacy.v disk.v""".split(),
         )
     )
+    goose_lang_lib_impl = wc_l("src/goose_lang/lib/*/impl.v")
     goose_lang_lib = wc_l(*prefix_patterns("src/goose_lang/", ["lib/*.v", "lib/*/*.v"]))
     data = [
         (
@@ -75,6 +76,7 @@ def perennial_table():
         ),
         ("GooseLang (core)", goose_lang),
         ("GooseLang libraries", goose_lang_lib),
+        ("GooseLang lib (only impl)", goose_lang_lib_impl),
         ("GooseLang Total", goose_lang + goose_lang_lib),
     ]
     return pd.DataFrame.from_records(data, columns=["Component", "Lines of Coq"])
