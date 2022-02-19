@@ -2,8 +2,8 @@
 
 # Produce data for figures 14 and 15 (lines of code).
 #
-# To run this script, set PERENNIAL_PATH, GO_NFSD_PATH, and MARSHAL_PATH to
-# checkouts of those three projects.
+# To run this script, set PERENNIAL_PATH, GO_JOURNAL_PATH, GO_NFSD_PATH, and
+# MARSHAL_PATH to checkouts of those four projects.
 
 import glob
 import os
@@ -31,6 +31,10 @@ def wc_l(*patterns):
     return sum(count_lines_pattern(pat) for pat in patterns)
 
 
+def prefix_patterns(prefix, patterns):
+    return [prefix + p for p in patterns]
+
+
 def perennial_table():
     """Generate figure 14 (lines of code for JrnlCert)"""
     goto_path("perennial")
@@ -42,6 +46,16 @@ def perennial_table():
     )
     ghost_state = wc_l("src/algebra/*.v") - wc_l("src/algebra/liftable.v")
     program_logic = wc_l("src/program_logic/*.v")
+    # this is the "core" of GooseLang, which is a bit subjective
+    # mainly the intent was to exclude the refinement proof infrastructure
+    goose_lang = wc_l(
+        *prefix_patterns(
+            "src/goose_lang/",
+            """lang.v lifting.v notation.v proofmode.v
+               tactics.v recovery_adequacy.v disk.v""".split(),
+        )
+    )
+    goose_lang_lib = wc_l(*prefix_patterns("src/goose_lang/", ["lib/*.v", "lib/*/*.v"]))
     data = [
         (
             "Helper libraries (maps, lifting, tactics)",
@@ -59,6 +73,9 @@ def perennial_table():
             "Total",
             helpers + ghost_state + program_logic,
         ),
+        ("GooseLang (core)", goose_lang),
+        ("GooseLang libraries", goose_lang_lib),
+        ("GooseLang Total", goose_lang + goose_lang_lib),
     ]
     return pd.DataFrame.from_records(data, columns=["Component", "Lines of Coq"])
 
@@ -74,6 +91,7 @@ def program_proof_table():
     jrnl_c = wc_l("jrnl/jrnl.go")
     lockmap_c = wc_l("lockmap/lock.go")
     misc_c = wc_l("addr/addr.go", "buf/buf.go", "buf/bufmap.go")
+    txn_c = wc_l("txn/txn.go")
     goto_path("marshal")
     misc_c += wc_l("marshal.go")
     goto_path("go_nfsd")
@@ -111,6 +129,7 @@ def program_proof_table():
         "util_proof.v",
     )
     simple_p = wc_l("simple/*.v")
+    txn_p = wc_l("txn/*.v")
 
     # note that the table uses -1 as a sentinel for missing data; these are
     # converted to proper pandas missing records at the end, then printed as "---"
@@ -148,6 +167,7 @@ def program_proof_table():
             entry_nocode("jrnl", sep_jrnl_p),
             entry("lockmap", lockmap_c, lockmap_p),
             entry("Misc.", misc_c, misc_p),
+            entry("GoTxn", txn_c, txn_p),
         ],
         dtype=schema,
     )
