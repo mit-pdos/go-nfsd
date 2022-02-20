@@ -92,7 +92,7 @@ def program_proof_table():
     obj_c = wc_l("obj/obj.go")
     jrnl_c = wc_l("jrnl/jrnl.go")
     lockmap_c = wc_l("lockmap/lock.go")
-    misc_c = wc_l("addr/addr.go", "buf/buf.go", "buf/bufmap.go")
+    misc_c = wc_l("addr/addr.go", "buf/buf.go", "buf/bufmap.go", "util/util.go", "common/common.go")
     txn_c = wc_l("txn/txn.go")
     goto_path("marshal")
     misc_c += wc_l("marshal.go")
@@ -121,7 +121,7 @@ def program_proof_table():
     obj_p = wc_l("obj/*.v")
     jrnl_p = wc_l("jrnl/jrnl_proof.v")
     sep_jrnl_p = wc_l("jrnl/sep_jrnl_*.v")
-    lockmap_p = wc_l("*lockmap_proof.v")
+    lockmap_p = wc_l("lockmap_proof.v", "crash_lockmap_proof.v")
     misc_p = wc_l(
         "addr/*.v",
         "buf/*.v",
@@ -129,6 +129,7 @@ def program_proof_table():
         "marshal_block.v",
         "marshal_proof.v",
         "util_proof.v",
+        "alloc/alloc_proof.v",
     )
     simple_p = wc_l("simple/*.v")
     txn_p = wc_l("txn/*.v")
