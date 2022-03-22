@@ -54,7 +54,8 @@ type config struct {
 	duration time.Duration
 }
 
-func run(c config, nt int) int {
+func run(c config, nt int) (elapsed time.Duration, iters int) {
+	start := time.Now()
 	count := make(chan int)
 	for i := 0; i < nt; i++ {
 		p := path.Join(c.dir, "d"+strconv.Itoa(i))
@@ -70,7 +71,7 @@ func run(c config, nt int) int {
 	for i := 0; i < nt; i++ {
 		n += <-count
 	}
-	return n
+	return time.Since(start), n
 }
 
 func cleanup(c config, nt int) {
@@ -100,8 +101,8 @@ func main() {
 	}
 
 	for nt := start; nt <= nthread; nt++ {
-		count := run(c, nt)
-		fmt.Printf("fs-smallfile: %v %v file/sec\n", nt, float64(count)/c.duration.Seconds())
+		elapsed, count := run(c, nt)
+		fmt.Printf("fs-smallfile: %v %0.4f file/sec\n", nt, float64(count)/elapsed.Seconds())
 	}
 
 	cleanup(c, nthread)
