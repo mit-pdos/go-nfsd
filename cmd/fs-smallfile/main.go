@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+// smallfile represents one iteration of this benchmark: it creates a file,
+// write data to it, and deletes it.
 func smallfile(name string, data []byte) {
 	f, err := os.Create(name)
 	if err != nil {
@@ -34,44 +36,65 @@ func mkdata(sz uint64) []byte {
 	return data
 }
 
-func client(duration time.Duration, p string) int {
+type result struct {
+	iters int
+	times []time.Duration
+}
+
+func client(duration time.Duration, allTimes bool, p string) result {
 	data := mkdata(uint64(100))
+	var times []time.Duration
+	if allTimes {
+		times = make([]time.Duration, 0, int(duration.Seconds()*1000))
+	}
 	start := time.Now()
 	i := 0
+	var elapsed time.Duration
 	for {
 		s := strconv.Itoa(i)
+		before := elapsed
 		smallfile(p+"/x"+s, data)
 		i++
-		if time.Since(start) >= duration {
-			break
+		elapsed = time.Since(start)
+		if allTimes {
+			times = append(times, (elapsed - before))
+		}
+		if elapsed >= duration {
+			return result{iters: i, times: times}
 		}
 	}
-	return i
 }
 
 type config struct {
 	dir      string // root for all clients
 	duration time.Duration
+	allTimes bool // whether to record individual iteration timings
 }
 
-func run(c config, nt int) (elapsed time.Duration, iters int) {
+func run(c config, nt int) (elapsed time.Duration, iters int, times []time.Duration) {
 	start := time.Now()
-	count := make(chan int)
+	count := make(chan result)
 	for i := 0; i < nt; i++ {
+		i := i
 		p := path.Join(c.dir, "d"+strconv.Itoa(i))
 		go func() {
 			err := os.MkdirAll(p, 0700)
 			if err != nil {
 				panic(err)
 			}
-			count <- client(c.duration, p)
+			allTimes := c.allTimes && i == 0
+			count <- client(c.duration, allTimes, p)
 		}()
 	}
-	n := 0
 	for i := 0; i < nt; i++ {
-		n += <-count
+		r := <-count
+		iters += r.iters
+		if r.times != nil {
+			times = r.times
+		}
 	}
-	return time.Since(start), n
+	elapsed = time.Since(start)
+	return
 }
 
 func cleanup(c config, nt int) {
@@ -85,8 +108,10 @@ func main() {
 	var c config
 	var start int
 	var nthread int
+	var timingFile string
 	flag.StringVar(&c.dir, "dir", "/mnt/nfs", "root directory to run in")
 	flag.DurationVar(&c.duration, "benchtime", 10*time.Second, "time to run each iteration for")
+	flag.StringVar(&timingFile, "time-iters", "", "prefix for individual timing files")
 	flag.IntVar(&start, "start", 1, "number of threads to start at")
 	flag.IntVar(&nthread, "threads", 1, "number of threads to run till")
 	flag.Parse()
@@ -97,12 +122,30 @@ func main() {
 	// warmup (skip if running for very little time, for example when using a
 	// duration of 0s to run just one iteration)
 	if c.duration > 500*time.Millisecond {
-		run(config{duration: 500 * time.Millisecond, dir: c.dir}, nthread)
+		run(config{
+			duration: 500 * time.Millisecond,
+			dir:      c.dir,
+			allTimes: false},
+			nthread)
 	}
 
 	for nt := start; nt <= nthread; nt++ {
-		elapsed, count := run(c, nt)
-		fmt.Printf("fs-smallfile: %v %0.4f file/sec\n", nt, float64(count)/elapsed.Seconds())
+		if timingFile != "" {
+			c.allTimes = true
+		}
+
+		elapsed, count, times := run(c, nt)
+		fmt.Printf("fs-smallfile: %v %0.4f file/sec\n", nt,
+			float64(count)/elapsed.Seconds())
+		if len(times) > 0 {
+			f, err := os.Create(fmt.Sprintf("%s-%d.txt", timingFile, nt))
+			if err != nil {
+				panic(fmt.Errorf("could not create timing file: %v", err))
+			}
+			for _, t := range times {
+				fmt.Fprintf(f, "%f\n", t.Seconds())
+			}
+		}
 	}
 
 	cleanup(c, nthread)
