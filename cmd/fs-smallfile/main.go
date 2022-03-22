@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"time"
 )
@@ -41,27 +42,29 @@ func client(duration time.Duration, p string) int {
 		s := strconv.Itoa(i)
 		smallfile(p+"/x"+s, data)
 		i++
-		t := time.Now()
-		elapsed := t.Sub(start)
-		if elapsed >= duration {
+		if time.Since(start) >= duration {
 			break
 		}
 	}
 	return i
 }
 
-func run(duration time.Duration, nt int) int {
-	path := "/mnt/nfs/"
+type config struct {
+	dir      string // root for all clients
+	duration time.Duration
+}
+
+func run(c config, nt int) int {
 	count := make(chan int)
 	for i := 0; i < nt; i++ {
-		d := "d" + strconv.Itoa(i)
-		go func(d string) {
-			err := os.MkdirAll(path+"/"+d+"/", 0700)
+		p := path.Join(c.dir, "d"+strconv.Itoa(i))
+		go func() {
+			err := os.MkdirAll(p, 0700)
 			if err != nil {
 				panic(err)
 			}
-			count <- client(duration, path+d)
-		}(d)
+			count <- client(c.duration, p)
+		}()
 	}
 	n := 0
 	for i := 0; i < nt; i++ {
@@ -70,11 +73,19 @@ func run(duration time.Duration, nt int) int {
 	return n
 }
 
+func cleanup(c config, nt int) {
+	for i := 0; i < nt; i++ {
+		p := path.Join(c.dir, "d"+strconv.Itoa(i))
+		os.Remove(p)
+	}
+}
+
 func main() {
-	var duration time.Duration
+	var c config
 	var start int
 	var nthread int
-	flag.DurationVar(&duration, "benchtime", 10*time.Second, "time to run each iteration for")
+	flag.StringVar(&c.dir, "dir", "/mnt/nfs", "root directory to run in")
+	flag.DurationVar(&c.duration, "benchtime", 10*time.Second, "time to run each iteration for")
 	flag.IntVar(&start, "start", 1, "number of threads to start at")
 	flag.IntVar(&nthread, "threads", 1, "number of threads to run till")
 	flag.Parse()
@@ -84,12 +95,14 @@ func main() {
 
 	// warmup (skip if running for very little time, for example when using a
 	// duration of 0s to run just one iteration)
-	if duration > 500*time.Millisecond {
-		run(500*time.Millisecond, nthread)
+	if c.duration > 500*time.Millisecond {
+		run(config{duration: 500 * time.Millisecond, dir: c.dir}, nthread)
 	}
 
 	for nt := start; nt <= nthread; nt++ {
-		count := run(duration, nt)
-		fmt.Printf("fs-smallfile: %v %v file/sec\n", nt, float64(count)/duration.Seconds())
+		count := run(c, nt)
+		fmt.Printf("fs-smallfile: %v %v file/sec\n", nt, float64(count)/c.duration.Seconds())
 	}
+
+	cleanup(c, nthread)
 }
