@@ -9,3 +9,5 @@ go-nfsd
 txn-bench
 # profiling output
 cpu.prof
+# per-iteration timing
+*-[0-9]*.txt
