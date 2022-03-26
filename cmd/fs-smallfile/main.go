@@ -7,22 +7,24 @@ import (
 	"path"
 	"strconv"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // smallfile represents one iteration of this benchmark: it creates a file,
 // write data to it, and deletes it.
-func smallfile(name string, data []byte) {
-	f, err := os.Create(name)
+func smallfile(dirFd int, name string, data []byte) {
+	f, err := unix.Openat(dirFd, name, unix.O_CREAT|unix.O_RDWR, 0777)
 	if err != nil {
 		panic(err)
 	}
-	_, err = f.Write(data)
+	_, err = unix.Write(f, data)
 	if err != nil {
 		panic(err)
 	}
-	f.Sync()
-	f.Close()
-	err = os.Remove(name)
+	unix.Fsync(f)
+	unix.Close(f)
+	err = unix.Unlinkat(dirFd, name, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -41,7 +43,7 @@ type result struct {
 	times []time.Duration
 }
 
-func client(duration time.Duration, allTimes bool, p string) result {
+func client(duration time.Duration, allTimes bool, rootDirFd int, path string) result {
 	data := mkdata(uint64(100))
 	var times []time.Duration
 	if allTimes {
@@ -53,7 +55,7 @@ func client(duration time.Duration, allTimes bool, p string) result {
 	for {
 		s := strconv.Itoa(i)
 		before := elapsed
-		smallfile(p+"/x"+s, data)
+		smallfile(rootDirFd, path+"/x"+s, data)
 		i++
 		elapsed = time.Since(start)
 		if allTimes {
@@ -74,16 +76,24 @@ type config struct {
 func run(c config, nt int) (elapsed time.Duration, iters int, times []time.Duration) {
 	start := time.Now()
 	count := make(chan result)
+	rootDirFd, err := unix.Open(c.dir, unix.O_DIRECTORY, 0)
+	if err != nil {
+		panic(fmt.Errorf("could not open root directory fd: %v", err))
+	}
 	for i := 0; i < nt; i++ {
 		i := i
-		p := path.Join(c.dir, "d"+strconv.Itoa(i))
+		subdir := "d" + strconv.Itoa(i)
+		p := path.Join(c.dir, subdir)
 		go func() {
 			err := os.MkdirAll(p, 0700)
 			if err != nil {
 				panic(err)
 			}
+			if err != nil {
+				panic(err)
+			}
 			allTimes := c.allTimes && i == 0
-			count <- client(c.duration, allTimes, p)
+			count <- client(c.duration, allTimes, rootDirFd, subdir)
 		}()
 	}
 	for i := 0; i < nt; i++ {
@@ -145,6 +155,7 @@ func main() {
 			for _, t := range times {
 				fmt.Fprintf(f, "%f\n", t.Seconds())
 			}
+			f.Close()
 		}
 	}
 
