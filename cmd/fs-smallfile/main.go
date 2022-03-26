@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime/pprof"
 	"strconv"
 	"time"
 
@@ -124,6 +125,9 @@ func main() {
 	flag.StringVar(&timingFile, "time-iters", "", "prefix for individual timing files")
 	flag.IntVar(&start, "start", 1, "number of threads to start at")
 	flag.IntVar(&nthread, "threads", 1, "number of threads to run till")
+
+	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
+
 	flag.Parse()
 	if start < 1 {
 		panic("invalid start")
@@ -137,6 +141,15 @@ func main() {
 			dir:      c.dir,
 			allTimes: false},
 			nthread)
+	}
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			panic(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
 	}
 
 	for nt := start; nt <= nthread; nt++ {
