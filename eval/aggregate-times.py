@@ -20,6 +20,9 @@ totals = collections.defaultdict(float)
 for line in sys.stdin:
     m = re.match(r"""(?P<proc>.*)\t(?P<time>.*)""", line)
     if m:
+        # rarely tshark will put two timings on the same line, just ignore them
+        if "," in m.group("proc"):
+            continue
         proc = int(m.group("proc"))
         time_s = float(m.group("time"))
         counts[proc] += 1
@@ -34,6 +37,10 @@ proc_mapping = {
     8: "CREATE",
     9: "MKDIR",
     12: "REMOVE",
+    13: "RMDIR",
+    14: "RENAME",
+    16: "READDIR",
+    17: "READDIRPLUS",
     19: "FSINFO",
     20: "PATHCONF",
 }
