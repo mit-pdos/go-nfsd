@@ -10,23 +10,8 @@
 #
 # note that running tshark over a trace takes a while
 
-import sys
 import re
-import collections
-
-counts = collections.defaultdict(int)
-totals = collections.defaultdict(float)
-
-for line in sys.stdin:
-    m = re.match(r"""(?P<proc>.*)\t(?P<time>.*)""", line)
-    if m:
-        # rarely tshark will put two timings on the same line, just ignore them
-        if "," in m.group("proc"):
-            continue
-        proc = int(m.group("proc"))
-        time_s = float(m.group("time"))
-        counts[proc] += 1
-        totals[proc] += time_s
+import numpy as np
 
 proc_mapping = {
     0: "NULL",
@@ -45,9 +30,55 @@ proc_mapping = {
     20: "PATHCONF",
 }
 
-for proc in counts:
-    proc_name = proc_mapping[proc] if proc in proc_mapping else str(proc)
-    count = counts[proc]
-    total_s = totals[proc]
-    micros_per_op = total_s / count * 1e6
-    print(f"{proc_name:>10}\t{count:8}\t{micros_per_op:.1f} us/op")
+
+def proc_latencies(f):
+    latencies_s = {}
+    for line in f:
+        m = re.match(r"""(?P<proc>.*)\t(?P<time>.*)""", line)
+        if m:
+            # rarely tshark will put two timings on the same line, just ignore them
+            if "," in m.group("proc"):
+                continue
+            proc = int(m.group("proc"))
+            time_s = float(m.group("time"))
+            if proc not in latencies_s:
+                latencies_s[proc] = []
+            latencies_s[proc].append(time_s)
+    data = {}
+    for proc, latencies in latencies_s.items():
+        proc_name = proc_mapping[proc] if proc in proc_mapping else str(proc)
+        latencies_us = np.array(latencies) * 1e6
+        data[proc_name] = latencies_us
+    return data
+
+
+def main():
+    import sys
+    import argparse
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-i", "--input", type=argparse.FileType("r"), default=sys.stdin)
+    parser.add_argument(
+        "--stats", action="store_true", help="report median and 90th percentile"
+    )
+
+    args = parser.parse_args()
+
+    latencies_s = proc_latencies(args.input)
+
+    for proc, latencies in latencies_s.items():
+        count = latencies.size
+        avg_micros = np.mean(latencies)
+        print(f"{proc:>10}\t{count:8}\t{avg_micros:.1f} us/op\t", end="")
+        if args.stats:
+            print(
+                f"(50th: {np.percentile(latencies, 0.5):0.1f} us)\t"
+                + f"(90th: {np.percentile(latencies, 0.9):0.1f} us)",
+                end="",
+            )
+        print()
+
+
+if __name__ == "__main__":
+    main()
