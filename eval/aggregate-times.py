@@ -16,18 +16,24 @@ import numpy as np
 proc_mapping = {
     0: "NULL",
     1: "GETATTR",
+    2: "SETATTR",
     3: "LOOKUP",
     4: "ACCESS",
+    6: "READ",
     7: "WRITE",
     8: "CREATE",
     9: "MKDIR",
+    10: "SYMLINK",
     12: "REMOVE",
     13: "RMDIR",
     14: "RENAME",
+    15: "LINK",
     16: "READDIR",
     17: "READDIRPLUS",
+    18: "FSSTAT",
     19: "FSINFO",
     20: "PATHCONF",
+    21: "COMMIT",
 }
 
 
