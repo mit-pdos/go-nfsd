@@ -73,8 +73,8 @@ def main():
         print(f"{proc:>10}\t{count:8}\t{avg_micros:.1f} us/op\t", end="")
         if args.stats:
             print(
-                f"(50th: {np.percentile(latencies, 0.5):0.1f} us)\t"
-                + f"(90th: {np.percentile(latencies, 0.9):0.1f} us)",
+                f"(50th: {np.quantile(latencies, 0.5):0.1f} us)\t"
+                + f"(90th: {np.quantile(latencies, 0.9):0.1f} us)",
                 end="",
             )
         print()
