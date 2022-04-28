@@ -1,0 +1,80 @@
+diff --git a/txn/txn.go b/txn/txn.go
+index cd2fbea..abd2e65 100644
+--- a/txn/txn.go
++++ b/txn/txn.go
+@@ -6,30 +6,31 @@
+ package txn
+ 
+ import (
++	"sync"
++
+ 	"github.com/tchajed/goose/machine/disk"
+ 
+ 	"github.com/mit-pdos/go-journal/addr"
+ 	"github.com/mit-pdos/go-journal/jrnl"
+-	"github.com/mit-pdos/go-journal/lockmap"
+ 	"github.com/mit-pdos/go-journal/obj"
+ 	"github.com/mit-pdos/go-journal/util"
+ )
+ 
+ type Log struct {
+-	log   *obj.Log
+-	locks *lockmap.LockMap
++	log  *obj.Log
++	lock *sync.Mutex
+ }
+ 
+ type Txn struct {
+ 	buftxn   *jrnl.Op
+-	locks    *lockmap.LockMap
+-	acquired map[uint64]bool
++	m        *sync.Mutex
++	acquired map[uint64]bool // unused
+ }
+ 
+ func Init(d disk.Disk) *Log {
+ 	twophasePre := &Log{
+-		log:   obj.MkLog(d),
+-		locks: lockmap.MkLockMap(),
++		log:  obj.MkLog(d),
++		lock: new(sync.Mutex),
+ 	}
+ 	return twophasePre
+ }
+@@ -38,22 +39,19 @@ func Init(d disk.Disk) *Log {
+ func Begin(tsys *Log) *Txn {
+ 	trans := &Txn{
+ 		buftxn:   jrnl.Begin(tsys.log),
+-		locks:    tsys.locks,
++		m:        tsys.lock,
+ 		acquired: make(map[uint64]bool),
+ 	}
+ 	util.DPrintf(5, "tp Begin: %v\n", trans)
++	trans.m.Lock()
+ 	return trans
+ }
+ 
+ func (txn *Txn) acquireNoCheck(addr addr.Addr) {
+-	flatAddr := addr.Flatid()
+-	txn.locks.Acquire(flatAddr)
+-	txn.acquired[flatAddr] = true
+ }
+ 
+ func (txn *Txn) isAlreadyAcquired(addr addr.Addr) bool {
+-	flatAddr := addr.Flatid()
+-	return txn.acquired[flatAddr]
++	return true
+ }
+ 
+ func (txn *Txn) Acquire(addr addr.Addr) {
+@@ -64,9 +62,7 @@ func (txn *Txn) Acquire(addr addr.Addr) {
+ }
+ 
+ func (txn *Txn) ReleaseAll() {
+-	for flatAddr := range txn.acquired {
+-		txn.locks.Release(flatAddr)
+-	}
++	txn.m.Unlock()
+ }
+ 
+ func (txn *Txn) readBufNoAcquire(addr addr.Addr, sz uint64) []byte {
