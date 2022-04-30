@@ -47,11 +47,10 @@ def proc_latencies(f):
             times_s = [float(x) for x in m.group("time").split(",")]
             if len(procs) != len(times_s):
                 print(
-                    "number of procs is not number of timings, not sure how to interpret",
+                    "len(procs) != len(times_s): " + line,
                     file=sys.stderr,
                 )
-                print(line)
-                sys.exit(1)
+                continue
             for proc, time_s in zip(procs, times_s):
                 if proc not in latencies_s:
                     latencies_s[proc] = []
