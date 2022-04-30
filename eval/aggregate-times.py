@@ -11,6 +11,7 @@
 # note that running tshark over a trace takes a while
 
 import re
+import sys
 import numpy as np
 
 proc_mapping = {
@@ -42,14 +43,19 @@ def proc_latencies(f):
     for line in f:
         m = re.match(r"""(?P<proc>.*)\t(?P<time>.*)""", line)
         if m:
-            # rarely tshark will put two timings on the same line, just ignore them
-            if "," in m.group("proc"):
-                continue
-            proc = int(m.group("proc"))
-            time_s = float(m.group("time"))
-            if proc not in latencies_s:
-                latencies_s[proc] = []
-            latencies_s[proc].append(time_s)
+            procs = [int(x) for x in m.group("proc").split(",")]
+            times_s = [float(x) for x in m.group("time").split(",")]
+            if len(procs) != len(times_s):
+                print(
+                    "number of procs is not number of timings, not sure how to interpret",
+                    file=sys.stderr,
+                )
+                print(line)
+                sys.exit(1)
+            for proc, time_s in zip(procs, times_s):
+                if proc not in latencies_s:
+                    latencies_s[proc] = []
+                latencies_s[proc].append(time_s)
     data = {}
     for proc, latencies in latencies_s.items():
         proc_name = proc_mapping[proc] if proc in proc_mapping else str(proc)
@@ -59,7 +65,6 @@ def proc_latencies(f):
 
 
 def main():
-    import sys
     import argparse
 
     parser = argparse.ArgumentParser()
