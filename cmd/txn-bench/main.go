@@ -16,7 +16,7 @@ func testSequence(tsys *txn.Log, data []byte, tid uint64) {
 	for i := uint64(0); i < 16; i++ {
 		txnbuf.OverWrite(addr.MkAddr(i+513, 8*tid), 8, data)
 	}
-	txnbuf.Commit()
+	txnbuf.Commit(true)
 }
 
 func mkdata(sz uint64) []byte {
