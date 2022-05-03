@@ -93,11 +93,22 @@ if [ "$fs" == "ext4" ]; then
     # explicitly set a block size of 4k (ext4 will use a 1k block size if the
     # disk is small)
     mkfs_args+=("-b" "4096")
+    # do initialization during mkfs, not after mount
+    mkfs_args+=("-E" "lazy_itable_init=0,lazy_journal_init=0")
 fi
+if [ "$fs" == "btrfs" ]; then
+    mkfs_args+=("--byte-count" "${size_mb}m")
+fi
+# NOTE: size is not passed to XFS
 
 # count is in units of 4KB blocks
 dd status=none if=/dev/zero of="$disk_file" bs=4K "${conv_arg[@]}" count=$((size_mb * 1024 / 4))
-mkfs."$fs" -q "${mkfs_args[@]}" "$disk_file"
+if [[ "$fs" == "ext4" || "$fs" == "ext3" ]]; then
+    # mke2fs takes size as a final argument
+    mkfs."$fs" -q "${mkfs_args[@]}" "$disk_file" "${size_mb}M"
+else
+    mkfs."$fs" -q "${mkfs_args[@]}" "$disk_file"
+fi
 sync "$disk_file"
 sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench
 sudo systemctl start nfs-server.service
