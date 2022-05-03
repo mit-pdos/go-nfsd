@@ -34,13 +34,13 @@ rm -rf "$tmp_dir/xv6-copy"
 time_file="/tmp/time"
 
 #echo "=== git clone ==="
-/usr/bin/time -f "clone real %e" -o "$time_file" git clone --quiet "$xv6_tmp" xv6
+/usr/bin/time -f "clone real %e user %U sys %S" -o "$time_file" git clone --quiet "$xv6_tmp" xv6
 clone_time="$(cut -d ' ' -f3 <"$time_file")"
 cat "$time_file" 1>&2
 
 #echo "=== compile xv6 ==="
 cd xv6
-/usr/bin/time -f "compile real %e user %U" -o "$time_file" make --quiet kernel
+/usr/bin/time -f "compile real %e user %U sys %S" -o "$time_file" make --quiet kernel
 compile_time="$(cut -d ' ' -f3 <"$time_file")"
 cat "$time_file" 1>&2
 rm -f "$time_file"
