@@ -83,7 +83,7 @@ if [ ! -b "$disk_file" ]; then
     conv_arg+=("conv=notrunc")
 fi
 
-_nfs_mount="vers=3,wsize=65536,rsize=65536"
+_nfs_mount="vers=3,wsize=131072,rsize=131072"
 if [ -n "$nfs_mount_opts" ]; then
     _nfs_mount="${_nfs_mount},$nfs_mount_opts"
 fi
