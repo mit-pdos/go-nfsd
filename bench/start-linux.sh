@@ -101,15 +101,21 @@ if [ "$fs" == "btrfs" ]; then
 fi
 # NOTE: size is not passed to XFS
 
-# count is in units of 4KB blocks
-dd status=none if=/dev/zero of="$disk_file" bs=4K "${conv_arg[@]}" count=$((size_mb * 1024 / 4))
-if [[ "$fs" == "ext4" || "$fs" == "ext3" ]]; then
-    # mke2fs takes size as a final argument
-    mkfs."$fs" -q "${mkfs_args[@]}" "$disk_file" "${size_mb}M"
-else
-    mkfs."$fs" -q "${mkfs_args[@]}" "$disk_file"
+cached_fs="/dev/shm/init-$fs-$size_mb.img"
+if [ ! -f "$cached_fs" ]; then
+    # count is in units of 4KB blocks
+    dd status=none if=/dev/zero of="$cached_fs" bs=4K count=$((size_mb * 1024 / 4))
+    if [[ "$fs" == "ext4" || "$fs" == "ext3" ]]; then
+        # mke2fs takes size as a final argument
+        mkfs."$fs" -q "${mkfs_args[@]}" "$cached_fs" "${size_mb}M"
+    else
+        mkfs."$fs" -q "${mkfs_args[@]}" "$cached_fs"
+    fi
 fi
+
+dd status=none if="$cached_fs" of="$disk_file" bs=8K "${conv_arg[@]}"
 sync "$disk_file"
+
 sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench
 sudo systemctl start nfs-server.service
 sudo mount -t nfs -o "${_nfs_mount}" localhost:/srv/nfs/bench /mnt/nfs
