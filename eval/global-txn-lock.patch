@@ -1,5 +1,5 @@
 diff --git a/txn/txn.go b/txn/txn.go
-index cd2fbea..abd2e65 100644
+index bcdbca4..6c1cb4c 100644
 --- a/txn/txn.go
 +++ b/txn/txn.go
 @@ -6,30 +6,31 @@
@@ -41,7 +41,7 @@ index cd2fbea..abd2e65 100644
  	}
  	return twophasePre
  }
-@@ -38,22 +39,19 @@ func Init(d disk.Disk) *Log {
+@@ -38,10 +39,11 @@ func Init(d disk.Disk) *Log {
  func Begin(tsys *Log) *Txn {
  	trans := &Txn{
  		buftxn:   jrnl.Begin(tsys.log),
@@ -52,6 +52,9 @@ index cd2fbea..abd2e65 100644
  	util.DPrintf(5, "tp Begin: %v\n", trans)
 +	trans.m.Lock()
  	return trans
+ }
+ 
+@@ -50,14 +52,10 @@ func (tsys *Log) Flush() {
  }
  
  func (txn *Txn) acquireNoCheck(addr addr.Addr) {
@@ -67,7 +70,7 @@ index cd2fbea..abd2e65 100644
  }
  
  func (txn *Txn) Acquire(addr addr.Addr) {
-@@ -64,9 +62,7 @@ func (txn *Txn) Acquire(addr addr.Addr) {
+@@ -68,9 +66,7 @@ func (txn *Txn) Acquire(addr addr.Addr) {
  }
  
  func (txn *Txn) ReleaseAll() {
