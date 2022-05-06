@@ -25,7 +25,6 @@ while true; do
     -native)
         shift
         native=true
-        shift
         ;;
     -*)
         extra_args+=("$1" "$2")
