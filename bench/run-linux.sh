@@ -14,11 +14,17 @@ cd "$DIR"/..
 
 disk_file="/dev/shm/disk.img"
 extra_args=()
+native=false
 while true; do
     case "$1" in
     -disk)
         shift
         disk_file="$1"
+        shift
+        ;;
+    -native)
+        shift
+        native=true
         shift
         ;;
     -*)
@@ -34,13 +40,18 @@ while true; do
     esac
 done
 
-./bench/start-linux.sh -disk "$disk_file" "${extra_args[@]}" || exit 1
+./bench/start-linux.sh -native="$native" -disk "$disk_file" "${extra_args[@]}" || exit 1
 
 function cleanup {
-    ./bench/stop-linux.sh "$disk_file"
+    ./bench/stop-linux.sh -native="$native" "$disk_file"
 }
 trap cleanup EXIT
 
-echo "# Linux -disk $disk_file ${extra_args[*]}"
+native_text=""
+if [ "$native" = "true" ]; then
+    native_text="-native"
+fi
+
+echo "# Linux "$native_text" -disk $disk_file ${extra_args[*]}"
 echo "run $*" 1>&2
 "$@"

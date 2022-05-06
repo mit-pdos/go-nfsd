@@ -31,6 +31,8 @@ disk_file=""
 mount_opts=""
 nfs_mount_opts=""
 size_mb=400
+# run without NFS
+native=false
 
 while true; do
     case "$1" in
@@ -58,6 +60,14 @@ while true; do
         shift
         size_mb="$1"
         shift
+        ;;
+    -native=true)
+        shift
+        native=true
+        ;;
+    -native=false)
+        shift
+        native=false
         ;;
     *)
         break
@@ -116,7 +126,12 @@ fi
 dd status=none if="$cached_fs" of="$disk_file" bs=8K "${conv_arg[@]}"
 sync "$disk_file"
 
-sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench
-sudo systemctl start nfs-server.service
-sudo mount -t nfs -o "${_nfs_mount}" localhost:/srv/nfs/bench /mnt/nfs
-sudo chmod 777 /srv/nfs/bench
+if [ "$native" = "true" ]; then
+    sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /mnt/nfs
+    sudo chown 777 /mnt/nfs
+else
+    sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench
+    sudo systemctl start nfs-server.service
+    sudo mount -t nfs -o "${_nfs_mount}" localhost:/srv/nfs/bench /mnt/nfs
+    sudo chmod 777 /srv/nfs/bench
+fi
