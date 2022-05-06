@@ -128,7 +128,7 @@ sync "$disk_file"
 
 if [ "$native" = "true" ]; then
     sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /mnt/nfs
-    sudo chown 777 /mnt/nfs
+    sudo chown $USER /mnt/nfs
 else
     sudo mount -t "$fs" -o "$mount_opts" -o loop "$disk_file" /srv/nfs/bench
     sudo systemctl start nfs-server.service
