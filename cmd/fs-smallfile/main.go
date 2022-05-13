@@ -44,7 +44,7 @@ type result struct {
 	times []time.Duration
 }
 
-func client(duration time.Duration, allTimes bool, rootDirFd int, path string) result {
+func client(duration time.Duration, iters int, allTimes bool, rootDirFd int, path string) result {
 	data := mkdata(uint64(100))
 	var times []time.Duration
 	if allTimes {
@@ -62,7 +62,8 @@ func client(duration time.Duration, allTimes bool, rootDirFd int, path string) r
 		if allTimes {
 			times = append(times, (elapsed - before))
 		}
-		if elapsed >= duration {
+		// stopping condition depends on if iters > 0 (which overrides duration)
+		if (iters > 0 && i >= iters) || (iters <= 0 && elapsed >= duration) {
 			return result{iters: i, times: times}
 		}
 	}
@@ -71,6 +72,7 @@ func client(duration time.Duration, allTimes bool, rootDirFd int, path string) r
 type config struct {
 	dir      string // root for all clients
 	duration time.Duration
+	iters    int  // if > 0, overrides duration
 	allTimes bool // whether to record individual iteration timings
 }
 
@@ -94,7 +96,7 @@ func run(c config, nt int) (elapsed time.Duration, iters int, times []time.Durat
 				panic(err)
 			}
 			allTimes := c.allTimes && i == 0
-			count <- client(c.duration, allTimes, rootDirFd, subdir)
+			count <- client(c.duration, c.iters, allTimes, rootDirFd, subdir)
 		}()
 	}
 	for i := 0; i < nt; i++ {
@@ -122,6 +124,7 @@ func main() {
 	var timingFile string
 	flag.StringVar(&c.dir, "dir", "/mnt/nfs", "root directory to run in")
 	flag.DurationVar(&c.duration, "benchtime", 10*time.Second, "time to run each iteration for")
+	flag.IntVar(&c.iters, "iters", 0, "exact iterations to run (overrides benchtime)")
 	flag.StringVar(&timingFile, "time-iters", "", "prefix for individual timing files")
 	flag.IntVar(&start, "start", 1, "number of threads to start at")
 	flag.IntVar(&nthread, "threads", 1, "number of threads to run till")
