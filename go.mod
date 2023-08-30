@@ -1,6 +1,6 @@
 module github.com/mit-pdos/go-nfsd
 
-go 1.14
+go 1.18
 
 require (
 	github.com/goose-lang/std v0.0.0-20220414201102-c41554454045
@@ -11,5 +11,10 @@ require (
 	github.com/tchajed/marshal v0.4.2
 	github.com/zeldovich/go-rpcgen v0.1.5
 	golang.org/x/sys v0.0.0-20220429233432-b5fbb4746d32
+)
+
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
