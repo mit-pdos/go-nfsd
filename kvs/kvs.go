@@ -8,7 +8,7 @@ import (
 	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/mit-pdos/go-journal/obj"
 	"github.com/mit-pdos/go-journal/util"
-	"github.com/tchajed/goose/machine/disk"
+	"github.com/goose-lang/goose/machine/disk"
 )
 
 //

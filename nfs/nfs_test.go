@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tchajed/goose/machine/disk"
+	"github.com/goose-lang/goose/machine/disk"
 
 	"testing"
 

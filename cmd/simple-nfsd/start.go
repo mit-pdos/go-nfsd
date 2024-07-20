@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/tchajed/goose/machine/disk"
+	"github.com/goose-lang/goose/machine/disk"
 
 	"github.com/mit-pdos/go-journal/util"
 	"github.com/mit-pdos/go-nfsd/simple"

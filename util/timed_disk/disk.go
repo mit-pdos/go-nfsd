@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/mit-pdos/go-nfsd/util/stats"
-	"github.com/tchajed/goose/machine/disk"
+	"github.com/goose-lang/goose/machine/disk"
 )
 
 type Disk struct {

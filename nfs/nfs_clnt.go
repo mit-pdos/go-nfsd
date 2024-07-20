@@ -5,7 +5,7 @@ import (
 
 	"github.com/mit-pdos/go-nfsd/fh"
 	"github.com/mit-pdos/go-nfsd/nfstypes"
-	"github.com/tchajed/goose/machine/disk"
+	"github.com/goose-lang/goose/machine/disk"
 )
 
 type NfsClient struct {

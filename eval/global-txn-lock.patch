@@ -8,7 +8,7 @@ index bcdbca4..6c1cb4c 100644
  import (
 +	"sync"
 +
- 	"github.com/tchajed/goose/machine/disk"
+ 	"github.com/goose-lang/goose/machine/disk"
  
  	"github.com/mit-pdos/go-journal/addr"
  	"github.com/mit-pdos/go-journal/jrnl"
