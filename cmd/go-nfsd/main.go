@@ -11,7 +11,7 @@ import (
 	"runtime/pprof"
 	"syscall"
 
-	"github.com/tchajed/goose/machine/disk"
+	"github.com/goose-lang/goose/machine/disk"
 	"github.com/zeldovich/go-rpcgen/rfc1057"
 	"github.com/zeldovich/go-rpcgen/xdr"
 
