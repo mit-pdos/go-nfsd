@@ -446,133 +446,133 @@ func (w *NFS_PROGRAM_NFS_V3_handler_wrapper) NFSPROC3_COMMIT(args *xdr.XdrState)
 func NFS_PROGRAM_NFS_V3_regs(h NFS_PROGRAM_NFS_V3_handler) []xdr.ProcRegistration {
 	w := &NFS_PROGRAM_NFS_V3_handler_wrapper{h}
 	return []xdr.ProcRegistration{
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_NULL,
 			Handler: w.NFSPROC3_NULL,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_GETATTR,
 			Handler: w.NFSPROC3_GETATTR,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_SETATTR,
 			Handler: w.NFSPROC3_SETATTR,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_LOOKUP,
 			Handler: w.NFSPROC3_LOOKUP,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_ACCESS,
 			Handler: w.NFSPROC3_ACCESS,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_READLINK,
 			Handler: w.NFSPROC3_READLINK,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_READ,
 			Handler: w.NFSPROC3_READ,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_WRITE,
 			Handler: w.NFSPROC3_WRITE,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_CREATE,
 			Handler: w.NFSPROC3_CREATE,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_MKDIR,
 			Handler: w.NFSPROC3_MKDIR,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_SYMLINK,
 			Handler: w.NFSPROC3_SYMLINK,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_MKNOD,
 			Handler: w.NFSPROC3_MKNOD,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_REMOVE,
 			Handler: w.NFSPROC3_REMOVE,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_RMDIR,
 			Handler: w.NFSPROC3_RMDIR,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_RENAME,
 			Handler: w.NFSPROC3_RENAME,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_LINK,
 			Handler: w.NFSPROC3_LINK,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_READDIR,
 			Handler: w.NFSPROC3_READDIR,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_READDIRPLUS,
 			Handler: w.NFSPROC3_READDIRPLUS,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_FSSTAT,
 			Handler: w.NFSPROC3_FSSTAT,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_FSINFO,
 			Handler: w.NFSPROC3_FSINFO,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_PATHCONF,
 			Handler: w.NFSPROC3_PATHCONF,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    NFS_PROGRAM,
 			Vers:    NFS_V3,
 			Proc:    NFSPROC3_COMMIT,
@@ -1223,37 +1223,37 @@ func (w *MOUNT_PROGRAM_MOUNT_V3_handler_wrapper) MOUNTPROC3_EXPORT(args *xdr.Xdr
 func MOUNT_PROGRAM_MOUNT_V3_regs(h MOUNT_PROGRAM_MOUNT_V3_handler) []xdr.ProcRegistration {
 	w := &MOUNT_PROGRAM_MOUNT_V3_handler_wrapper{h}
 	return []xdr.ProcRegistration{
-		xdr.ProcRegistration{
+		{
 			Prog:    MOUNT_PROGRAM,
 			Vers:    MOUNT_V3,
 			Proc:    MOUNTPROC3_NULL,
 			Handler: w.MOUNTPROC3_NULL,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    MOUNT_PROGRAM,
 			Vers:    MOUNT_V3,
 			Proc:    MOUNTPROC3_MNT,
 			Handler: w.MOUNTPROC3_MNT,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    MOUNT_PROGRAM,
 			Vers:    MOUNT_V3,
 			Proc:    MOUNTPROC3_DUMP,
 			Handler: w.MOUNTPROC3_DUMP,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    MOUNT_PROGRAM,
 			Vers:    MOUNT_V3,
 			Proc:    MOUNTPROC3_UMNT,
 			Handler: w.MOUNTPROC3_UMNT,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    MOUNT_PROGRAM,
 			Vers:    MOUNT_V3,
 			Proc:    MOUNTPROC3_UMNTALL,
 			Handler: w.MOUNTPROC3_UMNTALL,
 		},
-		xdr.ProcRegistration{
+		{
 			Prog:    MOUNT_PROGRAM,
 			Vers:    MOUNT_V3,
 			Proc:    MOUNTPROC3_EXPORT,

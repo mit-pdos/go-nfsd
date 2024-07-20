@@ -1,8 +1,8 @@
 package inode
 
 import (
-	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/goose-lang/goose/machine/disk"
+	"github.com/mit-pdos/go-journal/jrnl"
 
 	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/util"

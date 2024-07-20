@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mit-pdos/go-journal/common"
 	"github.com/goose-lang/goose/machine/disk"
+	"github.com/mit-pdos/go-journal/common"
 )
 
 const DISKSZ = 10000

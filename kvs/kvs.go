@@ -3,12 +3,12 @@ package kvs
 import (
 	"fmt"
 
+	"github.com/goose-lang/goose/machine/disk"
 	"github.com/mit-pdos/go-journal/addr"
 	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/mit-pdos/go-journal/obj"
 	"github.com/mit-pdos/go-journal/util"
-	"github.com/goose-lang/goose/machine/disk"
 )
 
 //

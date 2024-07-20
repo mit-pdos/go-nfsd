@@ -1,8 +1,8 @@
 package simple
 
 import (
-	"github.com/mit-pdos/go-journal/jrnl"
 	"github.com/goose-lang/goose/machine/disk"
+	"github.com/mit-pdos/go-journal/jrnl"
 
 	"github.com/mit-pdos/go-journal/lockmap"
 	"github.com/mit-pdos/go-journal/obj"

@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/stretchr/testify/require"
 	"github.com/goose-lang/goose/machine/disk"
+	"github.com/stretchr/testify/require"
 
 	"testing"
 
