@@ -8,7 +8,7 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/goose-lang/goose/machine/disk"
+	"github.com/goose-lang/primitive/disk"
 
 	"github.com/mit-pdos/go-nfsd/fh"
 	go_nfs "github.com/mit-pdos/go-nfsd/nfs"

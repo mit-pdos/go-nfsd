@@ -3,12 +3,13 @@ module github.com/mit-pdos/go-nfsd
 go 1.22
 
 require (
-	github.com/goose-lang/goose v0.6.2
-	github.com/goose-lang/std v0.3.3
+	github.com/goose-lang/goose v0.7.1
+	github.com/goose-lang/primitive v0.1.0
+	github.com/goose-lang/std v0.4.1
 	github.com/mit-pdos/go-journal v0.5.4
 	github.com/rodaine/table v1.2.0
 	github.com/stretchr/testify v1.9.0
-	github.com/tchajed/marshal v0.6.1
+	github.com/tchajed/marshal v0.6.2
 	github.com/zeldovich/go-rpcgen v0.1.5
 	golang.org/x/sys v0.22.0
 )

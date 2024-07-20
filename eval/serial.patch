@@ -35,7 +35,7 @@ index fabc2700..ba11a347 100644
 -	l.memLock.Lock()
 +	//l.memLock.Lock()
  
- 	machine.Linearize()
+ 	primitive.Linearize()
  
 diff --git a/wal/wal.go b/wal/wal.go
 index dbc69db0..19c15dce 100644

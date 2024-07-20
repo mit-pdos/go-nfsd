@@ -11,7 +11,7 @@ import (
 	"strconv"
 
 	// "github.com/stretchr/testify/require"
-	"github.com/goose-lang/goose/machine/disk"
+	"github.com/goose-lang/primitive/disk"
 
 	"github.com/mit-pdos/go-journal/common"
 	"github.com/mit-pdos/go-journal/util"

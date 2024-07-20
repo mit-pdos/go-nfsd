@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/goose-lang/goose/machine/disk"
+	"github.com/goose-lang/primitive/disk"
 	"github.com/mit-pdos/go-nfsd/util/stats"
 )
 
